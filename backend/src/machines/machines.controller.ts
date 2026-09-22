@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -6,7 +6,7 @@ import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { MachinesService } from './machines.service';
-import { CreateMachineDto } from './dto/create-machine.dto';
+import { CreateMachineDto, UpdateMachineDto } from './dto/create-machine.dto';
 
 // Der Stundensatz einer Maschine ist ein interner Kostenfaktor (wie ein
 // Einkaufspreis) – daher dieselbe Filterung wie bei Artikeln, nur ohne
@@ -37,6 +37,17 @@ export class MachinesController {
   @RequirePermissions(PERMISSIONS.MASTERDATA_WRITE)
   async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateMachineDto) {
     const machine = await this.machinesService.create(user.companyId, dto);
+    return maskMachine(machine, user.permissions);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.MASTERDATA_WRITE)
+  async update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateMachineDto,
+  ) {
+    const machine = await this.machinesService.update(user.companyId, user.userId, id, dto);
     return maskMachine(machine, user.permissions);
   }
 }

@@ -14,3 +14,9 @@ export class UpdateProjectStatusDto {
   @IsEnum(ProjectStatus)
   status!: ProjectStatus;
 }
+
+export class UpdateProjectDto {
+  @IsString()
+  @MinLength(2)
+  title!: string;
+}

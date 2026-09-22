@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -6,7 +6,7 @@ import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { CustomersService } from './customers.service';
-import { CreateCustomerDto } from './dto/create-customer.dto';
+import { CreateCustomerDto, UpdateCustomerDto } from './dto/create-customer.dto';
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard, PermissionsGuard) // 1. eingeloggt? 2. berechtigt?
@@ -29,5 +29,11 @@ export class CustomersController {
   @RequirePermissions(PERMISSIONS.CUSTOMER_WRITE)
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateCustomerDto) {
     return this.customersService.create(user.companyId, dto);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_WRITE)
+  update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateCustomerDto) {
+    return this.customersService.update(user.companyId, id, dto);
   }
 }

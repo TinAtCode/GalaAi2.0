@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateServiceDto, AddServiceComponentDto } from './dto/service.dto';
+import { AddServiceComponentDto, CreateServiceDto, UpdateServiceDto } from './dto/service.dto';
 
 @Injectable()
 export class ServicesCatalogService {
@@ -61,5 +61,23 @@ export class ServicesCatalogService {
         laborMinutes: dto.laborMinutes,
       },
     });
+  }
+
+  async update(companyId: string, id: string, dto: UpdateServiceDto) {
+    await this.assertBelongsToCompany(companyId, id);
+    return this.prisma.service.update({ where: { id }, data: dto });
+  }
+
+  // Rezeptur korrigieren: einen Bestandteil entfernen. Bestehende Angebote
+  // sind davon nicht betroffen (Preis-Snapshot, siehe QuotesService).
+  async removeComponent(companyId: string, serviceId: string, componentId: string) {
+    await this.assertBelongsToCompany(companyId, serviceId);
+    const { count } = await this.prisma.serviceComponent.deleteMany({
+      where: { id: componentId, serviceId },
+    });
+    if (count === 0) {
+      throw new NotFoundException('Bestandteil nicht gefunden.');
+    }
+    return { removed: true };
   }
 }

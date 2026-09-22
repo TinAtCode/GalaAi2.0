@@ -1,4 +1,5 @@
 import { IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateIf } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
 
 export class CreateServiceDto {
   @IsString()
@@ -29,3 +30,5 @@ export class AddServiceComponentDto {
   @Max(100_000)
   laborMinutes?: number;
 }
+
+export class UpdateServiceDto extends PartialType(CreateServiceDto) {}

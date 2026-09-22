@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -6,7 +6,7 @@ import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { SuppliersService } from './suppliers.service';
-import { CreateSupplierDto } from './dto/create-supplier.dto';
+import { CreateSupplierDto, UpdateSupplierDto } from './dto/create-supplier.dto';
 
 @Controller('suppliers')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -27,5 +27,11 @@ export class SuppliersController {
   @RequirePermissions(PERMISSIONS.MASTERDATA_WRITE)
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateSupplierDto) {
     return this.suppliersService.create(user.companyId, dto);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.MASTERDATA_WRITE)
+  update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateSupplierDto) {
+    return this.suppliersService.update(user.companyId, id, dto);
   }
 }

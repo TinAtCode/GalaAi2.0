@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateCustomerDto } from './dto/create-customer.dto';
+import { CreateCustomerDto, UpdateCustomerDto } from './dto/create-customer.dto';
 
 // MUSTER FÜR ALLE WEITEREN MODULE:
 // Jede Methode nimmt companyId als Parameter entgegen (kommt vom Controller
@@ -34,5 +34,10 @@ export class CustomersService {
     return this.prisma.customer.create({
       data: { ...dto, companyId },
     });
+  }
+
+  async update(companyId: string, id: string, dto: UpdateCustomerDto) {
+    await this.findOne(companyId, id);
+    return this.prisma.customer.update({ where: { id }, data: dto });
   }
 }

@@ -1,4 +1,5 @@
 import { IsBoolean, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
 
 export class CreateArticleDto {
   @IsString()
@@ -26,3 +27,5 @@ export class CreateArticleDto {
   @IsBoolean()
   active?: boolean;
 }
+
+export class UpdateArticleDto extends PartialType(CreateArticleDto) {}

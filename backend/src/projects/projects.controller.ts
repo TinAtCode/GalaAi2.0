@@ -6,7 +6,7 @@ import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { ProjectsService } from './projects.service';
-import { CreateProjectDto, UpdateProjectStatusDto } from './dto/project.dto';
+import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from './dto/project.dto';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -45,5 +45,11 @@ export class ProjectsController {
     @Body() dto: UpdateProjectStatusDto,
   ) {
     return this.projectsService.updateStatus(user.companyId, id, dto);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_WRITE)
+  update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateProjectDto) {
+    return this.projectsService.update(user.companyId, id, dto);
   }
 }

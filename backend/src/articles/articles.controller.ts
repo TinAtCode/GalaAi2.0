@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -7,7 +7,7 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { applyPriceVisibility } from '../common/price-visibility';
 import { ArticlesService } from './articles.service';
-import { CreateArticleDto } from './dto/create-article.dto';
+import { CreateArticleDto, UpdateArticleDto } from './dto/create-article.dto';
 
 @Controller('articles')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -33,6 +33,17 @@ export class ArticlesController {
   @RequirePermissions(PERMISSIONS.MASTERDATA_WRITE)
   async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateArticleDto) {
     const article = await this.articlesService.create(user.companyId, dto);
+    return applyPriceVisibility(article, user.permissions);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.MASTERDATA_WRITE)
+  async update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateArticleDto,
+  ) {
+    const article = await this.articlesService.update(user.companyId, user.userId, id, dto);
     return applyPriceVisibility(article, user.permissions);
   }
 }
