@@ -155,6 +155,36 @@ describe('Angebots-Workflow gegen PostgreSQL', () => {
     expect(calc.body.machineCostTotal).toBe(300);
     expect(calc.body.salePriceTotal).toBe(300);
 
+    // Ohne price.purchase.read ist der Stundensatz der Maschine nicht sichtbar
+    const viewerRole = await prisma.role.create({
+      data: {
+        companyId: company.companyId,
+        name: 'Nur lesen',
+        permissions: { create: [{ permission: { connect: { key: 'customer.read' } } }] },
+      },
+    });
+    await api()
+      .post('/users')
+      .set(auth)
+      .send({
+        email: 'viewer@quote.test',
+        firstName: 'V',
+        lastName: 'W',
+        password: 'viewerpass1',
+        roleIds: [viewerRole.id],
+      })
+      .expect(201);
+    const viewer = await api()
+      .post('/auth/login')
+      .send({ email: 'viewer@quote.test', password: 'viewerpass1' })
+      .expect(201);
+    const asViewer = await api()
+      .get(`/services/${service.body.id}`)
+      .set({ Authorization: `Bearer ${viewer.body.accessToken}` })
+      .expect(200);
+    expect(asViewer.body.components[0].machine.name).toBe('Rüttelplatte');
+    expect(asViewer.body.components[0].machine.hourlyRate).toBeUndefined();
+
     const other = await createCompany(app, prisma, 'Maschinen-Fremd GmbH');
     const foreign = await api()
       .post('/machines')

@@ -17,6 +17,15 @@ function maskServicePrices(service: any, permissions: string[]) {
     components: service.components?.map((c: any) => ({
       ...c,
       article: c.article ? applyPriceVisibility(c.article, permissions) : null,
+      // Der Stundensatz einer Maschine ist ein Kostenfaktor wie ein Einkaufspreis
+      machine: c.machine
+        ? {
+            ...c.machine,
+            hourlyRate: permissions.includes(PERMISSIONS.PRICE_PURCHASE_READ)
+              ? c.machine.hourlyRate
+              : undefined,
+          }
+        : null,
     })),
   };
 }
