@@ -1,0 +1,78 @@
+/* Design-Tokens für GartenAI.
+   Bewusst als CSS-Variablen statt hart codierter Farben in Komponenten –
+   das IST der Mechanismus für "einfach individuell anpassbar": die
+   Einstellungen-Seite schreibt diese Variablen zur Laufzeit um
+   (siehe theme/ThemeContext.tsx), kein Rebuild nötig. */
+:root {
+  /* Basis-Palette (Standard-Theme "Moos & Ocker") */
+  --color-primary: #2f4b3c;
+  --color-primary-contrast: #f7f7f4;
+  --color-accent: #c98a3b;
+  --color-accent-contrast: #20241f;
+  --color-background: #f7f7f4;
+  --color-surface: #ffffff;
+  --color-ink: #20241f;
+  --color-ink-muted: #5a6058;
+  --color-border: #e3e1d9;
+  --color-danger: #b3432b;
+  --color-success: #3d6b4f;
+
+  /* Typografie */
+  --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+
+  /* Layout */
+  --radius-small: 8px;
+  --radius-medium: 14px;
+  --radius-pill: 999px;
+  --nav-height: 64px;
+  --touch-target-min: 44px;
+
+  /* Sicherheitsabstände für Notches/System-UI (siehe layout/AppShell.tsx) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  background: var(--color-background);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Sichtbarer Fokus-Ring für Tastatur-Bedienung (Barrierefreiheit) –
+   touch-first heißt nicht "Tastatur ignorieren". */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

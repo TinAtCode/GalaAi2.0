@@ -1,0 +1,19 @@
+# Node
+node_modules/
+
+# Build-Ausgaben
+backend/dist/
+frontend/dist/
+*.tsbuildinfo
+
+# Laufzeit-Daten (nie ins Repo)
+backend/uploads/
+.env
+.env.local
+
+# Playwright
+frontend/playwright-report/
+frontend/test-results/
+
+# OS
+.DS_Store

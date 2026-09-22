@@ -1,0 +1,22 @@
+-- Indizes passend zu den @@index-Direktiven in schema.prisma.
+CREATE INDEX "User_companyId_idx" ON "User"("companyId");
+CREATE INDEX "Customer_companyId_idx" ON "Customer"("companyId");
+CREATE INDEX "Property_customerId_idx" ON "Property"("customerId");
+CREATE INDEX "Quote_projectId_idx" ON "Quote"("projectId");
+CREATE INDEX "QuoteLineItem_quoteId_idx" ON "QuoteLineItem"("quoteId");
+CREATE INDEX "QuoteLineItem_serviceId_idx" ON "QuoteLineItem"("serviceId");
+CREATE INDEX "Order_projectId_idx" ON "Order"("projectId");
+CREATE INDEX "Service_companyId_idx" ON "Service"("companyId");
+CREATE INDEX "ServiceComponent_serviceId_idx" ON "ServiceComponent"("serviceId");
+CREATE INDEX "ServiceComponent_articleId_idx" ON "ServiceComponent"("articleId");
+CREATE INDEX "Supplier_companyId_idx" ON "Supplier"("companyId");
+CREATE INDEX "Machine_companyId_idx" ON "Machine"("companyId");
+CREATE INDEX "Appointment_projectId_idx" ON "Appointment"("projectId");
+CREATE INDEX "Employee_companyId_idx" ON "Employee"("companyId");
+CREATE INDEX "TimeEntry_projectId_idx" ON "TimeEntry"("projectId");
+CREATE INDEX "TimeEntry_employeeId_idx" ON "TimeEntry"("employeeId");
+CREATE INDEX "Document_companyId_idx" ON "Document"("companyId");
+CREATE INDEX "Document_projectId_idx" ON "Document"("projectId");
+CREATE INDEX "ProjectMaterialUsage_projectId_idx" ON "ProjectMaterialUsage"("projectId");
+CREATE INDEX "ProjectMaterialUsage_articleId_idx" ON "ProjectMaterialUsage"("articleId");
+CREATE INDEX "AuditLog_companyId_idx" ON "AuditLog"("companyId");
