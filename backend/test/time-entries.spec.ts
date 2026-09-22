@@ -58,7 +58,9 @@ function createPrismaMock() {
       ),
     },
     company: {
-      findUniqueOrThrow: jest.fn(() => Promise.resolve({ id: 'company-a', regularDailyHours: 8 })),
+      findUniqueOrThrow: jest.fn(() =>
+        Promise.resolve({ id: 'company-a', regularDailyHours: 8, timeZone: 'Europe/Berlin' }),
+      ),
     },
   };
 }

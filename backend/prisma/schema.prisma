@@ -27,6 +27,9 @@ model Company {
   regularDailyHours        Decimal @default(8.00) @db.Decimal(4, 2)
   overtimeSurchargePercent Decimal @default(25.00) @db.Decimal(5, 2)
 
+  // IANA-Zeitzone für Tagesgrenzen (Mein Tag, Überstunden, Terminkollision)
+  timeZone String @default("Europe/Berlin")
+
   users     User[]
   roles     Role[]
   customers Customer[]

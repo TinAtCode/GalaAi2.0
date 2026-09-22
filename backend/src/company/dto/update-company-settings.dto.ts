@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsTimeZone, Min } from 'class-validator';
 
 export class UpdateCompanySettingsDto {
   @IsOptional()
@@ -25,4 +25,9 @@ export class UpdateCompanySettingsDto {
   @IsNumber()
   @Min(0)
   overtimeSurchargePercent?: number;
+
+  // z.B. "Europe/Berlin" – bestimmt, wann für die Firma ein Tag beginnt.
+  @IsOptional()
+  @IsTimeZone()
+  timeZone?: string;
 }

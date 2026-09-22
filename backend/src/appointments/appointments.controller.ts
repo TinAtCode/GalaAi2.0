@@ -5,6 +5,7 @@ import { RequirePermissions } from '../common/permissions.decorator';
 import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
+import { parseDayParam } from '../common/time-zone';
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto, UpdateAppointmentStatusDto } from './dto/appointment.dto';
 
@@ -34,7 +35,7 @@ export class AppointmentsController {
   // eigenen Tag sehen.
   @Get('my-day')
   async myDay(@CurrentUser() user: AuthenticatedUser, @Query('date') date?: string) {
-    const targetDate = date ? new Date(date) : new Date();
+    const targetDate = parseDayParam(date);
     const appointments = await this.appointmentsService.findMyDay(user.companyId, user.userId, targetDate);
     return appointments.map(toMyDayItem);
   }

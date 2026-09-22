@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAppointmentDto, UpdateAppointmentStatusDto } from './dto/appointment.dto';
+import { dayRangeInZone, formatTimeInZone } from '../common/time-zone';
 
 const DEFAULT_DURATION_MS = 60 * 60 * 1000; // 1h Annahme, wenn kein endTime gesetzt ist
 
@@ -31,24 +32,33 @@ export class AppointmentsService {
     return appointment.endTime ?? new Date(appointment.startTime.getTime() + DEFAULT_DURATION_MS);
   }
 
+  private async getTimeZone(companyId: string): Promise<string> {
+    const company = await this.prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      select: { timeZone: true },
+    });
+    return company.timeZone;
+  }
+
   // Verhindert, dass derselbe Mitarbeiter zwei sich überschneidende Termine
   // bekommt. Ohne endTime wird eine Standarddauer von 1h angenommen (siehe
   // DEFAULT_DURATION_MS) – bewusste Vereinfachung, siehe STATUS.md.
-  // Prüft nur denselben Kalendertag (Terminüberschneidungen über Mitternacht
-  // hinweg sind für dieses Geschäftsfeld praktisch irrelevant).
+  // Prüft nur denselben Kalendertag in der Zeitzone der Firma
+  // (Terminüberschneidungen über Mitternacht hinweg sind für dieses
+  // Geschäftsfeld praktisch irrelevant).
   private async assertNoCollision(
+    companyId: string,
     assignedUserId: string,
     newStart: Date,
     newEnd: Date,
     excludeAppointmentId?: string,
   ) {
-    const dayStart = new Date(newStart);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
+    const timeZone = await this.getTimeZone(companyId);
+    const { start: dayStart, end: dayEnd } = dayRangeInZone(newStart, timeZone);
 
     const candidates = await this.prisma.appointment.findMany({
       where: {
+        companyId,
         assignedUserId,
         status: { not: 'cancelled' },
         startTime: { gte: dayStart, lt: dayEnd },
@@ -62,11 +72,8 @@ export class AppointmentsService {
     });
 
     if (collision) {
-      const from = collision.startTime.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-      const to = this.effectiveEnd(collision).toLocaleTimeString('de-DE', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const from = formatTimeInZone(collision.startTime, timeZone);
+      const to = formatTimeInZone(this.effectiveEnd(collision), timeZone);
       throw new BadRequestException(
         `Terminüberschneidung: Mitarbeiter ist an diesem Tag bereits von ${from} bis ${to} Uhr verplant ("${collision.title}").`,
       );
@@ -97,7 +104,7 @@ export class AppointmentsService {
       const endTime = dto.endTime
         ? new Date(dto.endTime)
         : new Date(startTime.getTime() + DEFAULT_DURATION_MS);
-      await this.assertNoCollision(dto.assignedUserId, startTime, endTime);
+      await this.assertNoCollision(companyId, dto.assignedUserId, startTime, endTime);
     }
 
     return this.prisma.appointment.create({
@@ -121,11 +128,8 @@ export class AppointmentsService {
   // "Mein Tag" (Punkt 23/24): einfache, radikal reduzierte Sicht für den
   // Ein-Personen-Betrieb bzw. den einzelnen Mitarbeiter – nur die eigenen
   // Termine des Tages, chronologisch, mit Baustelle/Kunde/Adresse.
-  findMyDay(companyId: string, userId: string, date: Date) {
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
+  async findMyDay(companyId: string, userId: string, date: Date) {
+    const { start: dayStart, end: dayEnd } = dayRangeInZone(date, await this.getTimeZone(companyId));
 
     return this.prisma.appointment.findMany({
       where: {

@@ -5,6 +5,7 @@ import { RequirePermissions } from '../common/permissions.decorator';
 import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
+import { parseDayParam } from '../common/time-zone';
 import { TimeEntriesService } from './time-entries.service';
 import { StartTimeEntryDto, StopTimeEntryDto } from './dto/time-entry.dto';
 
@@ -34,11 +35,7 @@ export class TimeEntriesController {
   // keine zusätzliche Permission nötig.
   @Get('overtime/mine')
   myOvertime(@CurrentUser() user: AuthenticatedUser, @Query('date') date?: string) {
-    return this.timeEntriesService.getMyDailyOvertime(
-      user.companyId,
-      user.userId,
-      date ? new Date(date) : new Date(),
-    );
+    return this.timeEntriesService.getMyDailyOvertime(user.companyId, user.userId, parseDayParam(date));
   }
 
   @Get('by-employee/:employeeId')
@@ -55,11 +52,7 @@ export class TimeEntriesController {
     @Param('employeeId') employeeId: string,
     @Query('date') date?: string,
   ) {
-    return this.timeEntriesService.getDailyOvertime(
-      user.companyId,
-      employeeId,
-      date ? new Date(date) : new Date(),
-    );
+    return this.timeEntriesService.getDailyOvertime(user.companyId, employeeId, parseDayParam(date));
   }
 
   @Post(':id/approve')

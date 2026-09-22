@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmployeesService } from '../employees/employees.service';
 import { StartTimeEntryDto, StopTimeEntryDto } from './dto/time-entry.dto';
 import { calculateOvertime, OvertimeResult } from './overtime';
+import { dayRangeInZone } from '../common/time-zone';
 
 @Injectable()
 export class TimeEntriesService {
@@ -111,10 +112,8 @@ export class TimeEntriesService {
   async getDailyOvertime(companyId: string, employeeId: string, date: Date): Promise<OvertimeResult> {
     await this.employeesService.findOne(companyId, employeeId); // wirft NotFound, falls fremde Firma
 
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
+    const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+    const { start: dayStart, end: dayEnd } = dayRangeInZone(date, company.timeZone);
 
     const entries = await this.prisma.timeEntry.findMany({
       where: {
@@ -131,7 +130,6 @@ export class TimeEntriesService {
       return sum + Math.max(0, durationMs / 60000 - (entry.breakMinutes ?? 0));
     }, 0);
 
-    const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
     return calculateOvertime(workedMinutes, Number(company.regularDailyHours));
   }
 

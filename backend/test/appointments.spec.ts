@@ -10,6 +10,9 @@ function createPrismaMock() {
   const appointments: any[] = [];
 
   return {
+    company: {
+      findUniqueOrThrow: jest.fn(() => Promise.resolve({ id: 'company-a', timeZone: 'Europe/Berlin' })),
+    },
     project: {
       findFirst: jest.fn(({ where }: any) => {
         if (where.id !== 'proj-a') return Promise.resolve(null);
@@ -100,6 +103,25 @@ describe('AppointmentsService', () => {
     const today = await service.findMyDay('company-a', 'user-a', new Date('2026-05-10T12:00:00.000Z'));
     expect(today).toHaveLength(1);
     expect(today[0].title).toBe('Heute: Terrasse');
+  });
+
+  it('"Mein Tag" zählt einen Termin um 00:30 Uhr deutscher Zeit zum richtigen Tag', async () => {
+    const prisma = createPrismaMock();
+    const service = new AppointmentsService(prisma as any);
+
+    // 11.05.2026 00:30 in Berlin = 10.05.2026 22:30 UTC. Mit Tagesgrenzen in
+    // UTC wäre dieser Termin am 10. gelandet.
+    await service.create('company-a', {
+      projectId: 'proj-a',
+      title: 'Früh: Material holen',
+      startTime: '2026-05-10T22:30:00.000Z',
+      assignedUserId: 'user-a',
+    });
+
+    const tenth = await service.findMyDay('company-a', 'user-a', new Date('2026-05-10T12:00:00.000Z'));
+    const eleventh = await service.findMyDay('company-a', 'user-a', new Date('2026-05-11T12:00:00.000Z'));
+    expect(tenth).toHaveLength(0);
+    expect(eleventh.map((a: any) => a.title)).toEqual(['Früh: Material holen']);
   });
 });
 
