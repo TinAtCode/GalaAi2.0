@@ -43,7 +43,7 @@ export function ProjectsPage() {
       {projects?.length === 0 && (
         <div className="empty-state">
           <strong>Noch keine Projekte angelegt.</strong>
-          Neue Projekte werden im Büro erfasst.
+          Projekte legst du beim jeweiligen Kunden an (Kunden → Objekt → Projekt).
         </div>
       )}
 

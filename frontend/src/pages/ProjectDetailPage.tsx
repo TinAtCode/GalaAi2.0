@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatEuro } from '../format';
@@ -32,6 +32,19 @@ interface Quote {
   lineItems: QuoteLineItem[];
 }
 
+interface ProjectInfo {
+  id: string;
+  title: string;
+  status: 'open' | 'in_progress' | 'done' | 'cancelled';
+  property: {
+    label: string;
+    street: string | null;
+    postalCode: string | null;
+    city: string | null;
+    customer: { id: string; name: string };
+  };
+}
+
 interface Order {
   id: string;
   quoteId: string;
@@ -39,6 +52,13 @@ interface Order {
   totalNet: number;
   createdAt: string;
 }
+
+const PROJECT_STATUS_LABELS: Record<ProjectInfo['status'], string> = {
+  open: 'Offen',
+  in_progress: 'In Arbeit',
+  done: 'Fertig',
+  cancelled: 'Storniert',
+};
 
 const ORDER_STATUS_LABELS: Record<Order['status'], string> = {
   open: 'Offen',
@@ -62,6 +82,7 @@ export function ProjectDetailPage() {
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [orders, setOrders] = useState<Order[] | null>(null);
+  const [project, setProject] = useState<ProjectInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [newAppointment, setNewAppointment] = useState({
@@ -77,11 +98,13 @@ export function ProjectDetailPage() {
       api.get<Appointment[]>(`/appointments/by-project/${projectId}`),
       api.get<Quote[]>(`/quotes/by-project/${projectId}`),
       api.get<Order[]>(`/orders/by-project/${projectId}`),
+      api.get<ProjectInfo>(`/projects/${projectId}`),
     ])
-      .then(([a, q, o]) => {
+      .then(([a, q, o, p]) => {
         setAppointments(a);
         setQuotes(q);
         setOrders(o);
+        setProject(p);
       })
       .catch((err) =>
         setError(err instanceof ApiError ? err.message : 'Daten konnten nicht geladen werden.'),
@@ -126,7 +149,36 @@ export function ProjectDetailPage() {
   return (
     <div>
       <header className="my-day-header">
-        <h2>Projekt</h2>
+        <h2 data-testid="project-heading">{project?.title ?? 'Projekt'}</h2>
+        {project && (
+          <p className="list-item-meta">
+            <Link to={`/kunden/${project.property.customer.id}`}>{project.property.customer.name}</Link>
+            {' · '}
+            {project.property.label}
+            {project.property.street ? `, ${project.property.street}` : ''}
+            {project.property.city
+              ? `, ${[project.property.postalCode, project.property.city].filter(Boolean).join(' ')}`
+              : ''}
+          </p>
+        )}
+        {project && hasPermission('customer.write') && (
+          <label className="list-item-meta" style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+            Status
+            <select
+              value={project.status}
+              onChange={(e) =>
+                runAction(() => api.patch(`/projects/${project.id}/status`, { status: e.target.value }))
+              }
+              data-testid="project-status-select"
+            >
+              {Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </header>
 
       {error && <p className="field-error">{error}</p>}

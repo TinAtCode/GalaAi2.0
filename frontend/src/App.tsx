@@ -4,6 +4,7 @@ import { LoginPage } from './auth/LoginPage';
 import { AppShell } from './layout/AppShell';
 import { MyDayPage } from './pages/MyDayPage';
 import { CustomersPage } from './pages/CustomersPage';
+import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { CalculationPage } from './pages/CalculationPage';
@@ -33,6 +34,7 @@ export function App() {
         <Route path="projekte" element={<ProjectsPage />} />
         <Route path="projekte/:projectId" element={<ProjectDetailPage />} />
         <Route path="kunden" element={<CustomersPage />} />
+        <Route path="kunden/:customerId" element={<CustomerDetailPage />} />
         <Route path="kalkulation" element={<CalculationPage />} />
         <Route path="stammdaten" element={<MasterDataPage />} />
         <Route path="team" element={<TeamPage />} />

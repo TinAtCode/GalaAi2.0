@@ -25,7 +25,15 @@ export class CustomersService {
   async findOne(companyId: string, id: string) {
     const customer = await this.prisma.customer.findFirst({
       where: { id, companyId },
-      include: { properties: true },
+      // Objekte samt Projekten für die Kunden-Detailseite in einer Abfrage
+      include: {
+        properties: {
+          orderBy: { label: 'asc' },
+          include: {
+            projects: { select: { id: true, title: true, status: true }, orderBy: { createdAt: 'desc' } },
+          },
+        },
+      },
     });
     if (!customer) {
       throw new NotFoundException('Kunde nicht gefunden.');
