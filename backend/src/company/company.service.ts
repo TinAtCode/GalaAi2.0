@@ -12,6 +12,11 @@ export class CompanyService {
       select: {
         id: true,
         name: true,
+        street: true,
+        postalCode: true,
+        city: true,
+        taxNumber: true,
+        vatId: true,
         hourlyLaborRate: true,
         overheadPercent: true,
         defaultSurchargePercent: true,
@@ -34,6 +39,11 @@ export class CompanyService {
       select: {
         id: true,
         name: true,
+        street: true,
+        postalCode: true,
+        city: true,
+        taxNumber: true,
+        vatId: true,
         hourlyLaborRate: true,
         overheadPercent: true,
         defaultSurchargePercent: true,

@@ -110,6 +110,7 @@ async function main() {
       customerId: 'demo-customer-id',
       label: 'Hauptwohnsitz',
       street: 'Gartenweg 1',
+      postalCode: '12345',
       city: 'Musterstadt',
     },
   });

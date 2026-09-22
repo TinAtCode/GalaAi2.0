@@ -1,0 +1,192 @@
+import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { PrismaService } from '../../src/prisma/prisma.service';
+import { createApp, createCompany, resetDatabase, TestCompany } from './helpers';
+
+// Kompletter Rechnungsablauf gegen PostgreSQL: Abschlag -> Schlussrechnung
+// mit Abzug -> Storno, inklusive Nummernkreis, Pflichtangaben und
+// Unveränderlichkeit (Datenbank-Trigger).
+describe('Rechnungen', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let company: TestCompany;
+  let auth: { Authorization: string };
+  let projectId: string;
+  let orderId: string;
+  const year = new Date().getFullYear();
+  const api = () => request(app.getHttpServer());
+  const R = (n: number) => `R-${year}-${String(n).padStart(4, '0')}`;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createApp());
+    await resetDatabase(prisma);
+    company = await createCompany(app, prisma, 'Rechnung GmbH');
+    auth = { Authorization: `Bearer ${company.token}` };
+
+    const customer = await api()
+      .post('/customers')
+      .set(auth)
+      .send({ name: 'Familie Berger', street: 'Lindenweg 3', postalCode: '50667', city: 'Köln' })
+      .expect(201);
+    const property = await api()
+      .post('/properties')
+      .set(auth)
+      .send({ customerId: customer.body.id, label: 'Garten' })
+      .expect(201);
+    const project = await api()
+      .post('/projects')
+      .set(auth)
+      .send({ propertyId: property.body.id, title: 'Terrasse' })
+      .expect(201);
+    projectId = project.body.id;
+    const service = await api()
+      .post('/services')
+      .set(auth)
+      .send({ name: 'Terrasse verlegen', unit: 'm2' })
+      .expect(201);
+    await api()
+      .post(`/services/${service.body.id}/components`)
+      .set(auth)
+      .send({ laborMinutes: 60 })
+      .expect(201);
+    // 20 m² × 62,10 € = 1.242,00 € netto
+    const quote = await api()
+      .post('/quotes')
+      .set(auth)
+      .send({ projectId, lineItems: [{ serviceId: service.body.id, quantity: 20 }] })
+      .expect(201);
+    await api().post(`/quotes/${quote.body.id}/approve`).set(auth).expect(201);
+    await api().post(`/quotes/${quote.body.id}/send`).set(auth).expect(201);
+    await api().post(`/quotes/${quote.body.id}/outcome`).set(auth).send({ status: 'accepted' }).expect(201);
+    const order = await api().post('/orders').set(auth).send({ quoteId: quote.body.id }).expect(201);
+    orderId = order.body.id;
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const draft = (body: object) =>
+    api()
+      .post('/invoices/from-order')
+      .set(auth)
+      .send({ orderId, ...body });
+  const issue = (id: string) => api().post(`/invoices/${id}/issue`).set(auth).send({});
+
+  it('ohne Firmenanschrift und Steuernummer lässt sich keine Rechnung ausstellen', async () => {
+    const partial = await draft({ kind: 'partial', percent: 30 }).expect(201);
+    const res = await issue(partial.body.id).expect(400);
+    expect(res.body.message).toContain('Steuernummer oder USt-IdNr.');
+
+    await api()
+      .patch('/company/settings')
+      .set(auth)
+      .send({ street: 'Gartenstraße 1', postalCode: '50667', city: 'Köln', taxNumber: '214/5678/1234' })
+      .expect(200);
+    // Die Nummer wurde beim Fehlversuch nicht verbraucht
+    const issued = await issue(partial.body.id).expect(201);
+    expect(issued.body).toMatchObject({ status: 'issued', number: R(1) });
+    expect(Number(issued.body.totalNet)).toBe(372.6); // 30 % von 1.242,00
+    expect(Number(issued.body.totalVat)).toBe(70.79);
+    expect(issued.body.buyerSnapshot).toMatchObject({ name: 'Familie Berger', city: 'Köln' });
+    expect(issued.body.sellerSnapshot).toMatchObject({ taxNumber: '214/5678/1234' });
+  });
+
+  it('Abschläge dürfen die Auftragssumme nicht übersteigen', async () => {
+    await draft({ kind: 'partial', percent: 80 }).expect(400);
+  });
+
+  it('die Schlussrechnung zieht ausgestellte Abschläge ab', async () => {
+    const final = await draft({ kind: 'final' }).expect(201);
+    const deduction = final.body.lineItems.find((li: any) =>
+      li.description.startsWith('abzüglich Abschlagsrechnung'),
+    );
+    expect(deduction.description).toContain(R(1));
+    expect(Number(deduction.lineTotal)).toBe(-372.6);
+    expect(Number(final.body.totalNet)).toBe(869.4); // 1.242,00 - 372,60
+
+    const issued = await issue(final.body.id).expect(201);
+    expect(issued.body.number).toBe(R(2));
+    await draft({ kind: 'final' }).expect(400); // nur eine Schlussrechnung
+  });
+
+  it('ausgestellte Rechnungen sind unveränderlich – auch direkt in der Datenbank', async () => {
+    const issued = await prisma.invoice.findFirstOrThrow({
+      where: { number: R(1) },
+      include: { lineItems: true },
+    });
+    await api().delete(`/invoices/${issued.id}`).set(auth).expect(400);
+    await expect(prisma.invoice.update({ where: { id: issued.id }, data: { totalNet: 1 } })).rejects.toThrow(
+      /unveränderlich/,
+    );
+    await expect(prisma.invoice.delete({ where: { id: issued.id } })).rejects.toThrow(/nicht gelöscht/);
+    await expect(
+      prisma.invoiceLineItem.update({
+        where: { id: issued.lineItems[0].id },
+        data: { description: 'geändert' },
+      }),
+    ).rejects.toThrow(/unveränderlich/);
+  });
+
+  it('Storno erzeugt eine Stornorechnung mit eigener Nummer und hebt das Original auf', async () => {
+    const final = await prisma.invoice.findFirstOrThrow({ where: { number: R(2) } });
+    await api().post(`/invoices/${final.id}/cancel`).set(auth).send({}).expect(400); // Begründung fehlt
+    const cancellation = await api()
+      .post(`/invoices/${final.id}/cancel`)
+      .set(auth)
+      .send({ reason: 'Falsche Menge abgerechnet' })
+      .expect(201);
+    expect(cancellation.body).toMatchObject({
+      kind: 'cancellation',
+      status: 'issued',
+      number: R(3),
+      cancelsInvoiceId: final.id,
+    });
+    expect(Number(cancellation.body.totalGross)).toBe(-Number(final.totalGross));
+
+    expect((await prisma.invoice.findUniqueOrThrow({ where: { id: final.id } })).status).toBe('cancelled');
+    await api().post(`/invoices/${final.id}/cancel`).set(auth).send({ reason: 'nochmal' }).expect(400);
+
+    // Nach dem Storno kann neu abgerechnet werden
+    const again = await draft({ kind: 'final' }).expect(201);
+    expect(Number(again.body.totalNet)).toBe(869.4);
+  });
+
+  it('Entwürfe lassen sich löschen, ohne eine Nummer zu verbrauchen', async () => {
+    const open = await prisma.invoice.findFirstOrThrow({ where: { status: 'draft' } });
+    await api().delete(`/invoices/${open.id}`).set(auth).expect(200);
+    const next = await draft({ kind: 'final' }).expect(201);
+    expect((await issue(next.body.id).expect(201)).body.number).toBe(R(4));
+  });
+
+  it('gleichzeitig: Abschläge über 100 % und doppelte Nummern sind ausgeschlossen', async () => {
+    // Die Schlussrechnung R-0004 stornieren, damit wieder Abschläge möglich sind
+    const final = await prisma.invoice.findFirstOrThrow({ where: { number: R(4) } });
+    await api().post(`/invoices/${final.id}/cancel`).set(auth).send({ reason: 'Neu abrechnen' }).expect(201);
+
+    // Bisher 30 % abgerechnet: zweimal gleichzeitig 60 % darf nur einmal gehen
+    const partials = await Promise.all([
+      draft({ kind: 'partial', percent: 60 }),
+      draft({ kind: 'partial', percent: 60 }),
+    ]);
+    expect(partials.map((r) => r.status).sort()).toEqual([201, 400]);
+
+    // Zwei Entwürfe gleichzeitig ausstellen: zwei verschiedene, fortlaufende Nummern
+    const small = await draft({ kind: 'partial', percent: 5 }).expect(201);
+    const created = partials.find((r) => r.status === 201)!;
+    const issued = await Promise.all([issue(created.body.id), issue(small.body.id)]);
+    expect(issued.map((r) => r.status)).toEqual([201, 201]);
+    expect(issued.map((r) => r.body.number).sort()).toEqual([R(6), R(7)]);
+  });
+
+  it('andere Firmen sehen und bearbeiten keine fremden Rechnungen', async () => {
+    const other = await createCompany(app, prisma, 'Fremd Rechnung GmbH');
+    const invoice = await prisma.invoice.findFirstOrThrow({ where: { number: R(4) } });
+    const as = { Authorization: `Bearer ${other.token}` };
+    await api().get(`/invoices/${invoice.id}`).set(as).expect(404);
+    await api().post(`/invoices/${invoice.id}/cancel`).set(as).send({ reason: 'Übernahme' }).expect(404);
+    await api().post('/invoices/from-order').set(as).send({ orderId, kind: 'final' }).expect(404);
+    const list = await api().get(`/invoices/by-project/${projectId}`).set(as).expect(200);
+    expect(list.body).toEqual([]);
+  });
+});

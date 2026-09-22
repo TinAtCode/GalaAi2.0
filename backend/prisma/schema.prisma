@@ -11,9 +11,17 @@ datasource db {
 // Mandant / Unternehmen
 // ─────────────────────────────────────────────
 model Company {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
+  id   String @id @default(uuid())
+  name String
+
+  // Pflichtangaben für Rechnungen (§ 14 UStG): Anschrift und Steuernummer
+  // oder USt-IdNr. Ohne sie lässt sich keine Rechnung ausstellen.
+  street     String?
+  postalCode String?
+  city       String?
+  taxNumber  String? // Steuernummer vom Finanzamt
+  vatId      String? // USt-IdNr., z.B. DE123456789
+  createdAt  DateTime @default(now())
 
   // Konfigurierbare Kalkulationsgrundlagen (Punkt 20: keine starre,
   // fest eingebaute Marge). Werden vom Calculations-Modul genutzt und
@@ -53,6 +61,7 @@ model Company {
   timeEntries     TimeEntry[]
   materialUsages  ProjectMaterialUsage[]
   numberSequences NumberSequence[]
+  invoices        Invoice[]
 }
 
 // ─────────────────────────────────────────────
@@ -124,13 +133,17 @@ model RolePermission {
 // Kunde → Objekt → Projekt
 // ─────────────────────────────────────────────
 model Customer {
-  id        String   @id @default(uuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  name      String
-  email     String?
-  phone     String?
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  name       String
+  email      String?
+  phone      String?
+  // Rechnungsanschrift; fehlt sie, wird die Anschrift des Objekts verwendet.
+  street     String?
+  postalCode String?
+  city       String?
+  createdAt  DateTime @default(now())
 
   properties Property[]
 
@@ -170,6 +183,7 @@ model Project {
   timeEntries    TimeEntry[]
   documents      Document[]
   materialUsages ProjectMaterialUsage[]
+  invoices       Invoice[]
 
   @@index([companyId])
   @@index([propertyId])
@@ -245,6 +259,7 @@ model Order {
   quote     Quote       @relation(fields: [quoteId], references: [id])
   status    OrderStatus @default(open)
   totalNet  Decimal     @db.Decimal(12, 2) // vom Angebot übernommener Snapshot
+  invoices  Invoice[]
   createdAt DateTime    @default(now())
 
   @@index([projectId])
@@ -511,4 +526,79 @@ model NumberSequence {
   lastValue Int     @default(0)
 
   @@id([companyId, kind, year])
+}
+
+// ─────────────────────────────────────────────
+// Rechnungen (Abschlag, Schluss, Storno)
+// Entwürfe sind änderbar; ab "issued" ist eine Rechnung unveränderlich
+// (GoBD). Korrigiert wird nur über eine Stornorechnung. Die Nummer wird
+// erst beim Ausstellen vergeben – so bleibt der Nummernkreis lückenlos.
+// ─────────────────────────────────────────────
+
+enum InvoiceKind {
+  partial // Abschlagsrechnung
+  final // Schlussrechnung (zieht ausgestellte Abschläge ab)
+  cancellation // Stornorechnung
+}
+
+enum InvoiceStatus {
+  draft
+  issued
+  cancelled // durch eine Stornorechnung aufgehoben
+}
+
+model Invoice {
+  id        String        @id @default(uuid())
+  companyId String
+  company   Company       @relation(fields: [companyId], references: [id])
+  projectId String
+  project   Project       @relation(fields: [projectId], references: [id])
+  orderId   String
+  order     Order         @relation(fields: [orderId], references: [id])
+  kind      InvoiceKind
+  status    InvoiceStatus @default(draft)
+  number    String? // R-2026-0001, erst beim Ausstellen
+  issueDate DateTime?
+
+  // Leistungszeitraum (§ 14 UStG); ohne Angabe gilt das Rechnungsdatum
+  servicePeriodStart DateTime?
+  servicePeriodEnd   DateTime?
+
+  vatRate    Decimal @db.Decimal(5, 2)
+  totalNet   Decimal @db.Decimal(12, 2)
+  totalVat   Decimal @db.Decimal(12, 2)
+  totalGross Decimal @db.Decimal(12, 2)
+
+  // Rechnungssteller und -empfänger zum Zeitpunkt der Ausstellung, damit
+  // eine spätere Adressänderung die Rechnung nicht verändert.
+  sellerSnapshot Json?
+  buyerSnapshot  Json?
+
+  // Stornorechnung -> die aufgehobene Rechnung
+  cancelsInvoiceId String?  @unique
+  cancelsInvoice   Invoice? @relation("Cancellation", fields: [cancelsInvoiceId], references: [id])
+  cancelledBy      Invoice? @relation("Cancellation")
+
+  createdAt DateTime @default(now())
+
+  lineItems InvoiceLineItem[]
+
+  @@unique([companyId, number])
+  @@index([companyId])
+  @@index([projectId])
+  @@index([orderId])
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position    Int
+  description String
+  unit        String
+  quantity    Decimal @db.Decimal(10, 2)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  lineTotal   Decimal @db.Decimal(12, 2)
+
+  @@index([invoiceId])
 }

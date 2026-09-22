@@ -13,6 +13,19 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  // Rechnungsanschrift (ohne sie gilt die Anschrift des Objekts)
+  @IsOptional()
+  @IsString()
+  street?: string;
+
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
 }
 
 export class UpdateCustomerDto extends PartialType(CreateCustomerDto) {}

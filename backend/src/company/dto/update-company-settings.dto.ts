@@ -1,6 +1,38 @@
-import { IsNumber, IsOptional, IsTimeZone, Max, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsTimeZone, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class UpdateCompanySettingsDto {
+  // Firmendaten für Rechnungen (§ 14 UStG)
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  street?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  postalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  taxNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  vatId?: string;
+
   @IsOptional()
   @IsNumber()
   @Min(0)

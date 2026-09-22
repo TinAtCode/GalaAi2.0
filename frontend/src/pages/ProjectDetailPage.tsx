@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatEuro } from '../format';
+import { InvoicesSection } from './InvoicesSection';
 
 interface Appointment {
   id: string;
@@ -39,6 +40,13 @@ interface Order {
   createdAt: string;
 }
 
+const ORDER_STATUS_LABELS: Record<Order['status'], string> = {
+  open: 'Offen',
+  in_progress: 'In Arbeit',
+  done: 'Erledigt',
+  cancelled: 'Storniert',
+};
+
 const QUOTE_STATUS_LABELS: Record<Quote['status'], string> = {
   draft: 'Entwurf',
   approved: 'Freigegeben',
@@ -50,7 +58,7 @@ const QUOTE_STATUS_LABELS: Record<Quote['status'], string> = {
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -308,10 +316,16 @@ export function ProjectDetailPage() {
                 </div>
                 <div className="list-item-meta">{formatEuro(order.totalNet)}</div>
               </div>
-              <span className={`status-badge status-${order.status}`}>{order.status}</span>
+              <span className={`status-badge status-${order.status}`}>
+                {ORDER_STATUS_LABELS[order.status]}
+              </span>
             </div>
           ))}
         </>
+      )}
+
+      {projectId && orders && orders.length > 0 && hasPermission('invoice.create') && (
+        <InvoicesSection projectId={projectId} orderIds={orders.map((o) => o.id)} />
       )}
     </div>
   );
