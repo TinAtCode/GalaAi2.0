@@ -48,15 +48,19 @@ export class AppointmentsService {
   // Prüft nur denselben Kalendertag in der Zeitzone der Firma
   // (Terminüberschneidungen über Mitternacht hinweg sind für dieses
   // Geschäftsfeld praktisch irrelevant).
+  // Läuft innerhalb einer Transaktion: ALLE Abfragen über `db` (die
+  // Transaktion), nie über this.prisma – sonst braucht jede Anfrage eine
+  // zweite Verbindung, und bei vielen gleichzeitigen Buchungen warten alle
+  // Transaktionen auf freie Verbindungen, die keine bekommt (Deadlock).
   private async assertNoCollision(
     db: Prisma.TransactionClient,
     companyId: string,
+    timeZone: string,
     assignedUserId: string,
     newStart: Date,
     newEnd: Date,
     excludeAppointmentId?: string,
   ) {
-    const timeZone = await this.getTimeZone(companyId);
     const { start: dayStart, end: dayEnd } = dayRangeInZone(newStart, timeZone);
 
     const candidates = await db.appointment.findMany({
@@ -123,10 +127,11 @@ export class AppointmentsService {
 
     // Kollisionsprüfung und Anlegen unter einer Sperre pro Mitarbeiter –
     // sonst könnten zwei gleichzeitige Buchungen beide die Prüfung bestehen.
+    const timeZone = await this.getTimeZone(companyId);
     return this.prisma.$transaction(async (tx) => {
       await lockFor(tx, 'appointment', assignedUserId);
       const effectiveEnd = endTime ?? new Date(startTime.getTime() + DEFAULT_DURATION_MS);
-      await this.assertNoCollision(tx, companyId, assignedUserId, startTime, effectiveEnd);
+      await this.assertNoCollision(tx, companyId, timeZone, assignedUserId, startTime, effectiveEnd);
       return tx.appointment.create({ data });
     });
   }

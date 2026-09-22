@@ -59,7 +59,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gartenai_test?schema=public
+      # Bewusst kleiner Verbindungspool: Abfragen, die innerhalb einer
+      # Transaktion eine zweite Verbindung holen, blockieren sich unter Last
+      # gegenseitig – mit 2 Verbindungen fällt das in den Parallel-Tests
+      # sofort auf, unabhängig von der CPU-Zahl des Runners.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gartenai_test?schema=public&connection_limit=2
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
