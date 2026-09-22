@@ -26,13 +26,14 @@ import { AiGatewayModule } from './ai-gateway/ai-gateway.module';
 import { MaterialUsageModule } from './material-usage/material-usage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
+import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
 
 @Module({
   imports: [
     // Globales Rate-Limiting (Punkt 38: "sichere API"). 100 Anfragen/Minute
-    // pro IP als vernünftiger Standard; der Login-Endpunkt bekommt zusätzlich
-    // ein engeres eigenes Limit (siehe AuthController) gegen Brute-Force.
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    // pro IP als vernünftiger Standard; der Login bekommt zusätzlich eigene,
+    // engere Grenzen gegen Brute-Force (siehe auth/login-throttle.ts).
+    ThrottlerModule.forRoot([{ name: 'default', ttl: 60000, limit: 100 }, LOGIN_ACCOUNT_THROTTLER]),
     PrismaModule,
     AuthModule,
     CustomersModule,

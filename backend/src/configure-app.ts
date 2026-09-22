@@ -5,6 +5,20 @@ import helmet from 'helmet';
 // Integrationstests nutzen dieselbe, damit die Tests genau das prüfen,
 // was auch in Produktion läuft.
 export function configureApp(app: INestApplication) {
+  // Hinter einem Reverse-Proxy (nginx, Traefik, Load-Balancer) sieht das
+  // Backend sonst nur die IP des Proxys – dann teilen sich ALLE Nutzer ein
+  // Rate-Limit. TRUST_PROXY=1 heißt: einem Proxy davor vertrauen und die
+  // echte Client-IP aus X-Forwarded-For nehmen. Ohne Proxy leer lassen,
+  // sonst kann jeder Client seine IP per Header fälschen.
+  const trustProxy = process.env.TRUST_PROXY;
+  if (trustProxy) {
+    const hops = Number(trustProxy);
+    app
+      .getHttpAdapter()
+      .getInstance()
+      .set('trust proxy', Number.isInteger(hops) ? hops : trustProxy);
+  }
+
   // Sicherheits-Header (Punkt 38: "sichere API") – u.a. X-Content-Type-Options,
   // X-Frame-Options, keine Preisgabe der Express-Version im Header.
   app.use(helmet());
