@@ -82,6 +82,8 @@ export class QuotesService {
           unitPrice: calc.salePricePerUnit,
           marginPerUnit: calc.marginPerUnit,
           lineTotal: calc.salePriceTotal,
+          plannedLaborMinutesPerUnit: calc.laborMinutesPerUnit,
+          plannedMaterialCostPerUnit: calc.materialCostPerUnitPrecise,
         };
       }),
     );

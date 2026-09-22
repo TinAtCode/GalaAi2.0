@@ -10,9 +10,9 @@ export class CreateServiceDto {
   unit!: string;
 }
 
-// Ein Bestandteil ist entweder ein Artikel (mit Menge pro Einheit) oder ein
-// Arbeitszeit-Anteil (Minuten pro Einheit) – siehe Punkt 19 im
-// Ursprungsdokument (Rezepturen aus Material + Arbeitszeit).
+// Ein Bestandteil ist ein Artikel (mit Menge pro Einheit), ein
+// Arbeitszeit-Anteil (Minuten pro Einheit) oder ein Maschineneinsatz
+// (Maschine + Minuten pro Einheit) – siehe Punkt 19 im Ursprungsdokument.
 export class AddServiceComponentDto {
   @IsOptional()
   @IsString()
@@ -29,6 +29,16 @@ export class AddServiceComponentDto {
   @Min(0)
   @Max(100_000)
   laborMinutes?: number;
+
+  @IsOptional()
+  @IsString()
+  machineId?: string;
+
+  @ValidateIf((dto: AddServiceComponentDto) => !!dto.machineId)
+  @IsInt()
+  @Min(1)
+  @Max(100_000)
+  machineMinutes?: number;
 }
 
 export class UpdateServiceDto extends PartialType(CreateServiceDto) {}

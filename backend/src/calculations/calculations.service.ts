@@ -8,6 +8,8 @@ interface ComponentInput {
   quantityPer: number;
   laborMinutes: number | null;
   articlePurchasePrice: number | null;
+  machineMinutes?: number | null;
+  machineHourlyRate?: number | null;
 }
 
 // Exakte Dezimalrechnung (decimal.js über Prisma.Decimal) statt
@@ -42,16 +44,30 @@ export function calculateServiceCost(
   );
   const laborMinutesPerUnit = components.reduce((sum, c) => sum + (c.laborMinutes ?? 0), 0);
   const laborPerUnit = D(laborMinutesPerUnit).div(60).times(hourlyLaborRate);
-  const overheadPerUnit = materialPerUnit.plus(laborPerUnit).times(overheadPercent).div(100);
-  const costPerUnit = materialPerUnit.plus(laborPerUnit).plus(overheadPerUnit);
+  // Maschinen (Bagger, Rüttler, ...) mit ihrem eigenen Stundensatz.
+  const machinePerUnit = components.reduce(
+    (sum, c) =>
+      sum.plus(
+        D(c.machineMinutes ?? 0)
+          .div(60)
+          .times(c.machineHourlyRate ?? 0),
+      ),
+    D(0),
+  );
+  const directPerUnit = materialPerUnit.plus(laborPerUnit).plus(machinePerUnit);
+  const overheadPerUnit = directPerUnit.times(overheadPercent).div(100);
+  const costPerUnit = directPerUnit.plus(overheadPerUnit);
 
   const salePricePerUnit = D(toCents(costPerUnit.times(D(surchargePercent).div(100).plus(1))));
   const salePriceTotal = salePricePerUnit.times(qty);
   const costTotal = D(toCents(costPerUnit.times(qty)));
 
   return {
+    laborMinutesPerUnit,
     materialCostPerUnit: toCents(materialPerUnit),
+    materialCostPerUnitPrecise: materialPerUnit.toDecimalPlaces(6, Prisma.Decimal.ROUND_HALF_UP).toNumber(),
     laborCostPerUnit: toCents(laborPerUnit),
+    machineCostPerUnit: toCents(machinePerUnit),
     overheadPerUnit: toCents(overheadPerUnit),
     costPerUnit: toCents(costPerUnit),
     salePricePerUnit: toCents(salePricePerUnit),
@@ -59,6 +75,7 @@ export function calculateServiceCost(
     quantity,
     materialCostTotal: toCents(materialPerUnit.times(qty)),
     laborCostTotal: toCents(laborPerUnit.times(qty)),
+    machineCostTotal: toCents(machinePerUnit.times(qty)),
     overheadTotal: toCents(overheadPerUnit.times(qty)),
     costTotal: toCents(costTotal),
     salePriceTotal: toCents(salePriceTotal),
@@ -73,7 +90,7 @@ export class CalculationsService {
   async calculateForService(companyId: string, dto: CalculateServiceDto): Promise<CalculationResult> {
     const service = await this.prisma.service.findFirst({
       where: { id: dto.serviceId, companyId },
-      include: { components: { include: { article: true } } },
+      include: { components: { include: { article: true, machine: true } } },
     });
     if (!service) {
       throw new NotFoundException('Dienstleistung nicht gefunden.');
@@ -81,10 +98,12 @@ export class CalculationsService {
 
     const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
 
-    const components: ComponentInput[] = (service as any).components.map((c: any) => ({
+    const components: ComponentInput[] = service.components.map((c) => ({
       quantityPer: Number(c.quantityPer),
       laborMinutes: c.laborMinutes,
       articlePurchasePrice: c.article ? Number(c.article.purchasePrice) : null,
+      machineMinutes: c.machineMinutes,
+      machineHourlyRate: c.machine ? Number(c.machine.hourlyRate) : null,
     }));
 
     const hourlyLaborRate = dto.hourlyLaborRateOverride ?? Number(company.hourlyLaborRate);

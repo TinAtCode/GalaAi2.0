@@ -10,6 +10,7 @@ interface Service {
 interface CalculationResult {
   materialCostPerUnit?: number;
   laborCostPerUnit?: number;
+  machineCostPerUnit?: number;
   overheadPerUnit?: number;
   costPerUnit?: number;
   salePricePerUnit?: number;
@@ -17,6 +18,7 @@ interface CalculationResult {
   quantity: number;
   materialCostTotal?: number;
   laborCostTotal?: number;
+  machineCostTotal?: number;
   overheadTotal?: number;
   costTotal?: number;
   salePriceTotal?: number;
@@ -130,6 +132,12 @@ export function CalculationPage() {
                 <tr>
                   <td>Arbeitszeit</td>
                   <td>{formatEuro(result.laborCostTotal)}</td>
+                </tr>
+              )}
+              {!!result.machineCostTotal && (
+                <tr>
+                  <td>Maschinen</td>
+                  <td>{formatEuro(result.machineCostTotal)}</td>
                 </tr>
               )}
               {result.overheadTotal !== undefined && (

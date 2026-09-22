@@ -46,7 +46,10 @@ describe('calculateServiceCost', () => {
     // Kein exaktes Erwartungsergebnis nötig – nur sicherstellen, dass
     // niemals mehr als 2 Nachkommastellen entstehen (mit Tolueranz für
     // Floating-Point-Rundungsfehler wie 434.99999999994).
-    for (const value of Object.values(result)) {
+    // materialCostPerUnitPrecise ist bewusst genauer (interner Soll-Snapshot).
+    const { materialCostPerUnitPrecise, ...outputs } = result;
+    expect(materialCostPerUnitPrecise).toBeCloseTo(3.333, 6);
+    for (const value of Object.values(outputs)) {
       if (typeof value === 'number') {
         const scaled = value * 100;
         expect(Math.abs(scaled - Math.round(scaled))).toBeLessThan(1e-6);
@@ -75,5 +78,26 @@ describe('calculateServiceCost', () => {
 
     expect(result.costPerUnit).toBe(1.01);
     expect(result.salePricePerUnit).toBe(1.01);
+  });
+
+  it('rechnet Maschinenkosten mit dem Stundensatz der Maschine ein (vor Gemeinkosten)', () => {
+    // 1 m² Pflaster: 6 Min. Rüttelplatte à 30 €/h = 3 €, 12 Min. Arbeit à 50 €/h = 10 €
+    const components = [
+      { quantityPer: 0, laborMinutes: 12, articlePurchasePrice: null },
+      {
+        quantityPer: 0,
+        laborMinutes: null,
+        articlePurchasePrice: null,
+        machineMinutes: 6,
+        machineHourlyRate: 30,
+      },
+    ];
+    const result = calculateServiceCost(components, 100, 50, 10, 0);
+
+    expect(result.machineCostPerUnit).toBe(3);
+    expect(result.laborCostPerUnit).toBe(10);
+    expect(result.overheadPerUnit).toBe(1.3); // 10 % auf 13 €
+    expect(result.costPerUnit).toBe(14.3);
+    expect(result.machineCostTotal).toBe(300);
   });
 });

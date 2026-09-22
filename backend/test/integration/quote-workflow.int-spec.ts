@@ -112,4 +112,59 @@ describe('Angebots-Workflow gegen PostgreSQL', () => {
     expect(res.body.material.planned).toBe(663.27);
     expect(res.body.material.actual).toBe(796); // 400 t × 1,99 €
   });
+  it('eine spätere Rezepturänderung verändert das Soll des bestehenden Auftrags nicht', async () => {
+    const before = await api().get(`/post-calculation/${projectId}`).set(auth).expect(200);
+
+    // Rezeptur nachträglich ändern: mehr Arbeitszeit, Materialpreis rauf
+    await api().post(`/services/${serviceId}/components`).set(auth).send({ laborMinutes: 30 }).expect(201);
+    await api().patch(`/articles/${articleId}`).set(auth).send({ purchasePrice: 5 }).expect(200);
+
+    const after = await api().get(`/post-calculation/${projectId}`).set(auth).expect(200);
+    expect(after.body.labor.planned).toBe(before.body.labor.planned);
+    expect(after.body.material.planned).toBe(before.body.material.planned);
+  });
+
+  it('Maschinen fließen in die Kalkulation ein – nur Maschinen der eigenen Firma', async () => {
+    const machine = await api()
+      .post('/machines')
+      .set(auth)
+      .send({ name: 'Rüttelplatte', hourlyRate: 30 })
+      .expect(201);
+    const service = await api()
+      .post('/services')
+      .set(auth)
+      .send({ name: '1 m² verdichten', unit: 'm2' })
+      .expect(201);
+    await api()
+      .post(`/services/${service.body.id}/components`)
+      .set(auth)
+      .send({ machineId: machine.body.id, machineMinutes: 6 })
+      .expect(201);
+
+    const calc = await api()
+      .post('/calculations')
+      .set(auth)
+      .send({
+        serviceId: service.body.id,
+        quantity: 100,
+        overheadPercentOverride: 0,
+        surchargePercentOverride: 0,
+      })
+      .expect(201);
+    expect(calc.body.machineCostPerUnit).toBe(3); // 6 Min. à 30 €/h
+    expect(calc.body.machineCostTotal).toBe(300);
+    expect(calc.body.salePriceTotal).toBe(300);
+
+    const other = await createCompany(app, prisma, 'Maschinen-Fremd GmbH');
+    const foreign = await api()
+      .post('/machines')
+      .set({ Authorization: `Bearer ${other.token}` })
+      .send({ name: 'Fremdbagger', hourlyRate: 1 })
+      .expect(201);
+    await api()
+      .post(`/services/${service.body.id}/components`)
+      .set(auth)
+      .send({ machineId: foreign.body.id, machineMinutes: 5 })
+      .expect(404);
+  });
 });

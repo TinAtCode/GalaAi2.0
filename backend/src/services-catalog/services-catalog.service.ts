@@ -9,7 +9,7 @@ export class ServicesCatalogService {
   findAll(companyId: string) {
     return this.prisma.service.findMany({
       where: { companyId },
-      include: { components: { include: { article: true } } },
+      include: { components: { include: { article: true, machine: true } } },
       orderBy: { name: 'asc' },
     });
   }
@@ -26,7 +26,7 @@ export class ServicesCatalogService {
     await this.assertBelongsToCompany(companyId, id);
     return this.prisma.service.findUnique({
       where: { id },
-      include: { components: { include: { article: true } } },
+      include: { components: { include: { article: true, machine: true } } },
     });
   }
 
@@ -37,10 +37,18 @@ export class ServicesCatalogService {
   async addComponent(companyId: string, serviceId: string, dto: AddServiceComponentDto) {
     await this.assertBelongsToCompany(companyId, serviceId);
 
-    if (!dto.articleId && dto.laborMinutes == null) {
+    if (!dto.articleId && dto.laborMinutes == null && !dto.machineId) {
       throw new BadRequestException(
-        'Ein Bestandteil braucht entweder einen Artikel (mit quantityPer) oder laborMinutes.',
+        'Ein Bestandteil braucht einen Artikel (mit quantityPer), laborMinutes oder eine Maschine (mit machineMinutes).',
       );
+    }
+
+    if (dto.machineId) {
+      // Mandantenprüfung: die Maschine muss zur selben Firma gehören.
+      const machine = await this.prisma.machine.findFirst({ where: { id: dto.machineId, companyId } });
+      if (!machine) {
+        throw new NotFoundException('Maschine nicht gefunden.');
+      }
     }
 
     if (dto.articleId) {
@@ -59,6 +67,8 @@ export class ServicesCatalogService {
         articleId: dto.articleId,
         quantityPer: dto.quantityPer ?? 0,
         laborMinutes: dto.laborMinutes,
+        machineId: dto.machineId,
+        machineMinutes: dto.machineId ? dto.machineMinutes : null,
       },
     });
   }

@@ -6,7 +6,7 @@ function createPrismaMock() {
   const order = {
     projectId: 'proj-a',
     quote: {
-      lineItems: [{ serviceId: 'service-1', quantity: 10 }],
+      lineItems: [{ id: 'li-1', serviceId: 'service-1', quantity: 10 }],
     },
   };
   const articles = { 'art-1': { id: 'art-1', purchasePrice: 5 } };

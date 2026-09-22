@@ -2,8 +2,11 @@ import { maskCalculationResult, CalculationResult } from '../src/common/price-vi
 import { PERMISSIONS } from '../src/common/permissions';
 
 const result: CalculationResult = {
+  laborMinutesPerUnit: 30,
+  materialCostPerUnitPrecise: 10,
   materialCostPerUnit: 10,
   laborCostPerUnit: 30,
+  machineCostPerUnit: 0,
   overheadPerUnit: 4,
   costPerUnit: 44,
   salePricePerUnit: 52.8,
@@ -11,6 +14,7 @@ const result: CalculationResult = {
   quantity: 10,
   materialCostTotal: 100,
   laborCostTotal: 300,
+  machineCostTotal: 0,
   overheadTotal: 40,
   costTotal: 440,
   salePriceTotal: 528,
@@ -32,6 +36,7 @@ describe('maskCalculationResult', () => {
     expect(masked.salePriceTotal).toBe(528);
     expect(masked.costPerUnit).toBeUndefined();
     expect(masked.materialCostTotal).toBeUndefined();
+    expect(masked.machineCostTotal).toBeUndefined();
     expect(masked.marginPerUnit).toBeUndefined();
   });
 

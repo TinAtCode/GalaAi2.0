@@ -210,6 +210,12 @@ model QuoteLineItem {
   marginPerUnit Decimal @db.Decimal(10, 2)
   lineTotal     Decimal @db.Decimal(12, 2)
 
+  // Soll-Werte für die Nachkalkulation, eingefroren wie der Preis. Ohne sie
+  // würde eine spätere Rezepturänderung den Soll-Ist-Vergleich verfälschen.
+  // null bei Positionen, die vor Einführung dieser Felder entstanden sind.
+  plannedLaborMinutesPerUnit Int?
+  plannedMaterialCostPerUnit Decimal? @db.Decimal(14, 6)
+
   @@index([quoteId])
   @@index([serviceId])
 }
@@ -268,16 +274,21 @@ model Service {
 }
 
 model ServiceComponent {
-  id           String   @id @default(uuid())
-  serviceId    String
-  service      Service  @relation(fields: [serviceId], references: [id])
-  articleId    String?
-  quantityPer  Decimal  @db.Decimal(10, 4) // Menge pro Einheit der Leistung
-  laborMinutes Int? // alternative: Arbeitszeit-Anteil
-  article      Article? @relation(fields: [articleId], references: [id])
+  id             String   @id @default(uuid())
+  serviceId      String
+  service        Service  @relation(fields: [serviceId], references: [id])
+  articleId      String?
+  quantityPer    Decimal  @db.Decimal(10, 4) // Menge pro Einheit der Leistung
+  laborMinutes   Int? // alternative: Arbeitszeit-Anteil
+  article        Article? @relation(fields: [articleId], references: [id])
+  // Maschineneinsatz je Einheit (z.B. 6 Min. Rüttelplatte je m²)
+  machineId      String?
+  machine        Machine? @relation(fields: [machineId], references: [id])
+  machineMinutes Int?
 
   @@index([serviceId])
   @@index([articleId])
+  @@index([machineId])
 }
 
 // ─────────────────────────────────────────────
@@ -302,6 +313,8 @@ model Machine {
   name       String
   hourlyRate Decimal @db.Decimal(10, 2) // Maschinenkosten pro Stunde
   active     Boolean @default(true)
+
+  serviceComponents ServiceComponent[]
 
   @@index([companyId])
 }
@@ -350,22 +363,22 @@ model Employee {
 }
 
 model TimeEntry {
-  id           String          @id @default(uuid())
-  companyId    String
-  company      Company         @relation(fields: [companyId], references: [id])
-  employeeId   String
-  employee     Employee        @relation(fields: [employeeId], references: [id])
-  projectId    String?
-  project      Project?        @relation(fields: [projectId], references: [id])
-  startTime    DateTime
-  endTime      DateTime?
-  breakMinutes Int             @default(0)
-  activity     String?
-  status       TimeEntryStatus @default(open) // open = läuft noch
+  id               String          @id @default(uuid())
+  companyId        String
+  company          Company         @relation(fields: [companyId], references: [id])
+  employeeId       String
+  employee         Employee        @relation(fields: [employeeId], references: [id])
+  projectId        String?
+  project          Project?        @relation(fields: [projectId], references: [id])
+  startTime        DateTime
+  endTime          DateTime?
+  breakMinutes     Int             @default(0)
+  activity         String?
+  status           TimeEntryStatus @default(open) // open = läuft noch
   // Wer hat wann freigegeben (freigegebene Einträge sind gesperrt)
   approvedByUserId String?
   approvedAt       DateTime?
-  createdAt    DateTime        @default(now())
+  createdAt        DateTime        @default(now())
 
   @@index([projectId])
   @@index([employeeId])
