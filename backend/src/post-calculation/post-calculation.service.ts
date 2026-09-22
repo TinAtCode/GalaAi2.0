@@ -50,7 +50,7 @@ export class PostCalculationService {
 
   async calculateForProject(companyId: string, projectId: string): Promise<PostCalculationResult> {
     const project = await this.prisma.project.findFirst({
-      where: { id: projectId, property: { customer: { companyId } } },
+      where: { id: projectId, companyId },
     });
     if (!project) {
       throw new NotFoundException('Projekt nicht gefunden.');
@@ -62,7 +62,7 @@ export class PostCalculationService {
     // HINWEIS (siehe STATUS.md): das ist die AKTUELLE Rezeptur, kein
     // Snapshot zum Angebotszeitpunkt.
     const order = await this.prisma.order.findFirst({
-      where: { projectId },
+      where: { projectId, companyId },
       include: { quote: { include: { lineItems: true } } },
     });
 
@@ -73,8 +73,8 @@ export class PostCalculationService {
       const relevantLineItems = order.quote.lineItems.filter((li: any) => li.serviceId);
       const services = await Promise.all(
         relevantLineItems.map((li: any) =>
-          this.prisma.service.findUnique({
-            where: { id: li.serviceId },
+          this.prisma.service.findFirst({
+            where: { id: li.serviceId, companyId },
             include: { components: { include: { article: true } } },
           }),
         ),
@@ -101,7 +101,7 @@ export class PostCalculationService {
 
     // Ist Arbeitszeit: alle abgeschlossenen/freigegebenen Zeiteinträge.
     const timeEntries = await this.prisma.timeEntry.findMany({
-      where: { projectId, status: { in: ['completed', 'approved'] } },
+      where: { projectId, companyId, status: { in: ['completed', 'approved'] } },
     });
     const actualMinutes = timeEntries.reduce((sum: number, entry: any) => {
       if (!entry.endTime) return sum;
@@ -114,7 +114,7 @@ export class PostCalculationService {
     // AKTUELLEN Einkaufspreis (keine Snapshot-Bewertung zum Buchungszeitpunkt
     // – dieselbe bewusste Vereinfachung wie bei der Soll-Seite, siehe STATUS.md).
     const usages = await this.prisma.projectMaterialUsage.findMany({
-      where: { projectId },
+      where: { projectId, companyId },
       include: { article: true },
     });
     const actualMaterialCost = usages.reduce(

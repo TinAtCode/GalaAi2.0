@@ -6,13 +6,12 @@ import { CreateProjectDto, UpdateProjectStatusDto } from './dto/project.dto';
 export class ProjectsService {
   constructor(private prisma: PrismaService) {}
 
-  // Ein Projekt hängt an einem Objekt, das Objekt an einem Kunden, der Kunde
-  // an der Company. Die Kette wird bei jedem Zugriff komplett über die
-  // Prisma-Relation geprüft (property.customer.companyId) – so kann niemand
-  // über eine fremde propertyId Daten einer anderen Firma anlegen oder lesen.
+  // Ein Projekt trägt seine companyId selbst. Beim Anlegen wird geprüft, dass
+  // das Objekt zur selben Firma gehört – so kann niemand über eine fremde
+  // propertyId Daten einer anderen Firma anlegen.
   private async assertPropertyBelongsToCompany(companyId: string, propertyId: string) {
     const property = await this.prisma.property.findFirst({
-      where: { id: propertyId, customer: { companyId } },
+      where: { id: propertyId, companyId },
     });
     if (!property) {
       throw new NotFoundException('Objekt nicht gefunden.');
@@ -24,7 +23,7 @@ export class ProjectsService {
   // damit das Frontend nicht pro Zeile nachladen muss.
   findAllForCompany(companyId: string) {
     return this.prisma.project.findMany({
-      where: { property: { customer: { companyId } } },
+      where: { companyId },
       include: { property: { include: { customer: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -33,14 +32,14 @@ export class ProjectsService {
   async findAllForProperty(companyId: string, propertyId: string) {
     await this.assertPropertyBelongsToCompany(companyId, propertyId);
     return this.prisma.project.findMany({
-      where: { propertyId },
+      where: { propertyId, companyId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async findOne(companyId: string, id: string) {
     const project = await this.prisma.project.findFirst({
-      where: { id, property: { customer: { companyId } } },
+      where: { id, companyId },
     });
     if (!project) {
       throw new NotFoundException('Projekt nicht gefunden.');
@@ -51,7 +50,7 @@ export class ProjectsService {
   async create(companyId: string, dto: CreateProjectDto) {
     await this.assertPropertyBelongsToCompany(companyId, dto.propertyId);
     return this.prisma.project.create({
-      data: { propertyId: dto.propertyId, title: dto.title },
+      data: { companyId, propertyId: dto.propertyId, title: dto.title },
     });
   }
 

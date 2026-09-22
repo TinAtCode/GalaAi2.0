@@ -12,10 +12,9 @@ export class QuotesService {
     private calculationsService: CalculationsService,
   ) {}
 
-  // Dieselbe Kette wie bei Projects: Projekt -> Objekt -> Kunde -> Firma.
   private async assertProjectBelongsToCompany(companyId: string, projectId: string) {
     const project = await this.prisma.project.findFirst({
-      where: { id: projectId, property: { customer: { companyId } } },
+      where: { id: projectId, companyId },
     });
     if (!project) {
       throw new NotFoundException('Projekt nicht gefunden.');
@@ -25,7 +24,7 @@ export class QuotesService {
 
   private async assertQuoteBelongsToCompany(companyId: string, quoteId: string) {
     const quote = await this.prisma.quote.findFirst({
-      where: { id: quoteId, project: { property: { customer: { companyId } } } },
+      where: { id: quoteId, companyId },
       include: { lineItems: true },
     });
     if (!quote) {
@@ -37,7 +36,7 @@ export class QuotesService {
   findAllForProject(companyId: string, projectId: string) {
     return this.assertProjectBelongsToCompany(companyId, projectId).then(() =>
       this.prisma.quote.findMany({
-        where: { projectId },
+        where: { projectId, companyId },
         include: { lineItems: true },
         orderBy: { createdAt: 'desc' },
       }),
@@ -92,6 +91,7 @@ export class QuotesService {
 
     return this.prisma.quote.create({
       data: {
+        companyId,
         projectId: dto.projectId,
         totalNet,
         lineItems: { create: lineItemsData },

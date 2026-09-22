@@ -16,12 +16,12 @@ export class DocumentsService {
 
   async findAllForProject(companyId: string, projectId: string) {
     const project = await this.prisma.project.findFirst({
-      where: { id: projectId, property: { customer: { companyId } } },
+      where: { id: projectId, companyId },
     });
     if (!project) {
       throw new NotFoundException('Projekt nicht gefunden.');
     }
-    return this.prisma.document.findMany({ where: { projectId }, orderBy: { createdAt: 'desc' } });
+    return this.prisma.document.findMany({ where: { projectId, companyId }, orderBy: { createdAt: 'desc' } });
   }
 
   async findOne(companyId: string, id: string) {
@@ -35,7 +35,7 @@ export class DocumentsService {
   async create(companyId: string, userId: string, dto: CreateDocumentDto) {
     if (dto.projectId) {
       const project = await this.prisma.project.findFirst({
-        where: { id: dto.projectId, property: { customer: { companyId } } },
+        where: { id: dto.projectId, companyId },
       });
       if (!project) {
         throw new NotFoundException('Projekt nicht gefunden.');
@@ -66,7 +66,7 @@ export class DocumentsService {
   ) {
     if (projectId) {
       const project = await this.prisma.project.findFirst({
-        where: { id: projectId, property: { customer: { companyId } } },
+        where: { id: projectId, companyId },
       });
       if (!project) {
         throw new NotFoundException('Projekt nicht gefunden.');

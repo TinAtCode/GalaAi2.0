@@ -38,7 +38,7 @@ export class TimeEntriesService {
 
     if (dto.projectId) {
       const project = await this.prisma.project.findFirst({
-        where: { id: dto.projectId, property: { customer: { companyId } } },
+        where: { id: dto.projectId, companyId },
       });
       if (!project) {
         throw new NotFoundException('Projekt nicht gefunden.');
@@ -47,6 +47,7 @@ export class TimeEntriesService {
 
     return this.prisma.timeEntry.create({
       data: {
+        companyId,
         employeeId: employee.id,
         projectId: dto.projectId,
         activity: dto.activity,
@@ -74,7 +75,7 @@ export class TimeEntriesService {
   async findMine(companyId: string, userId: string) {
     const employee = await this.getOwnEmployeeOrThrow(companyId, userId);
     return this.prisma.timeEntry.findMany({
-      where: { employeeId: employee.id },
+      where: { employeeId: employee.id, companyId },
       orderBy: { startTime: 'desc' },
     });
   }
@@ -84,14 +85,14 @@ export class TimeEntriesService {
   async findAllForEmployee(companyId: string, employeeId: string) {
     await this.employeesService.findOne(companyId, employeeId); // wirft NotFound, falls fremde Firma
     return this.prisma.timeEntry.findMany({
-      where: { employeeId },
+      where: { employeeId, companyId },
       orderBy: { startTime: 'desc' },
     });
   }
 
   async approve(companyId: string, id: string) {
     const entry = await this.prisma.timeEntry.findFirst({
-      where: { id, employee: { companyId } },
+      where: { id, companyId },
     });
     if (!entry) {
       throw new NotFoundException('Zeiteintrag nicht gefunden.');
@@ -118,6 +119,7 @@ export class TimeEntriesService {
     const entries = await this.prisma.timeEntry.findMany({
       where: {
         employeeId,
+        companyId,
         status: { in: ['completed', 'approved'] },
         startTime: { gte: dayStart, lt: dayEnd },
       },

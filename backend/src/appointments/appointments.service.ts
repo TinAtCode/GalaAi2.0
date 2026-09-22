@@ -10,7 +10,7 @@ export class AppointmentsService {
 
   private async assertProjectBelongsToCompany(companyId: string, projectId: string) {
     const project = await this.prisma.project.findFirst({
-      where: { id: projectId, property: { customer: { companyId } } },
+      where: { id: projectId, companyId },
     });
     if (!project) {
       throw new NotFoundException('Projekt nicht gefunden.');
@@ -19,7 +19,7 @@ export class AppointmentsService {
 
   private async assertAppointmentBelongsToCompany(companyId: string, id: string) {
     const appointment = await this.prisma.appointment.findFirst({
-      where: { id, project: { property: { customer: { companyId } } } },
+      where: { id, companyId },
     });
     if (!appointment) {
       throw new NotFoundException('Termin nicht gefunden.');
@@ -75,7 +75,7 @@ export class AppointmentsService {
 
   findAllForProject(companyId: string, projectId: string) {
     return this.prisma.appointment.findMany({
-      where: { projectId, project: { property: { customer: { companyId } } } },
+      where: { projectId, companyId },
       orderBy: { startTime: 'asc' },
     });
   }
@@ -102,6 +102,7 @@ export class AppointmentsService {
 
     return this.prisma.appointment.create({
       data: {
+        companyId,
         projectId: dto.projectId,
         title: dto.title,
         startTime: new Date(dto.startTime),
@@ -130,7 +131,7 @@ export class AppointmentsService {
       where: {
         assignedUserId: userId,
         startTime: { gte: dayStart, lt: dayEnd },
-        project: { property: { customer: { companyId } } },
+        companyId,
       },
       include: {
         project: {

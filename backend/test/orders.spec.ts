@@ -14,7 +14,7 @@ function createPrismaMock() {
       findFirst: jest.fn(({ where }: any) => {
         const quote = quotes.find((q) => q.id === where.id);
         if (!quote) return Promise.resolve(null);
-        const requiredCompanyId = where.project?.property?.customer?.companyId;
+        const requiredCompanyId = where.companyId;
         if (requiredCompanyId && requiredCompanyId !== 'company-a') return Promise.resolve(null);
         return Promise.resolve(quote);
       }),
@@ -23,7 +23,7 @@ function createPrismaMock() {
       findFirst: jest.fn(({ where }: any) => {
         const order = orders.find((o) => o.id === where.id);
         if (!order) return Promise.resolve(null);
-        const requiredCompanyId = where.project?.property?.customer?.companyId;
+        const requiredCompanyId = where.companyId;
         if (requiredCompanyId && requiredCompanyId !== 'company-a') return Promise.resolve(null);
         return Promise.resolve(order);
       }),

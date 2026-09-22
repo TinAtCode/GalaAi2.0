@@ -17,10 +17,10 @@ function createPrismaMock() {
     },
     property: {
       findFirst: jest.fn(({ where }: any) => {
-        // unterstützt sowohl { id, customer: { companyId } } als auch { id, customerId }
+        // Filter über die direkte companyId des Objekts
         const byId = properties.find((p) => p.id === where.id);
         if (!byId) return Promise.resolve(null);
-        const companyId = where.customer?.companyId;
+        const companyId = where.companyId;
         if (companyId && byId.customer.companyId !== companyId) return Promise.resolve(null);
         return Promise.resolve(byId);
       }),
@@ -30,7 +30,7 @@ function createPrismaMock() {
       findFirst: jest.fn(({ where }: any) => {
         const byId = projects.find((p) => p.id === where.id);
         if (!byId) return Promise.resolve(null);
-        const companyId = where.property?.customer?.companyId;
+        const companyId = where.companyId;
         if (companyId && byId.property.customer.companyId !== companyId) return Promise.resolve(null);
         return Promise.resolve(byId);
       }),
@@ -38,7 +38,7 @@ function createPrismaMock() {
         if (where.propertyId) {
           return Promise.resolve(projects.filter((p) => p.propertyId === where.propertyId));
         }
-        const companyId = where.property?.customer?.companyId;
+        const companyId = where.companyId;
         return Promise.resolve(projects.filter((p) => p.property.customer.companyId === companyId));
       }),
       create: jest.fn(({ data }: any) => Promise.resolve({ id: 'new-proj', ...data })),
