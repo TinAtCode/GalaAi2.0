@@ -18,6 +18,8 @@ interface AuthContextValue {
   user: CurrentUser | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  // Eigenes Passwort ändern; andere Geräte werden dabei abgemeldet.
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   hasPermission: (key: string) => boolean;
   // true, wenn die Sitzung abgelaufen ist (für den Hinweis auf der Login-Seite)
   sessionExpired: boolean;
@@ -56,12 +58,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => loadStoredUser() === null && localStorage.getItem(TOKEN_KEY) !== null,
   );
 
-  const login = async (email: string, password: string) => {
-    const result = await api.post<LoginResponse>('/auth/login', { email, password });
+  const startSession = (result: LoginResponse) => {
     localStorage.setItem(TOKEN_KEY, result.accessToken);
     localStorage.setItem(USER_KEY, JSON.stringify(result.user));
     setSessionExpired(false);
     setUser(result.user);
+  };
+
+  const login = async (email: string, password: string) => {
+    startSession(await api.post<LoginResponse>('/auth/login', { email, password }));
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    startSession(await api.post<LoginResponse>('/auth/change-password', { currentPassword, newPassword }));
   };
 
   const logout = useCallback(() => {
@@ -86,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasPermission = (key: string) => user?.permissions.includes(key) ?? false;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, hasPermission, sessionExpired }}>
+    <AuthContext.Provider value={{ user, login, logout, changePassword, hasPermission, sessionExpired }}>
       {children}
     </AuthContext.Provider>
   );

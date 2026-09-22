@@ -26,6 +26,7 @@ import { AiGatewayModule } from './ai-gateway/ai-gateway.module';
 import { MaterialUsageModule } from './material-usage/material-usage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
+import { UsersModule } from './users/users.module';
 import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
 
 @Module({
@@ -59,6 +60,7 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     MaterialUsageModule,
     OcrModule,
     HealthModule,
+    UsersModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -1,4 +1,7 @@
 import { useTheme } from '../theme/ThemeContext';
+import { useAuth } from '../auth/AuthContext';
+import { ChangePasswordSection } from './ChangePasswordSection';
+import { UsersSection } from './UsersSection';
 
 const COLOR_FIELDS: { key: keyof ReturnType<typeof useTheme>['theme']; label: string; hint: string }[] = [
   { key: 'primary', label: 'Primärfarbe', hint: 'Navigation, Buttons, Hervorhebungen' },
@@ -8,6 +11,7 @@ const COLOR_FIELDS: { key: keyof ReturnType<typeof useTheme>['theme']; label: st
 
 export function SettingsPage() {
   const { theme, setTheme, resetTheme } = useTheme();
+  const { hasPermission } = useAuth();
 
   return (
     <div>
@@ -42,6 +46,9 @@ export function SettingsPage() {
           Auf Standardfarben zurücksetzen
         </button>
       </section>
+
+      <ChangePasswordSection />
+      {hasPermission('system.settings.write') && <UsersSection />}
     </div>
   );
 }
