@@ -1,0 +1,58 @@
+name: CI - Lint & Unit Tests
+
+# Deckt nur ab, was tatsächlich im Repo existiert (Backend/Frontend Unit-
+# Tests, Lint). Playwright-E2E-Tests laufen bewusst in einem eigenen
+# Workflow (ci-e2e.yml), da sie einen echten Browser + laufende Server
+# brauchen. Kein Docker-Build/Deploy hier – siehe STATUS.md für den
+# tatsächlichen Umsetzungsstand gegenüber dem größeren CICD_GUIDE.md-Plan.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      # Nicht blockierend: `xlsx` (Datenwächter-Excel-Import) hat laut
+      # Hersteller aktuell KEINEN Fix für zwei High-Findings (siehe
+      # STATUS.md/Entscheidungstabelle) – ein harter Abbruch hier würde die
+      # Pipeline dauerhaft rot färben, ohne dass wir etwas ändern könnten.
+      # Ergebnis bleibt trotzdem sichtbar im Log.
+      - run: npm audit --audit-level=high
+        continue-on-error: true
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run type-check
+      - run: npm run build
+      - run: npm audit --audit-level=high
+        continue-on-error: true

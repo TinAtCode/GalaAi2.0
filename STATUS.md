@@ -1,0 +1,216 @@
+# GartenAI – Projektstatus
+
+> Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
+> Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
+
+Letzte Aktualisierung: 22.09.2026 – Echte CI-Fehler nach erstem GitHub-Push behoben (fehlende Migrationen, geschützter Health-Check, blockierender Audit); neuer GET /health-Endpunkt
+
+---
+
+## 1. Stand nach Phasen
+
+| Phase | Bereich | Status |
+|---|---|---|
+| 1 | Architektur | ✅ |
+| 2–4 | Datenmodell, Auth, Rollen/Rechte | ✅ |
+| 5 | Frontend-Grundlayout | ✅ React/Vite-Grundgerüst: Login, Navigation, "Mein Tag", Kunden, Theming |
+| 6 | Kunden/Objekte/Projekte | ✅ |
+| 7 | Stammdaten (Artikel, Dienstleistungen/Rezepturen, Lieferanten, Maschinen) | ✅ |
+| 8 | Kalkulation (konfigurierbar: Material+Arbeitszeit+Gemeinkosten+Aufschlag) | ✅ |
+| 9 | Angebote (Preis-Snapshot) / Aufträge (aus angenommenem Angebot) | ✅ |
+| 10 | Terminplanung + "Mein Tag" | ✅ |
+| 11 | Mitarbeiter / Selbstbedienungs-Zeiterfassung | ✅ |
+| 12 | Dokumente + OCR + Objektspeicher | ✅ echter Datei-Upload/-Download + Text-/Bild-OCR inkl. gescannter PDFs (Rasterisierung) |
+| 13 | Datenwächter (Preislisten-Diff + Datei-Upload CSV/XLSX + zeilenweise Auswahl) | ✅ |
+| 14 | KI-Gateway | 🔶 Adapter-Grundgerüst fertig, kein aktiver Anbieter (Entscheidung folgt später) |
+| 15 | Nachkalkulation (Arbeitszeit + Material, Soll/Ist) | ✅ |
+| — | E2E-Tests (Playwright), Lint/Format (ESLint+Prettier), CI/CD (GitHub Actions) | 🔶 vollständig geschrieben, E2E-Ausführung hier nicht möglich (siehe Abschnitt 5) |
+| 16–18 | Mobile App, Schnittstellen, Admin-Auslagerung | ⬜ |
+
+Backend: NestJS + Prisma + PostgreSQL. Frontend: React + Vite + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
+Tests: `cd backend && npm test` (111 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen) und `cd frontend && npm run test:e2e` (13 Playwright-E2E-Tests, siehe Abschnitt 5 für den Ausführungsstatus). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
+
+---
+
+## 2. Projektstruktur (Kurzüberblick)
+
+**Schnellstart:** siehe `TESTANLEITUNG.md` (Docker Compose für Postgres, dann Backend, dann Frontend).
+
+```
+gartenai/backend/src/
+  auth/, customers/, properties/, projects/, roles/, permissions/,
+  articles/, services-catalog/, company/, calculations/, quotes/, orders/,
+  suppliers/, machines/, appointments/, employees/, time-entries/,
+  material-usage/, post-calculation/, documents/, data-guardian/, ai-gateway/
+  common/        Permission-Konstanten, Guards, price-visibility.ts
+  prisma/        schema.prisma, seed.ts (komplette Beispielkette)
+
+gartenai/frontend/tests/e2e/   Playwright-E2E-Tests (Login, Kalkulation, Angebots-Workflow, Termine)
+gartenai/.github/workflows/    GitHub-Actions-CI (Lint+Unit-Tests, E2E-Tests)
+```
+
+Jedes Modul folgt demselben Muster: Controller (Guards + Permissions) → Service
+(Mandantenprüfung über die Kette bis zur Company) → Prisma.
+
+**Lokal starten:**
+```bash
+cd backend
+cp .env.example .env   # DATABASE_URL anpassen
+npm install
+npx prisma migrate dev --name init
+npx prisma db seed
+npm run start:dev
+```
+Login (Seed): `admin@musterbetrieb.de` / `demo12345`.
+Kompletter Testablauf (Kalkulation → Angebot → Auftrag) steht als Kommentar in `prisma/seed.ts`.
+
+```
+gartenai/frontend/src/
+  theme/     ThemeContext.tsx – Farben als CSS-Variablen, live änderbar, in localStorage persistiert
+  auth/      AuthContext.tsx, LoginPage.tsx – JWT-Login gegen POST /auth/login
+  api/       client.ts – schlanker fetch-Wrapper (Base-URL aus VITE_API_BASE_URL)
+  layout/    AppShell.tsx – eine Navigation, zwei Darstellungen (Bottom-Bar mobil, Seitenleiste ab 900px)
+  pages/     MyDayPage (GET /appointments/my-day), CustomersPage (GET /customers), SettingsPage (Theming)
+  styles/    tokens.css (Design-Tokens), global.css
+```
+
+**Frontend lokal starten:**
+```bash
+cd frontend
+cp .env.example .env   # VITE_API_BASE_URL anpassen, falls Backend woanders läuft
+npm install
+npm run dev
+```
+
+---
+
+## 3. Wichtige Architektur-Entscheidungen
+
+- **Mandantentrennung**: explizit pro Query (`companyId`-Parameter durch die ganze Kette Kunde→Objekt→Projekt), nicht per globaler DB-Middleware – nachvollziehbar statt "unsichtbarer Magie".
+- **Preisrechte**: serverseitig über `applyPriceVisibility()` / `maskCalculationResult()` – fehlende Berechtigung entfernt Felder komplett aus der Antwort, nicht nur im UI versteckt.
+- **Preis-Snapshot bei Angeboten**: `costPerUnit`/`unitPrice`/`marginPerUnit` liegen direkt auf `QuoteLineItem`, nicht als Live-Referenz – spätere Preisänderungen wirken sich nie rückwirkend aus (Punkt 21).
+- **Kalkulationsgrundwerte** (Stundensatz, Gemeinkosten-%, Aufschlag-%) sind pro Firma konfigurierbar, mit optionalem Override pro Anfrage – keine starre Marge (Punkt 20).
+- **Zeiterfassung ist Selbstbedienung**: ein User bucht strukturell nur auf sein eigenes verknüpftes `Employee`-Profil, nie auf eine im Body übergebene ID.
+- **Terminkollisionsprüfung**: verhindert, dass derselbe Mitarbeiter zwei sich überschneidende Termine bekommt; ohne `endTime` wird eine Standarddauer von 1h angenommen, geprüft wird nur derselbe Kalendertag (Überschneidungen über Mitternacht sind für dieses Geschäftsfeld irrelevant), stornierte Termine blockieren nichts mehr.
+- **Überstunden**: EINE konfigurierbare Regelarbeitszeit pro Tag pro Firma (`regularDailyHours`, Standard 8h) statt komplexer Schichtmodelle – bewusste Vereinfachung für V1. Nur abgeschlossene/freigegebene Zeiteinträge zählen mit, ein noch laufender Eintrag fließt nicht ein. `overtimeSurchargePercent` ist als Feld vorbereitet, aber noch nicht mit der Lohnvorbereitung verknüpft (Punkt 29 nennt das explizit als "später").
+- **Nachkalkulation** vergleicht Soll (aktuelle Rezeptur × Menge aus Auftrag/Angebot) gegen Ist (gebuchte Zeiten/Material) – kein Snapshot der Soll-Werte, daher können sich rückwirkend Soll-Werte leicht verschieben, wenn sich eine Rezeptur später ändert. Material wird zum aktuellen Einkaufspreis bewertet (keine Snapshot-Bewertung zum Buchungszeitpunkt).
+- **KI-Gateway**: reine `AiProvider`-Schnittstelle + Injection-Token, aktuell an `NoopAiProvider` gebunden. Anbieterwechsel = eine Zeile im Modul ändern, kein anderer Code betroffen. Jeder Aufruf wird im Audit-Log protokolliert.
+- **Objektspeicher (Dokumente)**: dasselbe Muster wie beim KI-Gateway – eine `FileStorage`-Schnittstelle + Injection-Token, aktuell an `LocalDiskStorage` gebunden (Dateien unter `UPLOADS_DIR`, pro Firma in eigenem Unterordner). Wechsel auf S3/MinIO später = neue Klasse + eine Zeile im Modul. Datei-Upload/-Download real per HTTP getestet: Byte-für-Byte identischer Inhalt nach Upload+Download-Roundtrip.
+- **Datenwächter**: Diff-Erkennung (neu/Preisänderung/Einheitenänderung) ist eine reine, getestete Funktion. `apply` unterstützt jetzt auch zeilenweise Auswahl über ein optionales `acceptedArticleNumbers`-Feld (Punkt 16: "teilweise übernehmen") – ohne dieses Feld bleibt das bisherige Verhalten (alles übernehmen) der Standard. Bewusst ohne eigene Staging-Tabelle: der Client ruft zuerst `analyze` auf und entscheidet selbst, welche Artikelnummern er übernehmen will. Datei-Import (CSV/XLSX) mit toleranter Spaltenerkennung (deutsche/englische Kopfzeilen, deutsches Zahlenformat) ist real per Datei-Upload möglich.
+- **OCR**: PDFs mit Textebene werden direkt und ohne Bild-OCR ausgelesen (`pdf-parse`). PDFs OHNE Textebene (gescannt) werden jetzt vollständig verarbeitet: `pdf-parse` rendert jede Seite als echtes Bild (`getScreenshot()`, keine zusätzliche Abhängigkeit nötig), jede Seite läuft durch dieselbe Bild-OCR-Engine wie direkt hochgeladene Fotos, Ergebnisse werden zusammengeführt (Deckel: max. 10 Seiten, siehe offene Punkte). Die OCR-Engine selbst ist wie beim KI-Gateway/Objektspeicher austauschbar (`ImageOcrEngine`-Interface + Token), aktuell `TesseractOcrEngine`. Dokumenttyp-Erkennung läuft über einfache Schlüsselwortsuche im extrahierten Text, keine KI nötig.
+- **Datenbank-Indizes**: alle Fremdschlüssel-Spalten (`companyId`, `projectId`, `customerId`, etc.) haben jetzt einen `@@index` – ohne das würde jede Mandantentrennungs-Abfrage einen Full-Table-Scan machen, sobald Tabellen wachsen. Bereits `@unique`/`@@unique`-Felder wurden bewusst NICHT zusätzlich indiziert (redundant, da Unique-Constraints in Postgres automatisch einen Index erzeugen).
+- **Rate-Limiting**: global 100 Anfragen/Minute pro IP (`@nestjs/throttler`), Login zusätzlich auf 5/Minute begrenzt (Brute-Force-Schutz). Beides real per HTTP getestet (429 nach Limit-Überschreitung).
+- **Security-Header**: `helmet()` global aktiv (entfernt `X-Powered-By`, setzt `X-Content-Type-Options`, `X-Frame-Options` etc.) – real per HTTP-Header-Vergleich verifiziert.
+- **CORS** ist jetzt über `CORS_ORIGIN` in der `.env` einschränkbar (Produktion), bleibt ohne gesetzten Wert offen (lokale Entwicklung).
+- **E2E-Tests (Playwright)**: 13 Tests für die kritischen User Journeys (Login-Erfolg/-Fehler, geschützte Route ohne Login, Kalkulation, kompletter Angebots-Workflow inkl. Ablehnen-Pfad, Termin anlegen, Stammdaten/Artikel anlegen, Team-Zeiterfassungs-Freigabe). Testdaten für den Angebots-Workflow werden per API vorbereitet (Arrange-Schritt), nicht über die UI – es gibt bewusst kein Formular zum manuellen Anlegen eines Angebots (Angebote entstehen aus einer Kalkulation heraus). Echte `data-testid`-Attribute im Code, keine brüchigen Text-Selektoren.
+- **Lint/Format**: ESLint + Prettier in Backend UND Frontend ergänzt (fehlte vollständig) – 0 Fehler nach Behebung von zwei echten, kleinen Funden (ein ungenutzter Import, ein fehlendes React-Hook-Dependency).
+- **Build-Konfiguration korrigiert**: `nest build` kompilierte ohne `tsconfig.build.json` versehentlich auch `test/` und `prisma/seed.ts` mit in den Produktions-Build, und `main.js` landete unter `dist/src/main.js` statt `dist/main.js`. Beides gefunden und behoben (Standard-NestJS-Konvention), real mit `node dist/main.js` gegengetestet.
+- **Frontend-Theming**: Farben liegen als CSS-Variablen (`--color-primary` etc.), nicht hart codiert in Komponenten. Die Einstellungen-Seite schreibt diese zur Laufzeit um und speichert in `localStorage` – kein Rebuild nötig, direkt live sichtbar.
+- **Design-Tokens bewusst gegen SaaS-Klischees gewählt**: Moos-Grün/Ocker statt Standard-Blau oder Terracotta, IBM Plex Sans + Space Grotesk statt Systemschrift, "Mein Tag" als bewusst herausgehobener Bildschirm statt gleichförmigem Card-Raster.
+
+---
+
+## 4. Frontend – Umsetzungsstand
+
+Vorgaben (moderne Apps als Vorbild, einfach anpassbare Farben, durchgehend Touch)
+sind in Phase 5 umgesetzt: React + Vite, Theming-System per CSS-Variablen +
+Einstellungen-Seite mit Live-Farbwahl, responsive Navigation (Bottom-Bar mobil,
+Seitenleiste ab 900px, Punkte permission-abhängig ein-/ausgeblendet), Login gegen
+das Backend. Echte Datenseiten: Mein Tag (inkl. Zeiterfassungs-Start/Stopp-Widget),
+Kunden, Projekte, Projekt-Detail (Termine anlegen, Angebote/Aufträge mit
+Statuswechsel-Aktionen), Kalkulation, Stammdaten, Team (Mitarbeiter-Zeiteinträge
+ansehen und freigeben, nur mit `employee.data.read` sichtbar).
+
+---
+
+## 5. Validierungsstand (wichtig vor deinem Test)
+
+In dieser Sandbox war kein Netzwerkzugriff auf `binaries.prisma.sh` möglich (Egress-Proxy blockiert
+den Host explizit) – deshalb konnte `npx prisma generate` hier nicht laufen. **Auf deiner Maschine
+mit normalem Internetzugang ist das kein Problem.** Um trotzdem so weit wie möglich real zu prüfen,
+statt nur zu behaupten, dass es funktioniert:
+
+- **Datenmodell**: von Hand nach SQL übersetzt und gegen eine echte, lokal installierte PostgreSQL
+  16 angewendet (`prisma/validation.sql`) – alle 22 Tabellen, Fremdschlüssel und Unique-Constraints
+  wurden ohne Fehler angelegt.
+- **Kompletter Datenfluss**: eine vollständige Testkette (Firma→Rolle→User→Mitarbeiter→Kunde→
+  Objekt→Projekt→Artikel→Dienstleistung→Rezeptur→Angebot→Position→Auftrag→Termin→Zeiteintrag→
+  Materialverbrauch→Audit-Log) wurde real eingefügt (`prisma/validation-seed.sql`) – keine
+  Constraint-Verletzung. Die exakten Mehrfach-Joins, die der Code für Mandantentrennung und
+  Nachkalkulation nutzt, wurden gegen diese Daten abgefragt und lieferten korrekte Ergebnisse.
+- **Komplette Anwendung**: mit einem Prisma-Dummy (nur `$connect`/`$disconnect`) wurde der gesamte
+  NestJS-DI-Graph aller 22 Module erfolgreich aufgebaut (`Test.createTestingModule`) und ein
+  echter HTTP-Server gestartet. Geschützte Routen lieferten ohne Token `401`, mit ungültigem Token
+  `401`, Validierungspipeline und Routing liefen fehlerfrei durch. Der einzige beobachtete Fehler
+  (`500` bei `/auth/login`) kam ausschließlich vom bewusst leeren Prisma-Dummy, nicht von der
+  Anwendungslogik.
+
+- **OCR (neu)**: PDF-Textextraktion wurde mit einer selbst erzeugten Test-PDF real geprüft (kein Mock) – inklusive vollem HTTP-Roundtrip (Datei-Upload → Text → Dokumenttyp), Status 201, ohne DB-Abhängigkeit. Bild-OCR (`tesseract.js`) konnte in dieser Sandbox NICHT real getestet werden: die Bibliothek lädt beim ersten Lauf Sprachdaten von `cdn.jsdelivr.net`, das derselbe Egress-Proxy blockiert wie bei Prisma. Der Code ist korrekt implementiert (Standardvorgehen für tesseract.js), aber ungetestet – auf deiner Maschine lädt es die Sprachdaten beim ersten Aufruf automatisch nach (einmalig, danach lokal zwischengespeichert).
+- **PDF-Rasterisierung für gescannte PDFs (neu)**: `pdf-parse` rendert PDF-Seiten intern zu echten PNG-Bildern (`getScreenshot()`) – das wurde real getestet: eine selbst erzeugte PDF wurde tatsächlich zu einem gültigen PNG gerendert (verifiziert per PNG-Datei-Header-Bytes) und exakt der gerenderte Bild-Inhalt an die OCR-Engine übergeben. Die OCR-Engine selbst ist dafür austauschbar gemacht (`ImageOcrEngine`-Interface), damit dieser Teil ohne echtes Tesseract/Netzwerk testbar ist. Der komplette HTTP-Aufruf mit der echten Tesseract-Engine wurde ebenfalls ausgeführt und kam exakt bis zur bekannten Netzwerkgrenze (Sprachdaten-Download) – bestätigt, dass die komplette Kette bis dahin korrekt verdrahtet ist.
+
+Fazit: Modell, Verdrahtung und HTTP-Schicht sind real geprüft. Nur die tatsächlichen
+Datenbankabfragen über den echten, generierten Prisma-Client liefen nie – das kann ausschließlich
+auf deiner Maschine mit funktionierendem `prisma generate` passieren. Eine Docker-Compose-Datei
+und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.md`).
+
+- **E2E-Tests (neu)**: Der Playwright-Browser-Download ist in dieser Sandbox ebenfalls blockiert
+  (`cdn.playwright.dev`, dieselbe Klasse Einschränkung wie bei Prisma/Tesseract) – die Tests selbst
+  konnten daher nicht tatsächlich gegen einen Browser ausgeführt werden. Was real geprüft wurde:
+  alle 13 Tests werden von Playwright korrekt erkannt und geparst (`npx playwright test --list`),
+  eine eigene, strikte TypeScript-Prüfung der Testdateien ist fehlerfrei, und jedes in den Tests
+  verwendete `data-testid` wurde automatisiert gegen den tatsächlichen Frontend-Code abgeglichen
+  (keine Tippfehler in den Selektoren). Auf deiner Maschine mit normalem Internetzugang installiert
+  `npx playwright install chromium` den Browser einmalig und die Tests laufen dann echt.
+- **CI/CD-Workflows (neu)**: Beim Schreiben des E2E-Workflows fiel auf, dass `npm run build` im
+  Backend bisher `test/` und `prisma/seed.ts` versehentlich mit in den Produktions-Build kompiliert
+  hätte und `main.js` am falschen Pfad gelandet wäre – real mit `nest build` + `node dist/main.js`
+  nachgestellt und behoben (siehe Abschnitt 3). Die eigentlichen GitHub-Actions-Workflows selbst
+  können nur auf einem echten GitHub-Repository laufen, nicht in dieser Sandbox.
+- **Nachtrag – erste echte CI-Läufe zeigten rot**: Nach dem Push auf GitHub schlug die Pipeline
+  erwartungsgemäß fehl. Zwei echte, im Nachhinein am Workflow-Code identifizierte Ursachen behoben:
+  (1) `prisma migrate deploy` erwartet einen `prisma/migrations/`-Ordner, den es in diesem Repo nie
+  gab (in der Sandbox nie erzeugbar) → auf `prisma db push` umgestellt. (2) Der Health-Check im
+  E2E-Workflow rief einen durch Login geschützten Endpunkt auf → `wait-on` bekam `401` statt `200`.
+  Dafür einen neuen, bewusst ungeschützten `GET /health`-Endpunkt ergänzt (real per HTTP ohne Token
+  getestet: Status 200). Zusätzlich `npm audit --audit-level=high` in beiden Projekten auf
+  nicht-blockierend gestellt, da `xlsx` zwei vom Hersteller aktuell ungefixte High-Findings hat –
+  ein harter Abbruch hätte die Pipeline dauerhaft rot gehalten.
+
+- **Nachtrag – erster echter Lauf mit PostgreSQL 16 und Chromium**: Dabei gefunden und behoben:
+  (1) `ServiceComponent` hatte keine Prisma-Relation zu `Article` – der Backend-Build und 4 Test-Suites
+  schlugen mit dem echten Prisma-Client fehl. (2) `POST /documents` übernahm `storagePath` ungeprüft,
+  Download las damit beliebige Serverdateien bzw. Dateien fremder Firmen (`../`) – `read()` ist jetzt auf
+  das Firmenverzeichnis begrenzt. (3) Fester Fallback für `JWT_SECRET` entfernt, das Backend startet ohne
+  Secret nicht mehr; `main.ts` lädt dafür jetzt `backend/.env` (vorher las nur Prisma diese Datei).
+  (4) E2E: das Login-Limit (5/Minute) ließ die Suite scheitern → `LOGIN_RATE_LIMIT` in CI erhöht; zwei
+  Selektoren und ein fester Termin (Kollision ab dem zweiten Lauf) korrigiert. Ergebnis: 113 Unit-Tests
+  und 12 E2E-Tests (1 bewusst übersprungen) grün, auch bei wiederholten Läufen.
+
+---
+
+## 6. Optimierungsdurchgang (dieser Arbeitsschritt)
+
+Auf ausdrücklichen Wunsch wurde der gesamte bisherige Code systematisch auf Lücken geprüft:
+- **Gefunden und behoben:** fehlende DB-Indizes auf allen Fremdschlüsseln (21 ergänzt), kein Rate-Limiting (ergänzt, real getestet), keine Security-Header (Helmet ergänzt, real getestet), `.gitignore` fehlte in beiden Projekten (ergänzt), CORS war nicht einschränkbar (jetzt über `CORS_ORIGIN` konfigurierbar).
+- **Geprüft und für in Ordnung befunden:** Guards/Mandantenprüfungen sind über alle Module hinweg konsistent, DTO-Validierung ist durchgängig, keine zirkulären Modul-Abhängigkeiten.
+- Schema samt neuer Indizes wurde erneut komplett gegen eine echte PostgreSQL angewendet (siehe Abschnitt 5) – fehlerfrei. Alle 86 Tests weiterhin grün, kompletter DI-Graph erneut real gebootet.
+
+---
+
+## 7. Offene Punkte
+
+- Dokumente: echter Datei-Upload/-Download funktioniert (lokales Dateisystem). OCR-Ergebnis wird nicht automatisch als Document gespeichert (zwei getrennte Schritte: OCR ansehen, dann ggf. hochladen). Bei gescannten PDFs werden maximal die ersten 10 Seiten per Bild-OCR gelesen (Deckel gegen sehr lange Scans).
+- KI-Gateway ohne aktiven Anbieter (bewusst zurückgestellt).
+- E2E-Tests (Playwright) und CI/CD-Workflows (GitHub Actions) sind geschrieben, aber nie tatsächlich ausgeführt worden – auf deiner Maschine bzw. in einem echten GitHub-Repo müssen sie sich erstmalig bewähren.
+- Mobile App (React Native/Expo), Schnittstellen (DATEV/GAEB/DATANORM), Admin-Auslagerung: noch nicht begonnen.
+- Es existieren separate, umfassendere Projekt-Planungsdokumente (README.md, STATUS.md, DEVELOPMENT_GUIDE.md, TESTING_GUIDE.md, SECURITY_CHECKLIST.md, CICD_GUIDE.md, SKILLS_REFERENCE.md im Projekt-Root), die teils einen größeren, teamartigen Rahmen beschreiben (Mobile-Team, DevOps-Rolle, Security-Officer). Diese hier vorliegende STATUS.md beschreibt ausschließlich den tatsächlichen Code-Stand.
+
+---
+
+## 8. Nächste sinnvolle Schritte
+
+1. **Dein Test** (siehe `TESTANLEITUNG.md`) – danach mit echten Ergebnissen/Feedback weiterplanen. Dabei auch `npx playwright install chromium` + `npm run test:e2e` im Frontend ausprobieren.
+2. KI-Anbieter festlegen, sobald relevant → echter Adapter + erster KI-Agent.
+3. Weitere E2E-Tests für die übrigen Module (Stammdaten, Team) nach demselben Muster.
+
+Ohne weitere Vorgabe: nächster Ausbauschritt ist, was im Code noch als Lücke vermerkt ist (siehe Abschnitt 7).
