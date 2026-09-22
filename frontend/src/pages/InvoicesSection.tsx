@@ -120,6 +120,14 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
             >
               {STATUS_LABELS[invoice.status]}
             </span>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => run(() => api.openFile(`/invoices/${invoice.id}/pdf`))}
+              data-testid="invoice-pdf"
+            >
+              PDF
+            </button>
             {invoice.status === 'draft' && (
               <>
                 <button

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, StreamableFile, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -49,6 +49,17 @@ export class QuotesController {
   async findAllForProject(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
     const quotes = await this.quotesService.findAllForProject(user.companyId, projectId);
     return quotes.map((q: any) => maskQuote(q, user.permissions));
+  }
+
+  // Das PDF enthält Verkaufspreise -> zusätzlich price.sale.read nötig.
+  @Get(':id/pdf')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_READ, PERMISSIONS.PRICE_SALE_READ)
+  async pdf(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const { buffer, fileName } = await this.quotesService.renderPdf(user.companyId, id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `inline; filename="${fileName}"`,
+    });
   }
 
   @Get(':id')

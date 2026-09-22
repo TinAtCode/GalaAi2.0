@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { PrismaService } from '../../src/prisma/prisma.service';
-import { createApp, createCompany, resetDatabase, TestCompany } from './helpers';
+import { createApp, createCompany, fetchPdfText, resetDatabase, TestCompany } from './helpers';
 
 // Kompletter Rechnungsablauf gegen PostgreSQL: Abschlag -> Schlussrechnung
 // mit Abzug -> Storno, inklusive Nummernkreis, Pflichtangaben und
@@ -92,6 +92,27 @@ describe('Rechnungen', () => {
     expect(issued.body.sellerSnapshot).toMatchObject({ taxNumber: '214/5678/1234' });
   });
 
+  it('die ausgestellte Rechnung als PDF enthält die Pflichtangaben', async () => {
+    const invoice = await prisma.invoice.findFirstOrThrow({ where: { number: R(1) } });
+    const pdf = await fetchPdfText(app, `/invoices/${invoice.id}/pdf`, company.token);
+    expect(pdf).toMatchObject({ status: 200, isPdf: true });
+    expect(pdf.contentType).toContain('application/pdf');
+    for (const expected of [
+      `Abschlagsrechnung ${R(1)}`,
+      'Familie Berger',
+      'Lindenweg 3',
+      'Gartenstraße 1',
+      'Steuernummer 214/5678/1234',
+      'Leistungsdatum',
+      '372,60 €',
+      'Umsatzsteuer 19 %',
+      '443,39 €',
+    ]) {
+      expect(pdf.text).toContain(expected);
+    }
+    expect(pdf.text).not.toContain('ENTWURF');
+  });
+
   it('Abschläge dürfen die Auftragssumme nicht übersteigen', async () => {
     await draft({ kind: 'partial', percent: 80 }).expect(400);
   });
@@ -152,6 +173,12 @@ describe('Rechnungen', () => {
     expect(Number(again.body.totalNet)).toBe(869.4);
   });
 
+  it('ein Entwurf als PDF ist deutlich als Entwurf gekennzeichnet', async () => {
+    const open = await prisma.invoice.findFirstOrThrow({ where: { status: 'draft' } });
+    const pdf = await fetchPdfText(app, `/invoices/${open.id}/pdf`, company.token);
+    expect(pdf.text).toContain('ENTWURF – keine gültige Rechnung');
+  });
+
   it('Entwürfe lassen sich löschen, ohne eine Nummer zu verbrauchen', async () => {
     const open = await prisma.invoice.findFirstOrThrow({ where: { status: 'draft' } });
     await api().delete(`/invoices/${open.id}`).set(auth).expect(200);
@@ -184,6 +211,7 @@ describe('Rechnungen', () => {
     const invoice = await prisma.invoice.findFirstOrThrow({ where: { number: R(4) } });
     const as = { Authorization: `Bearer ${other.token}` };
     await api().get(`/invoices/${invoice.id}`).set(as).expect(404);
+    expect((await fetchPdfText(app, `/invoices/${invoice.id}/pdf`, other.token)).status).toBe(404);
     await api().post(`/invoices/${invoice.id}/cancel`).set(as).send({ reason: 'Übernahme' }).expect(404);
     await api().post('/invoices/from-order').set(as).send({ orderId, kind: 'final' }).expect(404);
     const list = await api().get(`/invoices/by-project/${projectId}`).set(as).expect(200);

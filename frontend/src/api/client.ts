@@ -66,4 +66,23 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  // Geschützte Datei (z.B. PDF) mit Token laden und in einem neuen Tab öffnen –
+  // ein einfacher Link ginge nicht, weil der Browser das Token nicht mitschickt.
+  openFile: async (path: string) => {
+    const token = localStorage.getItem('gartenai.token');
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (response.status === 401 && token) onUnauthorized?.();
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new ApiError(
+        response.status,
+        body.message ?? `Datei konnte nicht geladen werden (${response.status}).`,
+      );
+    }
+    const url = URL.createObjectURL(await response.blob());
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
 };

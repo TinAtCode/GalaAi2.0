@@ -12,7 +12,7 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test:integration": "jest -c jest.integration.config.js"
+    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest -c jest.integration.config.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
@@ -31,6 +31,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.20.2",
     "read-excel-file": "^9.3.10",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -50,6 +51,7 @@
     "@types/papaparse": "^5.5.2",
     "@types/passport-jwt": "^4.0.1",
     "@types/pdf-parse": "^1.1.5",
+    "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^8.70.1",
     "@typescript-eslint/parser": "^8.70.1",

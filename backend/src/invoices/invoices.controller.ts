@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, StreamableFile, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -17,6 +17,15 @@ export class InvoicesController {
   @Get('by-project/:projectId')
   findAllForProject(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
     return this.invoicesService.findAllForProject(user.companyId, projectId);
+  }
+
+  @Get(':id/pdf')
+  async pdf(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const { buffer, fileName } = await this.invoicesService.renderPdf(user.companyId, id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `inline; filename="${fileName}"`,
+    });
   }
 
   @Get(':id')

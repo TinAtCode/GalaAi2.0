@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { PrismaService } from '../../src/prisma/prisma.service';
-import { createApp, createCompany, createProject, resetDatabase, TestCompany } from './helpers';
+import { createApp, createCompany, createProject, fetchPdfText, resetDatabase, TestCompany } from './helpers';
 
 describe('Angebotsnummern und Umsatzsteuer', () => {
   let app: INestApplication;
@@ -78,6 +78,22 @@ describe('Angebotsnummern und Umsatzsteuer', () => {
     expect(Number(reduced.body.totalVat)).toBe(43.47);
 
     await createQuote(a, { vatRate: 120 }).expect(400);
+  });
+
+  it('das Angebot als PDF zeigt Nummer, Positionen und Bruttobetrag', async () => {
+    const quote = await createQuote(a).expect(201);
+    const pdf = await fetchPdfText(app, `/quotes/${quote.body.id}/pdf`, a.token);
+    expect(pdf).toMatchObject({ status: 200, isPdf: true });
+    for (const expected of [
+      `Angebot ${quote.body.number}`,
+      'Familie Muster',
+      'Pflege',
+      '621,00 €',
+      '738,99 €',
+    ]) {
+      expect(pdf.text).toContain(expected);
+    }
+    expect((await fetchPdfText(app, `/quotes/${quote.body.id}/pdf`, b.token)).status).toBe(404);
   });
 
   it('der Standardsatz ist je Firma einstellbar', async () => {

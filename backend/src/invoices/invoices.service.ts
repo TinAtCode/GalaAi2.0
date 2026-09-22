@@ -5,6 +5,8 @@ import { lockFor } from '../common/advisory-lock';
 import { writeAudit } from '../common/audit';
 import { formatDocumentNumber, nextSequenceValue, yearInZone } from '../common/numbering';
 import { CreateInvoiceFromOrderDto, IssueInvoiceDto } from './dto/invoice.dto';
+import { BusinessDocumentPdf, PdfParty, renderBusinessDocumentPdf } from '../pdf/business-document.pdf';
+import { buyerFromProject, formatDate, pdfLines, sellerFromCompany } from '../pdf/pdf-data';
 
 const D = (n: Prisma.Decimal.Value) => new Prisma.Decimal(n);
 const cents = (d: Prisma.Decimal) => d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
@@ -22,8 +24,6 @@ function totals(lines: LineInput[], vatRate: Prisma.Decimal) {
   const totalVat = cents(totalNet.times(vatRate).div(100));
   return { totalNet, totalVat, totalGross: totalNet.plus(totalVat) };
 }
-
-const formatDate = (date: Date, timeZone: string) => date.toLocaleDateString('de-DE', { timeZone });
 
 @Injectable()
 export class InvoicesService {
@@ -301,5 +301,64 @@ export class InvoicesService {
         include: { lineItems: { orderBy: { position: 'asc' } } },
       });
     });
+  }
+
+  // PDF der Rechnung. Ausgestellte Rechnungen nutzen die festgeschriebenen
+  // Angaben (Snapshot), Entwürfe die aktuellen und tragen einen deutlichen
+  // Entwurfs-Hinweis.
+  async renderPdf(companyId: string, id: string) {
+    const invoice = await this.findOne(companyId, id);
+    const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+    const project = await this.prisma.project.findUniqueOrThrow({
+      where: { id: invoice.projectId },
+      include: { property: { include: { customer: true } } },
+    });
+    const draft = invoice.status === 'draft';
+    const tz = company.timeZone;
+    const kindLabel = { partial: 'Abschlagsrechnung', final: 'Rechnung', cancellation: 'Stornorechnung' }[
+      invoice.kind
+    ];
+
+    const meta: [string, string][] = [];
+    if (invoice.number) meta.push(['Rechnungsnummer', invoice.number]);
+    if (invoice.issueDate) meta.push(['Rechnungsdatum', formatDate(invoice.issueDate, tz)]);
+    const periodEnd = invoice.servicePeriodEnd ?? invoice.issueDate;
+    if (periodEnd) {
+      meta.push(
+        invoice.servicePeriodStart
+          ? [
+              'Leistungszeitraum',
+              `${formatDate(invoice.servicePeriodStart, tz)} – ${formatDate(periodEnd, tz)}`,
+            ]
+          : ['Leistungsdatum', formatDate(periodEnd, tz)],
+      );
+    }
+    meta.push(['Projekt', project.title]);
+
+    const notes: string[] = [];
+    if (invoice.kind === 'cancellation' && invoice.cancelsInvoiceId) {
+      const original = await this.prisma.invoice.findUniqueOrThrow({
+        where: { id: invoice.cancelsInvoiceId },
+      });
+      notes.push(`Diese Stornorechnung hebt die Rechnung ${original.number} vollständig auf.`);
+    }
+    if (invoice.status === 'cancelled') notes.push('Diese Rechnung wurde storniert.');
+
+    const buffer = await renderBusinessDocumentPdf({
+      title: draft ? `${kindLabel} (Entwurf)` : `${kindLabel} ${invoice.number}`,
+      draft,
+      seller: (invoice.sellerSnapshot as BusinessDocumentPdf['seller'] | null) ?? sellerFromCompany(company),
+      buyer: (invoice.buyerSnapshot as PdfParty | null) ?? buyerFromProject(project),
+      meta,
+      lines: pdfLines(invoice.lineItems),
+      totals: {
+        net: invoice.totalNet.toString(),
+        vatRate: invoice.vatRate.toString(),
+        vat: invoice.totalVat.toString(),
+        gross: invoice.totalGross.toString(),
+      },
+      notes,
+    });
+    return { buffer, fileName: `${invoice.number ?? 'Rechnung-Entwurf'}.pdf` };
   }
 }

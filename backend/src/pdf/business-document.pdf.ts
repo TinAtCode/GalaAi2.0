@@ -1,0 +1,172 @@
+import PDFDocument from 'pdfkit';
+
+// Ein Beleg (Angebot oder Rechnung) als PDF – bewusst schlicht: Absender,
+// Empfänger, Kopfdaten, Positionen, Summen. Alle Beträge kommen bereits
+// gerundet aus der Datenbank; hier wird nur formatiert, nicht gerechnet.
+export interface PdfParty {
+  name: string;
+  street?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
+}
+
+export interface BusinessDocumentPdf {
+  title: string; // z.B. "Rechnung R-2026-0001"
+  draft: boolean; // Entwurf -> deutlicher Hinweis, keine gültige Rechnung
+  seller: PdfParty & { taxNumber?: string | null; vatId?: string | null };
+  buyer: PdfParty;
+  meta: [string, string][]; // Kopfdaten, z.B. [["Rechnungsdatum", "22.09.2026"]]
+  lines: {
+    position: number;
+    description: string;
+    quantity: string;
+    unit: string;
+    unitPrice: string;
+    lineTotal: string;
+  }[];
+  totals: { net: string; vatRate: string; vat: string; gross: string };
+  notes: string[];
+}
+
+const euro = (value: string | number) =>
+  Number(value).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+const amount = (value: string | number) =>
+  Number(value).toLocaleString('de-DE', { maximumFractionDigits: 2 });
+const addressLines = (p: PdfParty) =>
+  [p.name, p.street, [p.postalCode, p.city].filter(Boolean).join(' ')].filter((l): l is string => !!l);
+
+export function renderBusinessDocumentPdf(doc: BusinessDocumentPdf): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    // bufferPages: für die Fußzeile mit "Seite x von y" am Ende
+    const pdf = new PDFDocument({
+      size: 'A4',
+      margin: 50,
+      bufferPages: true,
+      info: { Title: doc.title, Author: doc.seller.name },
+    });
+    const chunks: Buffer[] = [];
+    pdf.on('data', (chunk: Buffer) => chunks.push(chunk));
+    pdf.on('end', () => resolve(Buffer.concat(chunks)));
+    pdf.on('error', reject);
+
+    const left = pdf.page.margins.left;
+    const width = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
+
+    // Absenderzeile und Empfänger
+    pdf
+      .font('Helvetica')
+      .fontSize(8)
+      .fillColor('#555555')
+      .text(addressLines(doc.seller).join(' · '), left, 50);
+    pdf.fontSize(11).fillColor('#000000').text(addressLines(doc.buyer).join('\n'), left, 80);
+
+    // Kopfdaten rechts
+    let metaY = 80;
+    for (const [label, value] of doc.meta) {
+      pdf.fontSize(9).text(`${label}:`, left + width - 220, metaY, { width: 100 });
+      pdf.text(value, left + width - 115, metaY, { width: 115, align: 'right' });
+      metaY += 14;
+    }
+
+    pdf.font('Helvetica-Bold').fontSize(16).text(doc.title, left, 190);
+    if (doc.draft) {
+      pdf
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .fillColor('#b00020')
+        .text('ENTWURF – keine gültige Rechnung', left, 212);
+      pdf.fillColor('#000000');
+    }
+
+    // Positionen
+    const cols = [
+      { key: 'position', label: 'Pos.', w: 35, align: 'left' as const },
+      {
+        key: 'description',
+        label: 'Beschreibung',
+        w: width - 35 - 60 - 45 - 80 - 85,
+        align: 'left' as const,
+      },
+      { key: 'quantity', label: 'Menge', w: 60, align: 'right' as const },
+      { key: 'unit', label: 'Einheit', w: 45, align: 'left' as const },
+      { key: 'unitPrice', label: 'Einzelpreis', w: 80, align: 'right' as const },
+      { key: 'lineTotal', label: 'Gesamt', w: 85, align: 'right' as const },
+    ];
+    let y = 240;
+    const row = (values: string[], bold = false) => {
+      pdf.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+      let x = left;
+      const heights = values.map((v, i) => pdf.heightOfString(v, { width: cols[i].w - 4 }));
+      const h = Math.max(...heights) + 6;
+      if (y + h > pdf.page.height - 120) {
+        pdf.addPage();
+        y = 50;
+      }
+      values.forEach((v, i) => {
+        pdf.text(v, x + 2, y + 3, { width: cols[i].w - 4, align: cols[i].align });
+        x += cols[i].w;
+      });
+      y += h;
+      pdf
+        .moveTo(left, y)
+        .lineTo(left + width, y)
+        .strokeColor('#dddddd')
+        .stroke();
+    };
+    row(
+      cols.map((c) => c.label),
+      true,
+    );
+    for (const line of doc.lines) {
+      row([
+        String(line.position),
+        line.description,
+        amount(line.quantity),
+        line.unit,
+        euro(line.unitPrice),
+        euro(line.lineTotal),
+      ]);
+    }
+
+    // Summen
+    y += 10;
+    const sum = (label: string, value: string, bold = false) => {
+      pdf.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10);
+      pdf.text(label, left + width - 250, y, { width: 160 });
+      pdf.text(value, left + width - 90, y, { width: 90, align: 'right' });
+      y += 16;
+    };
+    sum('Summe netto', euro(doc.totals.net));
+    sum(`Umsatzsteuer ${amount(doc.totals.vatRate)} %`, euro(doc.totals.vat));
+    sum('Gesamtbetrag', euro(doc.totals.gross), true);
+
+    y += 10;
+    pdf.font('Helvetica').fontSize(9);
+    for (const note of doc.notes) {
+      pdf.text(note, left, y, { width });
+      y = pdf.y + 4;
+    }
+
+    // Fußzeile mit Steuerangaben (§ 14 UStG) auf jeder Seite
+    const footer = [
+      doc.seller.name,
+      doc.seller.taxNumber ? `Steuernummer ${doc.seller.taxNumber}` : null,
+      doc.seller.vatId ? `USt-IdNr. ${doc.seller.vatId}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    const range = pdf.bufferedPageRange();
+    for (let i = range.start; i < range.start + range.count; i++) {
+      pdf.switchToPage(i);
+      // Unterhalb des Seitenrands schreiben, ohne eine neue Seite auszulösen
+      pdf.page.margins.bottom = 0;
+      pdf.fontSize(8).fillColor('#555555');
+      pdf.text(`${footer}   ·   Seite ${i + 1} von ${range.count}`, left, pdf.page.height - 40, {
+        width,
+        align: 'center',
+        lineBreak: false,
+      });
+    }
+    pdf.end();
+  });
+}

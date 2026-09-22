@@ -45,6 +45,14 @@ test.describe('Rechnungen', () => {
     await expect(card.getByTestId('invoice-status')).toHaveText('Ausgestellt');
     await expect(card.getByTestId('invoice-number')).toHaveText(/^R-\d{4}-\d{4}$/);
 
+    // PDF öffnet sich in einem neuen Tab (mit Token geladen)
+    const [pdfTab] = await Promise.all([
+      page.context().waitForEvent('page'),
+      card.getByTestId('invoice-pdf').click(),
+    ]);
+    expect(pdfTab.url()).toMatch(/^blob:/);
+    await pdfTab.close();
+
     page.once('dialog', (dialog) => dialog.accept('Falsche Menge'));
     await card.getByTestId('invoice-cancel').click();
     await expect(card.getByTestId('invoice-status')).toHaveText('Storniert');

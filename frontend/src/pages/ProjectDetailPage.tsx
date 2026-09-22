@@ -230,6 +230,15 @@ export function ProjectDetailPage() {
           </table>
 
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            {hasPermission('price.sale.read') && (
+              <button
+                className="btn"
+                onClick={() => runAction(() => api.openFile(`/quotes/${quote.id}/pdf`))}
+                data-testid="quote-pdf"
+              >
+                PDF
+              </button>
+            )}
             {quote.status === 'draft' && (
               <button
                 className="btn btn-primary"

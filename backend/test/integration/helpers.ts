@@ -90,3 +90,28 @@ export async function createProject(app: INestApplication, token: string) {
     .expect(201);
   return { customerId: customer.body.id, propertyId: property.body.id, projectId: project.body.id };
 }
+
+// PDF herunterladen und den Text extrahieren (für inhaltliche Prüfungen).
+export async function fetchPdfText(app: INestApplication, path: string, token: string) {
+  const res = await request(app.getHttpServer())
+    .get(path)
+    .set({ Authorization: `Bearer ${token}` })
+    .buffer(true)
+    .parse((response, callback) => {
+      const chunks: Buffer[] = [];
+      response.on('data', (chunk: Buffer) => chunks.push(chunk));
+      response.on('end', () => callback(null, Buffer.concat(chunks)));
+    });
+  const body = res.body as Buffer;
+  let text = '';
+  if (res.status === 200) {
+    const { PDFParse } = await import('pdf-parse');
+    text = (await new PDFParse({ data: body }).getText()).text;
+  }
+  return {
+    status: res.status,
+    contentType: res.headers['content-type'],
+    text,
+    isPdf: body.subarray(0, 4).toString() === '%PDF',
+  };
+}

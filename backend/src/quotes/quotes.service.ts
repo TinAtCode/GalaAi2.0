@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { formatDocumentNumber, nextSequenceValue, yearInZone } from '../common/numbering';
+import { renderBusinessDocumentPdf } from '../pdf/business-document.pdf';
+import { buyerFromProject, formatDate, pdfLines, sellerFromCompany } from '../pdf/pdf-data';
 import { PrismaService } from '../prisma/prisma.service';
 import { CalculationsService } from '../calculations/calculations.service';
 import { CreateQuoteDto, QuoteStatus } from './dto/quote.dto';
@@ -149,5 +151,37 @@ export class QuotesService {
   // sent -> accepted | rejected | expired (Kundenentscheidung erfassen)
   setOutcome(companyId: string, id: string, status: 'accepted' | 'rejected' | 'expired') {
     return this.transitionStatus(companyId, id, ['sent'], status);
+  }
+
+  async renderPdf(companyId: string, id: string) {
+    const quote = await this.assertQuoteBelongsToCompany(companyId, id);
+    const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+    const project = await this.prisma.project.findUniqueOrThrow({
+      where: { id: quote.projectId },
+      include: { property: { include: { customer: true } } },
+    });
+    const tz = company.timeZone;
+    const meta: [string, string][] = [];
+    if (quote.number) meta.push(['Angebotsnummer', quote.number]);
+    meta.push(['Datum', formatDate(quote.createdAt, tz)]);
+    if (quote.validUntil) meta.push(['Gültig bis', formatDate(quote.validUntil, tz)]);
+    meta.push(['Projekt', project.title]);
+
+    const buffer = await renderBusinessDocumentPdf({
+      title: `Angebot ${quote.number ?? ''}`.trim(),
+      draft: false,
+      seller: sellerFromCompany(company),
+      buyer: buyerFromProject(project),
+      meta,
+      lines: pdfLines(quote.lineItems),
+      totals: {
+        net: quote.totalNet.toString(),
+        vatRate: quote.vatRate.toString(),
+        vat: quote.totalVat.toString(),
+        gross: quote.totalGross.toString(),
+      },
+      notes: [],
+    });
+    return { buffer, fileName: `${quote.number ?? 'Angebot'}.pdf` };
   }
 }
