@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CalculateServiceDto {
   @IsString()
@@ -6,6 +6,7 @@ export class CalculateServiceDto {
 
   @IsNumber()
   @Min(0.01)
+  @Max(1_000_000)
   quantity!: number;
 
   // Überschreibt die Firmen-Grundwerte für diese eine Berechnung (z.B. für
@@ -14,15 +15,18 @@ export class CalculateServiceDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(99_999_999.99)
   hourlyLaborRateOverride?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(999.99)
   overheadPercentOverride?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(999.99)
   surchargePercentOverride?: number;
 }

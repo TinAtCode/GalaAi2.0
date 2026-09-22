@@ -14,7 +14,7 @@ function createPrismaMock() {
   ];
   const auditLogs: any[] = [];
 
-  return {
+  const mock: any = {
     article: {
       findMany: jest.fn(({ where }: any) =>
         Promise.resolve(articles.filter((a) => a.companyId === where.companyId)),
@@ -43,9 +43,10 @@ function createPrismaMock() {
         return Promise.resolve(data);
       }),
     },
-    $transaction: jest.fn((ops: Promise<any>[]) => Promise.all(ops)),
     __auditLogs: auditLogs,
   };
+  mock.$transaction = jest.fn((arg: any) => (typeof arg === 'function' ? arg(mock) : Promise.all(arg)));
+  return mock;
 }
 
 describe('DataGuardianService.applyPriceList', () => {

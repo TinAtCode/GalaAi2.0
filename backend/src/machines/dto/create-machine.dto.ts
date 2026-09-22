@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 
 export class CreateMachineDto {
   @IsString()
@@ -7,6 +7,7 @@ export class CreateMachineDto {
 
   @IsNumber()
   @Min(0)
+  @Max(99_999_999.99)
   hourlyRate!: number;
 
   @IsOptional()

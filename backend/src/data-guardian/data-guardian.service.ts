@@ -162,12 +162,27 @@ export class DataGuardianService {
   // eine zusätzliche Staging-Tabelle: der Client ruft zuerst `analyze` auf,
   // entscheidet clientseitig, welche Artikelnummern er übernehmen will, und
   // schickt genau diese Liste an `apply`).
+  // Übernahme in EINER Transaktion: scheitert eine Zeile (z.B. doppelte
+  // Artikelnummer), wird nichts übernommen – statt einer halb importierten
+  // Preisliste, bei der niemand mehr weiß, welche Preise schon neu sind.
   async applyPriceList(
     companyId: string,
     userId: string,
     rows: PriceListRow[],
     acceptedArticleNumbers?: string[],
   ) {
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+    for (const row of rows) {
+      if (seen.has(row.articleNumber)) duplicates.add(row.articleNumber);
+      seen.add(row.articleNumber);
+    }
+    if (duplicates.size > 0) {
+      throw new BadRequestException(
+        `Die Preisliste enthält Artikelnummern mehrfach: ${Array.from(duplicates).join(', ')}. Bitte bereinigen und erneut hochladen.`,
+      );
+    }
+
     const diff = await this.analyzePriceList(companyId, rows);
     const accepted = acceptedArticleNumbers ? new Set(acceptedArticleNumbers) : null;
     const isAccepted = (articleNumber: string) => !accepted || accepted.has(articleNumber);
@@ -175,91 +190,84 @@ export class DataGuardianService {
     const newArticlesToCreate = diff.newArticles.filter((row) => isAccepted(row.articleNumber));
     const skippedNewArticles = diff.newArticles.filter((row) => !isAccepted(row.articleNumber));
 
-    const created = await this.prisma.$transaction(
-      newArticlesToCreate.map((row) =>
-        this.prisma.article.create({
-          data: {
-            companyId,
-            articleNumber: row.articleNumber,
-            name: row.name,
-            unit: row.unit,
-            purchasePrice: row.purchasePrice,
-            salePrice: row.salePrice,
-          },
-        }),
-      ),
-    );
-
     // Änderungen pro Artikelnummer bündeln (ein Artikel kann sowohl
     // Preis- als auch Einheiten-Änderung gleichzeitig haben).
-    const changedArticleNumbers = new Set(
-      [
-        ...diff.priceChanges.map((c) => c.articleNumber),
-        ...diff.unitChanges.map((c) => c.articleNumber),
-      ].filter(isAccepted),
+    const allChanged = new Set([
+      ...diff.priceChanges.map((c) => c.articleNumber),
+      ...diff.unitChanges.map((c) => c.articleNumber),
+    ]);
+    const changedArticleNumbers = Array.from(allChanged).filter(isAccepted);
+    const skippedChangedCount = allChanged.size - changedArticleNumbers.length;
+    const rowByNumber = new Map(rows.map((r) => [r.articleNumber, r]));
+
+    const { created, updated } = await this.prisma.$transaction(
+      async (tx) => {
+        const created = [];
+        for (const row of newArticlesToCreate) {
+          created.push(
+            await tx.article.create({
+              data: {
+                companyId,
+                articleNumber: row.articleNumber,
+                name: row.name,
+                unit: row.unit,
+                purchasePrice: row.purchasePrice,
+                salePrice: row.salePrice,
+              },
+            }),
+          );
+        }
+
+        // Alle betroffenen Artikel mit einer Abfrage laden statt einer pro Zeile.
+        const existingArticles = await tx.article.findMany({
+          where: { companyId, articleNumber: { in: changedArticleNumbers } },
+        });
+        const existingByNumber = new Map(existingArticles.map((a) => [a.articleNumber, a]));
+
+        const updated = [];
+        for (const articleNumber of changedArticleNumbers) {
+          const row = rowByNumber.get(articleNumber);
+          const existing = existingByNumber.get(articleNumber);
+          if (!row || !existing) continue;
+
+          const newData = { purchasePrice: row.purchasePrice, salePrice: row.salePrice, unit: row.unit };
+          const article = await tx.article.update({ where: { id: existing.id }, data: newData });
+          await tx.auditLog.create({
+            data: {
+              companyId,
+              userId,
+              action: 'price_list_import_update',
+              entity: 'Article',
+              entityId: article.id,
+              oldData: {
+                purchasePrice: Number(existing.purchasePrice),
+                salePrice: Number(existing.salePrice),
+                unit: existing.unit,
+              },
+              newData,
+              source: 'import',
+            },
+          });
+          updated.push(article);
+        }
+
+        if (created.length > 0) {
+          await tx.auditLog.create({
+            data: {
+              companyId,
+              userId,
+              action: 'price_list_import_create',
+              entity: 'Article',
+              newData: { count: created.length, articleNumbers: created.map((a) => a.articleNumber) },
+              source: 'import',
+            },
+          });
+        }
+        return { created, updated };
+      },
+      // Große Lieferanten-Listen brauchen länger als die Standard-5-Sekunden.
+      { timeout: 60_000 },
     );
-    const skippedChangedCount = new Set(
-      [
-        ...diff.priceChanges.map((c) => c.articleNumber),
-        ...diff.unitChanges.map((c) => c.articleNumber),
-      ].filter((n) => !isAccepted(n)),
-    ).size;
-
-    const updated = [];
-    for (const articleNumber of changedArticleNumbers) {
-      const matchingRow = rows.find((r) => r.articleNumber === articleNumber);
-      if (!matchingRow) continue;
-
-      const existing = await this.prisma.article.findFirst({ where: { companyId, articleNumber } });
-      if (!existing) continue;
-
-      const before = {
-        purchasePrice: Number(existing.purchasePrice),
-        salePrice: Number(existing.salePrice),
-        unit: existing.unit,
-      };
-
-      const article = await this.prisma.article.update({
-        where: { id: existing.id },
-        data: {
-          purchasePrice: matchingRow.purchasePrice,
-          salePrice: matchingRow.salePrice,
-          unit: matchingRow.unit,
-        },
-      });
-
-      await this.prisma.auditLog.create({
-        data: {
-          companyId,
-          userId,
-          action: 'price_list_import_update',
-          entity: 'Article',
-          entityId: article.id,
-          oldData: before,
-          newData: {
-            purchasePrice: matchingRow.purchasePrice,
-            salePrice: matchingRow.salePrice,
-            unit: matchingRow.unit,
-          },
-          source: 'import',
-        },
-      });
-
-      updated.push(article);
-    }
-
-    if (created.length > 0) {
-      await this.prisma.auditLog.create({
-        data: {
-          companyId,
-          userId,
-          action: 'price_list_import_create',
-          entity: 'Article',
-          newData: { count: created.length, articleNumbers: created.map((a: any) => a.articleNumber) },
-          source: 'import',
-        },
-      });
-    }
 
     return {
       createdCount: created.length,

@@ -1,4 +1,4 @@
-import { IsInt, IsNumber, IsOptional, IsString, Min, MinLength, ValidateIf } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateIf } from 'class-validator';
 
 export class CreateServiceDto {
   @IsString()
@@ -20,10 +20,12 @@ export class AddServiceComponentDto {
   @ValidateIf((dto: AddServiceComponentDto) => !!dto.articleId)
   @IsNumber()
   @Min(0)
+  @Max(999_999.9999)
   quantityPer?: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(100_000)
   laborMinutes?: number;
 }

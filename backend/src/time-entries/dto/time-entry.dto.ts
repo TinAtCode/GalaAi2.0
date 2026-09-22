@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class StartTimeEntryDto {
   @IsOptional()
@@ -14,5 +14,6 @@ export class StopTimeEntryDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(1440)
   breakMinutes?: number;
 }

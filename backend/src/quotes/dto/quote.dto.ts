@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -18,21 +19,25 @@ class QuoteLineItemInputDto {
 
   @IsNumber()
   @Min(0.01)
+  @Max(1_000_000)
   quantity!: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(99_999_999.99)
   hourlyLaborRateOverride?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(999.99)
   overheadPercentOverride?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(999.99)
   surchargePercentOverride?: number;
 }
 

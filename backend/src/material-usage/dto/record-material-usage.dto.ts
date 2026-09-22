@@ -1,4 +1,4 @@
-import { IsNumber, IsString, Min } from 'class-validator';
+import { IsNumber, IsString, Max, Min } from 'class-validator';
 
 export class RecordMaterialUsageDto {
   @IsString()
@@ -9,5 +9,6 @@ export class RecordMaterialUsageDto {
 
   @IsNumber()
   @Min(0.001)
+  @Max(1_000_000)
   quantity!: number;
 }
