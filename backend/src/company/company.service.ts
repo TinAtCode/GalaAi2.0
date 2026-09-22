@@ -18,6 +18,7 @@ export class CompanyService {
         regularDailyHours: true,
         overtimeSurchargePercent: true,
         timeZone: true,
+        defaultVatRate: true,
       },
     });
     if (!company) {
@@ -39,6 +40,7 @@ export class CompanyService {
         regularDailyHours: true,
         overtimeSurchargePercent: true,
         timeZone: true,
+        defaultVatRate: true,
       },
     });
   }

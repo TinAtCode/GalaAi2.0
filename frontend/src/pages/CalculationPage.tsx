@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { formatEuro } from '../format';
 
 interface Service {
   id: string;
@@ -23,11 +24,6 @@ interface CalculationResult {
   costTotal?: number;
   salePriceTotal?: number;
   marginTotal?: number;
-}
-
-function formatEuro(value?: number): string {
-  if (value === undefined) return '–';
-  return value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 }
 
 export function CalculationPage() {

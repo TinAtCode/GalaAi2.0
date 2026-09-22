@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { formatDocumentNumber, nextSequenceValue, yearInZone } from '../common/numbering';
 import { PrismaService } from '../prisma/prisma.service';
 import { CalculationsService } from '../calculations/calculations.service';
 import { CreateQuoteDto, QuoteStatus } from './dto/quote.dto';
@@ -89,17 +90,31 @@ export class QuotesService {
     );
 
     // Summe exakt als Dezimalwert bilden (Positionsbeträge sind bereits auf
-    // Cent gerundet, die Summe ist es damit ebenfalls).
+    // Cent gerundet, die Summe ist es damit ebenfalls). Die Umsatzsteuer wird
+    // einmal auf die Nettosumme gerechnet und kaufmännisch gerundet.
     const totalNet = lineItemsData.reduce((sum, li) => sum.plus(li.lineTotal), new Prisma.Decimal(0));
+    const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+    const vatRate = new Prisma.Decimal(dto.vatRate ?? company.defaultVatRate);
+    const totalVat = totalNet.times(vatRate).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
-    return this.prisma.quote.create({
-      data: {
-        companyId,
-        projectId: dto.projectId,
-        totalNet,
-        lineItems: { create: lineItemsData },
-      },
-      include: { lineItems: true },
+    // Nummer und Angebot in einer Transaktion: scheitert das Anlegen, ist
+    // auch die Nummer nicht verbraucht.
+    return this.prisma.$transaction(async (tx) => {
+      const year = yearInZone(new Date(), company.timeZone);
+      const value = await nextSequenceValue(tx, companyId, 'quote', year);
+      return tx.quote.create({
+        data: {
+          companyId,
+          projectId: dto.projectId,
+          number: formatDocumentNumber('A', year, value),
+          totalNet,
+          vatRate,
+          totalVat,
+          totalGross: totalNet.plus(totalVat),
+          lineItems: { create: lineItemsData },
+        },
+        include: { lineItems: true },
+      });
     });
   }
 

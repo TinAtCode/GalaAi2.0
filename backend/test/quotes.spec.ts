@@ -53,6 +53,13 @@ function createPrismaMock() {
   // Interaktive Transaktion: der Callback bekommt denselben Mock als tx.
   mock.$transaction = jest.fn((arg: any) => (typeof arg === 'function' ? arg(mock) : Promise.all(arg)));
   mock.$executeRaw = jest.fn(() => Promise.resolve(0));
+  let sequence = 0;
+  mock.$queryRaw = jest.fn(() => Promise.resolve([{ lastValue: ++sequence }]));
+  mock.company = {
+    findUniqueOrThrow: jest.fn(() =>
+      Promise.resolve({ id: 'company-a', timeZone: 'Europe/Berlin', defaultVatRate: 19 }),
+    ),
+  };
   return mock;
 }
 

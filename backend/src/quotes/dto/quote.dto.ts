@@ -42,6 +42,14 @@ class QuoteLineItemInputDto {
 }
 
 export class CreateQuoteDto {
+  // Umsatzsteuersatz in Prozent (z.B. 19, 7, 0); ohne Angabe gilt der
+  // Standardsatz der Firma.
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  vatRate?: number;
+
   @IsString()
   projectId!: string;
 

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { formatEuro } from '../format';
 
 interface Appointment {
   id: string;
@@ -21,8 +22,11 @@ interface QuoteLineItem {
 
 interface Quote {
   id: string;
+  number: string | null;
   status: 'draft' | 'approved' | 'sent' | 'accepted' | 'rejected' | 'expired';
+  vatRate: number;
   totalNet?: number;
+  totalGross?: number;
   createdAt: string;
   lineItems: QuoteLineItem[];
 }
@@ -43,11 +47,6 @@ const QUOTE_STATUS_LABELS: Record<Quote['status'], string> = {
   rejected: 'Abgelehnt',
   expired: 'Abgelaufen',
 };
-
-function formatEuro(value?: number): string {
-  if (value === undefined) return '–';
-  return value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-}
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -190,7 +189,8 @@ export function ProjectDetailPage() {
       {quotes?.map((quote) => (
         <article key={quote.id} className="job-card" data-testid="quote-card" data-quote-id={quote.id}>
           <div className="job-card-task">
-            Angebot vom {new Date(quote.createdAt).toLocaleDateString('de-DE')}
+            Angebot <span data-testid="quote-number">{quote.number ?? ''}</span> vom{' '}
+            {new Date(quote.createdAt).toLocaleDateString('de-DE')}
           </div>
           <div className="job-card-meta" style={{ marginBottom: 10 }}>
             <span
@@ -199,7 +199,13 @@ export function ProjectDetailPage() {
             >
               {QUOTE_STATUS_LABELS[quote.status]}
             </span>{' '}
-            · {formatEuro(quote.totalNet)}
+            · {formatEuro(quote.totalNet)} netto
+            {quote.totalGross !== undefined && (
+              <>
+                {' '}
+                · {formatEuro(quote.totalGross)} brutto ({Number(quote.vatRate)} % USt)
+              </>
+            )}
           </div>
 
           <table className="calc-table">

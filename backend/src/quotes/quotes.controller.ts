@@ -19,9 +19,13 @@ function maskQuote(quote: any, permissions: string[]) {
   return {
     id: quote.id,
     projectId: quote.projectId,
+    number: quote.number,
     status: quote.status,
     createdAt: quote.createdAt,
+    vatRate: quote.vatRate,
     totalNet: canSale ? quote.totalNet : undefined,
+    totalVat: canSale ? quote.totalVat : undefined,
+    totalGross: canSale ? quote.totalGross : undefined,
     lineItems: quote.lineItems.map((li: any) => ({
       id: li.id,
       description: li.description,

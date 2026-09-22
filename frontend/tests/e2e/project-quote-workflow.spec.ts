@@ -18,6 +18,10 @@ test.describe('Angebots-Workflow (Projekt-Detail)', () => {
     const quoteCard = page.getByTestId('quote-card').first();
     await expect(quoteCard).toBeVisible();
     await expect(quoteCard.getByTestId('quote-status')).toHaveText('Entwurf');
+    await expect(quoteCard.getByTestId('quote-number')).toHaveText(/^A-\d{4}-\d{4}$/);
+    // Beträge als Euro formatiert, nicht als roher Dezimal-String ("151.8")
+    await expect(quoteCard).toContainText(/\d+,\d{2}\s€ netto/);
+    await expect(quoteCard).toContainText(/\d+,\d{2}\s€ brutto/);
 
     await quoteCard.getByTestId('quote-approve').click();
     await expect(quoteCard.getByTestId('quote-status')).toHaveText('Freigegeben');

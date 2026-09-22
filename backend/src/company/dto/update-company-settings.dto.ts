@@ -31,6 +31,13 @@ export class UpdateCompanySettingsDto {
   @Max(999.99)
   overtimeSurchargePercent?: number;
 
+  // Standard-Umsatzsteuersatz für neue Angebote in Prozent.
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  defaultVatRate?: number;
+
   // z.B. "Europe/Berlin" – bestimmt, wann für die Firma ein Tag beginnt.
   @IsOptional()
   @IsTimeZone()

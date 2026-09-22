@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { formatEuro } from '../format';
 
 interface Article {
   id: string;
@@ -23,11 +24,6 @@ interface Machine {
 }
 
 type Tab = 'articles' | 'suppliers' | 'machines';
-
-function formatEuro(value?: number): string {
-  if (value === undefined) return '–';
-  return value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-}
 
 export function MasterDataPage() {
   const { hasPermission } = useAuth();
