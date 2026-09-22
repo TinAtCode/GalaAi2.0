@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Query,
+  Res,
   StreamableFile,
   UploadedFile,
   UseGuards,
@@ -21,6 +22,8 @@ import { AuthenticatedUser } from '../common/authenticated-request';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto, DOCUMENT_TYPES } from './dto/create-document.dto';
 import { requiredFile } from '../common/required-file';
+import { Response } from 'express';
+import { PageQueryDto, withTotalCount } from '../common/pagination';
 
 // "Dokumente sehen" ist laut Punkt 8 eine eigene, geschützte Berechtigung –
 // gilt hier für Lesen UND Registrieren (kein separates "Dokumente
@@ -32,8 +35,12 @@ export class DocumentsController {
   constructor(private documentsService: DocumentsService) {}
 
   @Get()
-  findAllForCompany(@CurrentUser() user: AuthenticatedUser) {
-    return this.documentsService.findAllForCompany(user.companyId);
+  async findAllForCompany(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() page: PageQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return withTotalCount(res, await this.documentsService.findAllForCompany(user.companyId, page));
   }
 
   @Get('by-project/:projectId')

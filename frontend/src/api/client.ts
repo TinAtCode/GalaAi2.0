@@ -21,6 +21,13 @@ export class ApiError extends Error {
 // ...) im Backend hat schon seine eigene, konsistente REST-Form, dafür
 // braucht es keinen generierten Client.
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  return (await requestWithHeaders<T>(path, options)).data;
+}
+
+async function requestWithHeaders<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<{ data: T; headers: Headers }> {
   const token = localStorage.getItem('gartenai.token');
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -41,12 +48,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new ApiError(response.status, body.message ?? `Anfrage fehlgeschlagen (${response.status}).`);
   }
 
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  if (response.status === 204) return { data: undefined as T, headers: response.headers };
+  return { data: (await response.json()) as T, headers: response.headers };
 }
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
+  // Für seitenweise geladene Listen: Einträge plus Gesamtzahl aus X-Total-Count.
+  getPage: async <T>(path: string, take: number, skip: number) => {
+    const separator = path.includes('?') ? '&' : '?';
+    const { data, headers } = await requestWithHeaders<T[]>(`${path}${separator}take=${take}&skip=${skip}`);
+    const total = Number(headers.get('X-Total-Count'));
+    return { items: data, total: Number.isFinite(total) ? total : data.length };
+  },
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) =>

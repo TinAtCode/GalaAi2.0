@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -7,6 +7,8 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from './dto/project.dto';
+import { Response } from 'express';
+import { PageQueryDto, withTotalCount } from '../common/pagination';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -15,8 +17,12 @@ export class ProjectsController {
 
   @Get()
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
-  findAllForCompany(@CurrentUser() user: AuthenticatedUser) {
-    return this.projectsService.findAllForCompany(user.companyId);
+  async findAllForCompany(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() page: PageQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return withTotalCount(res, await this.projectsService.findAllForCompany(user.companyId, page));
   }
 
   @Get('by-property/:propertyId')

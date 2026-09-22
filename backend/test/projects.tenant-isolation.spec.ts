@@ -10,6 +10,7 @@ function createPrismaMock() {
   const projects = [{ id: 'proj-a', propertyId: 'prop-a', property: properties[0], status: 'open' }];
 
   return {
+    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     customer: {
       findFirst: jest.fn(({ where }: any) =>
         Promise.resolve(customers.find((c) => c.id === where.id && c.companyId === where.companyId) ?? null),
@@ -27,6 +28,7 @@ function createPrismaMock() {
       create: jest.fn(({ data }: any) => Promise.resolve({ id: 'new-prop', ...data })),
     },
     project: {
+      count: jest.fn(() => Promise.resolve(0)),
       findFirst: jest.fn(({ where }: any) => {
         const byId = projects.find((p) => p.id === where.id);
         if (!byId) return Promise.resolve(null);
@@ -91,11 +93,11 @@ describe('Property/Project – Mandantentrennung über mehrere Ebenen', () => {
     const prisma = createPrismaMock();
     const service = new ProjectsService(prisma as any);
 
-    const resultA = await service.findAllForCompany('company-a');
+    const { items: resultA } = await service.findAllForCompany('company-a');
     expect(resultA).toHaveLength(1);
     expect(resultA[0].id).toBe('proj-a');
 
-    const resultB = await service.findAllForCompany('company-b');
+    const { items: resultB } = await service.findAllForCompany('company-b');
     expect(resultB).toHaveLength(0);
   });
 });

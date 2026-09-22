@@ -9,6 +9,7 @@ function createPrismaMock() {
   ];
 
   return {
+    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     project: {
       findFirst: jest.fn(({ where }: any) => {
         if (where.id !== 'proj-a') return Promise.resolve(null);
@@ -18,6 +19,7 @@ function createPrismaMock() {
       }),
     },
     document: {
+      count: jest.fn(() => Promise.resolve(0)),
       findFirst: jest.fn(({ where }: any) =>
         Promise.resolve(documents.find((d) => d.id === where.id && d.companyId === where.companyId) ?? null),
       ),
@@ -51,7 +53,7 @@ describe('DocumentsService – Mandantentrennung', () => {
     const prisma = createPrismaMock();
     const service = new DocumentsService(prisma as any, storageMock as any);
 
-    const result = await service.findAllForCompany('company-a');
+    const { items: result } = await service.findAllForCompany('company-a');
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('doc-a');
   });

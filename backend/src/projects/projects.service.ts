@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from './dto/project.dto';
+import { pageArgs, PageQueryDto } from '../common/pagination';
 
 @Injectable()
 export class ProjectsService {
@@ -21,12 +22,18 @@ export class ProjectsService {
   // Übersicht über ALLE Projekte der Firma (nicht nur je Objekt) – für eine
   // zentrale Projekt-Liste im Frontend, mit Kunde/Objekt direkt mitgeladen,
   // damit das Frontend nicht pro Zeile nachladen muss.
-  findAllForCompany(companyId: string) {
-    return this.prisma.project.findMany({
-      where: { companyId },
-      include: { property: { include: { customer: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAllForCompany(companyId: string, page: PageQueryDto = {}) {
+    const where = { companyId };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.project.findMany({
+        where,
+        include: { property: { include: { customer: true } } },
+        orderBy: { createdAt: 'desc' },
+        ...pageArgs(page),
+      }),
+      this.prisma.project.count({ where }),
+    ]);
+    return { items, total };
   }
 
   async findAllForProperty(companyId: string, propertyId: string) {

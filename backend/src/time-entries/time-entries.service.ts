@@ -6,6 +6,7 @@ import { writeAudit } from '../common/audit';
 import { calculateOvertime, OvertimeResult } from './overtime';
 import { dayRangeInZone } from '../common/time-zone';
 import { lockFor } from '../common/advisory-lock';
+import { pageArgs, PageQueryDto } from '../common/pagination';
 
 @Injectable()
 export class TimeEntriesService {
@@ -89,22 +90,24 @@ export class TimeEntriesService {
     });
   }
 
-  async findMine(companyId: string, userId: string) {
+  private async listEntries(where: { employeeId: string; companyId: string }, page: PageQueryDto) {
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.timeEntry.findMany({ where, orderBy: { startTime: 'desc' }, ...pageArgs(page) }),
+      this.prisma.timeEntry.count({ where }),
+    ]);
+    return { items, total };
+  }
+
+  async findMine(companyId: string, userId: string, page: PageQueryDto = {}) {
     const employee = await this.getOwnEmployeeOrThrow(companyId, userId);
-    return this.prisma.timeEntry.findMany({
-      where: { employeeId: employee.id, companyId },
-      orderBy: { startTime: 'desc' },
-    });
+    return this.listEntries({ employeeId: employee.id, companyId }, page);
   }
 
   // Für Vorgesetzte/Büro: Zeiten eines beliebigen Mitarbeiters einsehen
   // (permission-geprüft im Controller: employee.data.read).
-  async findAllForEmployee(companyId: string, employeeId: string) {
+  async findAllForEmployee(companyId: string, employeeId: string, page: PageQueryDto = {}) {
     await this.employeesService.findOne(companyId, employeeId); // wirft NotFound, falls fremde Firma
-    return this.prisma.timeEntry.findMany({
-      where: { employeeId, companyId },
-      orderBy: { startTime: 'desc' },
-    });
+    return this.listEntries({ employeeId, companyId }, page);
   }
 
   private async findEntryOrThrow(companyId: string, id: string) {

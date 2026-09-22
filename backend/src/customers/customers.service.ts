@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/create-customer.dto';
+import { pageArgs, PageQueryDto } from '../common/pagination';
 
 // MUSTER FÜR ALLE WEITEREN MODULE:
 // Jede Methode nimmt companyId als Parameter entgegen (kommt vom Controller
@@ -12,11 +13,13 @@ import { CreateCustomerDto, UpdateCustomerDto } from './dto/create-customer.dto'
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
-  findAll(companyId: string) {
-    return this.prisma.customer.findMany({
-      where: { companyId },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(companyId: string, page: PageQueryDto = {}) {
+    const where = { companyId };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.customer.findMany({ where, orderBy: { createdAt: 'desc' }, ...pageArgs(page) }),
+      this.prisma.customer.count({ where }),
+    ]);
+    return { items, total };
   }
 
   async findOne(companyId: string, id: string) {

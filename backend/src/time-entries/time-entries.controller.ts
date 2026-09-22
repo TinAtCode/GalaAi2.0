@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -8,6 +8,8 @@ import { AuthenticatedUser } from '../common/authenticated-request';
 import { parseDayParam } from '../common/time-zone';
 import { TimeEntriesService } from './time-entries.service';
 import { CorrectTimeEntryDto, StartTimeEntryDto, StopTimeEntryDto } from './dto/time-entry.dto';
+import { Response } from 'express';
+import { PageQueryDto, withTotalCount } from '../common/pagination';
 
 @Controller('time-entries')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -27,8 +29,12 @@ export class TimeEntriesController {
   }
 
   @Get('mine')
-  findMine(@CurrentUser() user: AuthenticatedUser) {
-    return this.timeEntriesService.findMine(user.companyId, user.userId);
+  async findMine(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() page: PageQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return withTotalCount(res, await this.timeEntriesService.findMine(user.companyId, user.userId, page));
   }
 
   // Eigene Überstunden für einen Tag (Standard: heute) – Selbstbedienung,
@@ -40,8 +46,16 @@ export class TimeEntriesController {
 
   @Get('by-employee/:employeeId')
   @RequirePermissions(PERMISSIONS.EMPLOYEE_DATA_READ)
-  findAllForEmployee(@CurrentUser() user: AuthenticatedUser, @Param('employeeId') employeeId: string) {
-    return this.timeEntriesService.findAllForEmployee(user.companyId, employeeId);
+  async findAllForEmployee(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('employeeId') employeeId: string,
+    @Query() page: PageQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return withTotalCount(
+      res,
+      await this.timeEntriesService.findAllForEmployee(user.companyId, employeeId, page),
+    );
   }
 
   // Überstunden eines beliebigen Mitarbeiters (Vorgesetzte/Büro).

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { api, ApiError } from '../api/client';
+import { usePagedList } from '../api/usePagedList';
+import { LoadMore } from '../layout/LoadMore';
 
 interface Customer {
   id: string;
@@ -9,17 +9,14 @@ interface Customer {
 }
 
 export function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api
-      .get<Customer[]>('/customers')
-      .then(setCustomers)
-      .catch((err) =>
-        setError(err instanceof ApiError ? err.message : 'Kunden konnten nicht geladen werden.'),
-      );
-  }, []);
+  const {
+    items: customers,
+    total,
+    error,
+    hasMore,
+    loadMore,
+    loadingMore,
+  } = usePagedList<Customer>('/customers', 'Kunden konnten nicht geladen werden.');
 
   return (
     <div>
@@ -45,6 +42,10 @@ export function CustomersPage() {
           </div>
         </div>
       ))}
+
+      {hasMore && customers && (
+        <LoadMore shown={customers.length} total={total} onLoadMore={loadMore} loading={loadingMore} />
+      )}
     </div>
   );
 }

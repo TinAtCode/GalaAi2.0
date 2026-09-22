@@ -3,13 +3,19 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateArticleDto, UpdateArticleDto } from './dto/create-article.dto';
 import { changedFields, writeAudit } from '../common/audit';
+import { pageArgs, PageQueryDto } from '../common/pagination';
 
 @Injectable()
 export class ArticlesService {
   constructor(private prisma: PrismaService) {}
 
-  findAll(companyId: string) {
-    return this.prisma.article.findMany({ where: { companyId }, orderBy: { name: 'asc' } });
+  async findAll(companyId: string, page: PageQueryDto = {}) {
+    const where = { companyId };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.article.findMany({ where, orderBy: { name: 'asc' }, ...pageArgs(page) }),
+      this.prisma.article.count({ where }),
+    ]);
+    return { items, total };
   }
 
   async findOne(companyId: string, id: string) {

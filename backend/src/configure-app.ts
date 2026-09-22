@@ -32,5 +32,6 @@ export function configureApp(app: INestApplication) {
   // eine bestimmte Domain einzuschränken; ohne gesetzten Wert bleibt es
   // offen (praktisch für lokale Entwicklung, für Produktion einschränken).
   const corsOrigin = process.env.CORS_ORIGIN;
-  app.enableCors(corsOrigin ? { origin: corsOrigin } : undefined);
+  // X-Total-Count: Gesamtzahl bei seitenweise geladenen Listen (common/pagination.ts).
+  app.enableCors({ ...(corsOrigin ? { origin: corsOrigin } : {}), exposedHeaders: ['X-Total-Count'] });
 }

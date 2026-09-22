@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDocumentDto, DOCUMENT_TYPES } from './dto/create-document.dto';
 import { FILE_STORAGE, FileStorage } from './storage/file-storage.interface';
+import { pageArgs, PageQueryDto } from '../common/pagination';
 
 @Injectable()
 export class DocumentsService {
@@ -10,8 +11,13 @@ export class DocumentsService {
     @Inject(FILE_STORAGE) private storage: FileStorage,
   ) {}
 
-  findAllForCompany(companyId: string) {
-    return this.prisma.document.findMany({ where: { companyId }, orderBy: { createdAt: 'desc' } });
+  async findAllForCompany(companyId: string, page: PageQueryDto = {}) {
+    const where = { companyId };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.document.findMany({ where, orderBy: { createdAt: 'desc' }, ...pageArgs(page) }),
+      this.prisma.document.count({ where }),
+    ]);
+    return { items, total };
   }
 
   async findAllForProject(companyId: string, projectId: string) {

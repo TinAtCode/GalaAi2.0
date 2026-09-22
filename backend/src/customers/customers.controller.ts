@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -7,6 +7,8 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/create-customer.dto';
+import { Response } from 'express';
+import { PageQueryDto, withTotalCount } from '../common/pagination';
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard, PermissionsGuard) // 1. eingeloggt? 2. berechtigt?
@@ -15,8 +17,12 @@ export class CustomersController {
 
   @Get()
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
-  findAll(@CurrentUser() user: AuthenticatedUser) {
-    return this.customersService.findAll(user.companyId);
+  async findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() page: PageQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return withTotalCount(res, await this.customersService.findAll(user.companyId, page));
   }
 
   @Get(':id')
