@@ -30,11 +30,11 @@ Die technische Grundlage ist ordentlich. Als Geschäftssoftware für einen Garte
 
 | Fehlt | Folge |
 |---|---|
-| **Rechnungen** (Abschlagsrechnung, Schlussrechnung, Gutschrift) | Das Ziel jedes Auftrags ist die Rechnung. Rechnungen stehen nicht einmal in der Roadmap (`GartenAI-Architektur-v1.md`). Dazu kommt die E-Rechnungspflicht (XRechnung/ZUGFeRD), die für Betriebe ab 2027/28 greift. |
-| **Umsatzsteuer, Angebotsnummern, Angebots-PDF** | Ein Angebot lässt sich weder verschicken noch rechtssicher nummerieren. |
+| **Rechnungen** (Abschlagsrechnung, Schlussrechnung, Gutschrift) 🔶 | Das Ziel jedes Auftrags ist die Rechnung. Rechnungen stehen nicht einmal in der Roadmap (`GartenAI-Architektur-v1.md`). Dazu kommt die E-Rechnungspflicht (XRechnung/ZUGFeRD), die für Betriebe ab 2027/28 greift. **Stand:** Abschlags-, Schluss- und Stornorechnungen mit lückenlosen Nummern, Pflichtangaben-Prüfung und Unveränderlichkeit per Datenbank-Trigger. Offen: PDF und E-Rechnung. |
+| **Umsatzsteuer, Angebotsnummern, Angebots-PDF** 🔶 | Ein Angebot lässt sich weder verschicken noch rechtssicher nummerieren. **Stand:** fortlaufende Nummern und Umsatzsteuer (Standardsatz je Firma) erledigt; PDF offen. |
 | **Benutzerverwaltung** ✅ | Es gibt keinen Endpunkt zum Anlegen von Nutzern oder zum Ändern und Zurücksetzen von Passwörtern. Nutzer entstehen nur über das Demo-Seed. **Stand:** Nutzer anlegen, deaktivieren, Passwort ändern und neu setzen – im Backend und in den Einstellungen. |
 | **Bearbeiten** ✅ | Es gibt nur 6 PATCH-/DELETE-Routen, fast ausschließlich für Statuswechsel und Rollen. Kunden, Artikel und Projekte lassen sich nicht korrigieren, ein vergessenes „Stopp“ in der Zeiterfassung ebenso wenig. **Stand:** PATCH für Kunden, Objekte, Projekte, Artikel, Maschinen, Lieferanten, Dienstleistungen und Zeiteinträge (Korrektur mit Begründung). Die Oberfläche dafür fehlt noch größtenteils. |
-| **Seitenweises Laden** | Keine einzige Liste lädt seitenweise, jede lädt immer alle Einträge. |
+| **Seitenweises Laden** ✅ | Keine einzige Liste lädt seitenweise, jede lädt immer alle Einträge. **Stand:** `take`/`skip` mit Obergrenze und `X-Total-Count`; Kunden- und Projektliste mit „Weitere laden“. |
 
 Die bisherige Entwicklung hat in die Breite gebaut (OCR, KI-Gateway, Datenwächter), bevor ein einziger Ablauf vom Angebot bis zur Rechnung wirklich benutzbar war.
 
@@ -63,8 +63,8 @@ Diese Punkte sind im Code gefunden, aber nicht einzeln durch Tests bestätigt.
 | Bereich | Problem | Vorschlag |
 |---|---|---|
 | **Rundung** ✅ | Zwischenwerte (Material, Arbeitszeit, Gemeinkosten) wurden je Schritt auf Cent gerundet, gerechnet wurde mit JavaScript-Kommazahlen. Beispiel: 0,3333 × 1,99 € Material je m² ergab 0,91 €/m² statt 0,92 €/m², bei 1.000 m² also 10 € zu wenig. | Behoben: `Prisma.Decimal`, kaufmännische Rundung nur der Ausgabewerte; der Einzelpreis bleibt auf Cent gerundet, damit Einzelpreis × Menge = Positionsbetrag |
-| **Maschinen** | Maschinen haben einen Stundensatz, fließen aber in keine Berechnung ein. Das ist im GaLaBau (Bagger, Rüttler) ein wesentlicher Kostenblock. | Maschinenzeit als Bestandteil der Rezeptur |
-| **Nachkalkulation** | Der Soll-Wert kommt aus der aktuellen Rezeptur statt aus dem eingefrorenen Angebot. Der Soll-Ist-Vergleich verschiebt sich, sobald jemand eine Rezeptur ändert. | Soll-Werte aus `QuoteLineItem` lesen oder beim Auftrag einfrieren |
+| **Maschinen** ✅ | Maschinen haben einen Stundensatz, fließen aber in keine Berechnung ein. Das ist im GaLaBau (Bagger, Rüttler) ein wesentlicher Kostenblock. | Behoben: Maschine mit Minuten je Einheit als Rezeptur-Bestandteil |
+| **Nachkalkulation** ✅ | Der Soll-Wert kommt aus der aktuellen Rezeptur statt aus dem eingefrorenen Angebot. Der Soll-Ist-Vergleich verschiebt sich, sobald jemand eine Rezeptur ändert. | Behoben: Soll-Werte werden am Angebot eingefroren |
 | **Zeitzonen** ✅ | Tagesgrenzen für „Mein Tag“, Überstunden und Terminkollisionen berechnet der Server mit seiner eigenen Zeitzone (`setHours(0)`). In Docker ist das UTC. Termine zwischen 0 und 2 Uhr deutscher Zeit landen am falschen Tag, und die Uhrzeiten in Fehlermeldungen sind in UTC. | Zeitzone `Europe/Berlin` pro Firma, Tagesgrenzen explizit berechnen |
 | **Gleichzeitige Zugriffe** ✅ | Mehrere Prüfungen lesen erst und schreiben dann getrennt. Bei zwei fast gleichzeitigen Anfragen kann es zwei laufende Zeiterfassungen geben, zwei sich überschneidende Termine oder doppelte Statuswechsel beim Angebot. | Behoben: Transaktionssperre pro Mitarbeiter, bedingte Updates; Parallel-Tests in der CI |
 | **Auftragsstatus** ✅ | Ein Auftrag kann beliebig springen, etwa von „erledigt“ zurück auf „offen“. Statuswerte sind freier Text. | Behoben: Prisma-Enums und feste Übergänge |
@@ -99,9 +99,9 @@ Bereits behoben (Commits auf dem Branch):
 | Schritt | Inhalt |
 |---|---|
 | **1. Fundament** ✅ | echte Migrationen · Integrationstests gegen PostgreSQL in der CI · `companyId` in allen Tabellen · Enums statt Status-Texte · exakte Dezimalrechnung · Zeitzone `Europe/Berlin` explizit. Noch offen: zentrale Erzwingung der Mandantentrennung (z.B. Row-Level-Security) |
-| **2. Benutzbarkeit** 🔶 | Benutzerverwaltung mit Passwort-Reset · Bearbeiten und Archivieren für alle Stammdaten · Korrektur von Zeiteinträgen mit Audit-Log · seitenweises Laden · 401-Behandlung im Frontend. **Stand:** alles außer seitenweisem Laden und den Bearbeiten-Masken im Frontend erledigt |
-| **3. Kernablauf schließen** | Angebotsnummer · Umsatzsteuer · Angebots-PDF · **Rechnungen** (Abschlag und Schluss) mit Blick auf die E-Rechnung |
-| **4. Kalkulation vervollständigen** | Maschinen · Rundung pro Gesamtposition · Nachkalkulation auf Basis des eingefrorenen Angebots |
+| **2. Benutzbarkeit** 🔶 | Benutzerverwaltung mit Passwort-Reset · Bearbeiten und Archivieren für alle Stammdaten · Korrektur von Zeiteinträgen mit Audit-Log · seitenweises Laden · 401-Behandlung im Frontend. **Stand:** alles außer den Bearbeiten-Masken im Frontend erledigt |
+| **3. Kernablauf schließen** 🔶 | Angebotsnummer · Umsatzsteuer · Angebots-PDF · **Rechnungen** (Abschlag und Schluss) mit Blick auf die E-Rechnung. **Stand:** alles außer PDF und E-Rechnung erledigt |
+| **4. Kalkulation vervollständigen** ✅ | Maschinen · Rundung pro Gesamtposition · Nachkalkulation auf Basis des eingefrorenen Angebots |
 | **5. Erst danach ausbauen** | Mobile App mit Offline-Sync · KI · Schnittstellen (DATEV, GAEB, DATANORM) |
 
 Den Bereich OCR, KI und Datenwächter würde ich einfrieren, bis Schritt 3 steht. Er ist gut gebaut, bringt einem Betrieb aber nichts, solange er keine Rechnung schreiben kann.

@@ -28,7 +28,7 @@ Letzte Aktualisierung: 22.09.2026 – Fundament (Schritt 1 aus BEWERTUNG.md): ec
 | 16–18 | Mobile App, Schnittstellen, Admin-Auslagerung | ⬜ |
 
 Backend: NestJS + Prisma + PostgreSQL. Frontend: React + Vite + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
-Tests: `cd backend && npm test` (124 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen), `npm run test:integration` (55 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (15 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
+Tests: `cd backend && npm test` (125 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen), `npm run test:integration` (76 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (16 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
 
 ---
 
@@ -208,6 +208,13 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
     ungefixten Lücken), `.xls` wird mit Hinweis abgelehnt; `bcrypt` 6.
   - Login-Limit je Konto und IP (`LOGIN_RATE_LIMIT`, `LOGIN_IP_RATE_LIMIT`, `TRUST_PROXY`), Frontend
     leitet bei abgelaufener Sitzung zur Login-Seite, Obergrenzen für Zahlenfelder passend zu den Spalten.
+
+- **Nachtrag – Schritt 3 und 4**: Maschinen in der Kalkulation; Soll-Werte der Nachkalkulation am Angebot
+  eingefroren; seitenweises Laden (`take`/`skip`, `X-Total-Count`); fortlaufende Angebotsnummern
+  (A-2026-0001) und Umsatzsteuer; Rechnungen (Abschlag, Schluss mit Abzug der Abschläge, Storno) mit
+  lückenlosen Nummern (R-2026-0001), Prüfung der Pflichtangaben nach § 14 UStG und Unveränderlichkeit
+  ausgestellter Rechnungen per Datenbank-Trigger. Firmendaten in den Einstellungen. Euro-Beträge werden
+  jetzt richtig formatiert (Prisma liefert Decimal als Text). Offen: PDF und E-Rechnung.
 
 ---
 
