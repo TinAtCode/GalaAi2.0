@@ -20,6 +20,7 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto, DOCUMENT_TYPES } from './dto/create-document.dto';
+import { requiredFile } from '../common/required-file';
 
 // "Dokumente sehen" ist laut Punkt 8 eine eigene, geschützte Berechtigung –
 // gilt hier für Lesen UND Registrieren (kein separates "Dokumente
@@ -65,7 +66,7 @@ export class DocumentsController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
   upload(
     @CurrentUser() user: AuthenticatedUser,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile(requiredFile()) file: Express.Multer.File,
     @Query('projectId') projectId?: string,
     @Query('documentType') documentType?: (typeof DOCUMENT_TYPES)[number],
   ) {

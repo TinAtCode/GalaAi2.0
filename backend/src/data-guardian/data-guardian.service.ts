@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import { readSheet } from 'read-excel-file/node';
 import { PrismaService } from '../prisma/prisma.service';
 import { diffPriceList, PriceListRow } from './price-list-diff';
 
@@ -40,15 +40,52 @@ function parseGermanOrPlainNumber(raw: string): number {
   return value;
 }
 
+// Erste Tabelle einer XLSX-Datei als Zeilen-Objekte (Kopfzeile = Schlüssel).
+async function readXlsxRows(file: {
+  originalname: string;
+  buffer: Buffer;
+}): Promise<Record<string, unknown>[]> {
+  // Altes Excel-Format (OLE-Container) an der Dateisignatur erkennen.
+  const isLegacyXls =
+    file.buffer.subarray(0, 4).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0])) ||
+    file.originalname.toLowerCase().endsWith('.xls');
+  if (isLegacyXls) {
+    throw new BadRequestException(
+      'Das alte Excel-Format (.xls) wird nicht unterstützt. Bitte die Datei in Excel als .xlsx oder .csv speichern.',
+    );
+  }
+
+  let sheet: unknown[][];
+  try {
+    sheet = await readSheet(file.buffer);
+  } catch {
+    throw new BadRequestException('Die Excel-Datei konnte nicht gelesen werden (erwartet: .xlsx oder .csv).');
+  }
+
+  const [header, ...rows] = sheet;
+  if (!header) return [];
+  const keys = header.map((cell) => String(cell ?? '').trim());
+  return rows
+    .filter((row) => row.some((cell) => cell !== null && cell !== ''))
+    .map((row) => Object.fromEntries(keys.map((key, i) => [key, row[i] ?? ''])));
+}
+
 @Injectable()
 export class DataGuardianService {
   constructor(private prisma: PrismaService) {}
 
   // Datei -> normalisierte PriceListRow[] (Punkt 17: Format erkennen ->
-  // Daten erkennen -> Zuordnung vorschlagen). Unterstützt CSV, XLS, XLSX.
+  // Daten erkennen -> Zuordnung vorschlagen). Unterstützt CSV und XLSX.
+  // Das alte Excel-Format .xls wird bewusst nicht mehr gelesen: die einzige
+  // Bibliothek dafür auf npm (xlsx 0.18) hat ungefixte Sicherheitslücken,
+  // und hier werden Dateien von Nutzern verarbeitet.
   // Wirft eine klare Fehlermeldung, wenn Pflichtspalten fehlen, statt still
   // unvollständige Daten zu übernehmen.
-  parsePriceListFile(file: { originalname: string; buffer: Buffer; mimetype: string }): PriceListRow[] {
+  async parsePriceListFile(file: {
+    originalname: string;
+    buffer: Buffer;
+    mimetype: string;
+  }): Promise<PriceListRow[]> {
     const isCsv = file.mimetype === 'text/csv' || file.originalname.toLowerCase().endsWith('.csv');
 
     let rawRows: Record<string, unknown>[];
@@ -62,12 +99,7 @@ export class DataGuardianService {
       }
       rawRows = parsed.data;
     } else {
-      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-      const firstSheetName = workbook.SheetNames[0];
-      if (!firstSheetName) {
-        throw new BadRequestException('Die Excel-Datei enthält kein Arbeitsblatt.');
-      }
-      rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName], { defval: '' });
+      rawRows = await readXlsxRows(file);
     }
 
     if (rawRows.length === 0) {

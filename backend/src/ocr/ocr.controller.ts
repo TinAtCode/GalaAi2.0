@@ -5,6 +5,7 @@ import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
 import { PERMISSIONS } from '../common/permissions';
 import { OcrService } from './ocr.service';
+import { requiredFile } from '../common/required-file';
 
 // Gleiche Permission wie das Dokumente-Modul (document.read) – OCR ist
 // Teil desselben fachlichen Bereichs (Punkt 15).
@@ -16,7 +17,7 @@ export class OcrController {
 
   @Post('extract')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 15 * 1024 * 1024 } }))
-  extract(@UploadedFile() file: Express.Multer.File) {
+  extract(@UploadedFile(requiredFile()) file: Express.Multer.File) {
     return this.ocrService.extractFromFile(file);
   }
 }
