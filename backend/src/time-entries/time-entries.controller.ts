@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -7,7 +7,7 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { parseDayParam } from '../common/time-zone';
 import { TimeEntriesService } from './time-entries.service';
-import { StartTimeEntryDto, StopTimeEntryDto } from './dto/time-entry.dto';
+import { CorrectTimeEntryDto, StartTimeEntryDto, StopTimeEntryDto } from './dto/time-entry.dto';
 
 @Controller('time-entries')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -58,6 +58,13 @@ export class TimeEntriesController {
   @Post(':id/approve')
   @RequirePermissions(PERMISSIONS.EMPLOYEE_DATA_READ)
   approve(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.timeEntriesService.approve(user.companyId, id);
+    return this.timeEntriesService.approve(user.companyId, user.userId, id);
+  }
+
+  // Korrektur durch Vorgesetzte (dieselbe Berechtigung wie die Freigabe).
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.EMPLOYEE_DATA_READ)
+  correct(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: CorrectTimeEntryDto) {
+    return this.timeEntriesService.correct(user.companyId, user.userId, id, dto);
   }
 }

@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmployeesService } from '../employees/employees.service';
-import { StartTimeEntryDto, StopTimeEntryDto } from './dto/time-entry.dto';
+import { CorrectTimeEntryDto, StartTimeEntryDto, StopTimeEntryDto } from './dto/time-entry.dto';
+import { writeAudit } from '../common/audit';
 import { calculateOvertime, OvertimeResult } from './overtime';
 import { dayRangeInZone } from '../common/time-zone';
 import { lockFor } from '../common/advisory-lock';
@@ -106,19 +107,98 @@ export class TimeEntriesService {
     });
   }
 
-  async approve(companyId: string, id: string) {
-    const entry = await this.prisma.timeEntry.findFirst({
-      where: { id, companyId },
-    });
+  private async findEntryOrThrow(companyId: string, id: string) {
+    const entry = await this.prisma.timeEntry.findFirst({ where: { id, companyId } });
     if (!entry) {
       throw new NotFoundException('Zeiteintrag nicht gefunden.');
     }
-    if (entry.status !== 'completed') {
-      throw new BadRequestException(
-        `Nur abgeschlossene Zeiteinträge können freigegeben werden (aktueller Status: "${entry.status}").`,
-      );
+    return entry;
+  }
+
+  // Freigabe als bedingtes Update (nur aus "completed") plus Audit-Eintrag –
+  // wer wann freigegeben hat, bleibt nachvollziehbar.
+  async approve(companyId: string, userId: string, id: string) {
+    const entry = await this.findEntryOrThrow(companyId, id);
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.timeEntry.updateMany({
+        where: { id, companyId, status: 'completed' },
+        data: { status: 'approved', approvedByUserId: userId, approvedAt: new Date() },
+      });
+      if (count === 0) {
+        throw new BadRequestException(
+          `Nur abgeschlossene Zeiteinträge können freigegeben werden (aktueller Status: "${entry.status}").`,
+        );
+      }
+      await writeAudit(tx, {
+        companyId,
+        userId,
+        action: 'time_entry_approve',
+        entity: 'TimeEntry',
+        entityId: id,
+      });
+      return tx.timeEntry.findUniqueOrThrow({ where: { id } });
+    });
+  }
+
+  // Korrektur durch Vorgesetzte: abgeschlossene Einträge anpassen oder einen
+  // noch laufenden (vergessenes "Stopp") mit Endzeit abschließen. Freigegebene
+  // Einträge sind gesperrt. Jede Korrektur wird mit Begründung protokolliert.
+  async correct(companyId: string, userId: string, id: string, dto: CorrectTimeEntryDto) {
+    const entry = await this.findEntryOrThrow(companyId, id);
+    if (entry.status === 'approved') {
+      throw new BadRequestException('Freigegebene Zeiteinträge können nicht mehr geändert werden.');
     }
-    return this.prisma.timeEntry.update({ where: { id }, data: { status: 'approved' } });
+
+    const startTime = dto.startTime ? new Date(dto.startTime) : entry.startTime;
+    const endTime = dto.endTime ? new Date(dto.endTime) : entry.endTime;
+    const breakMinutes = dto.breakMinutes ?? entry.breakMinutes;
+    if (!endTime) {
+      throw new BadRequestException('Für einen laufenden Eintrag muss eine Endzeit angegeben werden.');
+    }
+    const minutes = (endTime.getTime() - startTime.getTime()) / 60000;
+    if (minutes <= 0) {
+      throw new BadRequestException('Das Ende muss nach dem Beginn liegen.');
+    }
+    if (minutes > 24 * 60) {
+      throw new BadRequestException('Ein Zeiteintrag darf höchstens 24 Stunden umfassen.');
+    }
+    if (breakMinutes > minutes) {
+      throw new BadRequestException('Die Pause kann nicht länger sein als die erfasste Zeit.');
+    }
+    if (endTime > new Date()) {
+      throw new BadRequestException('Die Endzeit darf nicht in der Zukunft liegen.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.timeEntry.updateMany({
+        where: { id, companyId, status: { in: ['open', 'completed'] } },
+        data: { startTime, endTime, breakMinutes, status: 'completed' },
+      });
+      if (count === 0) {
+        throw new BadRequestException('Der Zeiteintrag wurde inzwischen freigegeben.');
+      }
+      await writeAudit(tx, {
+        companyId,
+        userId,
+        action: 'time_entry_correct',
+        entity: 'TimeEntry',
+        entityId: id,
+        oldData: {
+          startTime: entry.startTime.toISOString(),
+          endTime: entry.endTime?.toISOString() ?? null,
+          breakMinutes: entry.breakMinutes,
+          status: entry.status,
+        },
+        newData: {
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          breakMinutes,
+          status: 'completed',
+          reason: dto.reason,
+        },
+      });
+      return tx.timeEntry.findUniqueOrThrow({ where: { id } });
+    });
   }
 
   // Überstunden für EINEN Kalendertag eines Mitarbeiters (Punkt 29).

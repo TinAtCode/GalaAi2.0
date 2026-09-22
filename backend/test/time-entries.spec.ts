@@ -44,6 +44,20 @@ function createPrismaMock() {
         Object.assign(entry, data);
         return Promise.resolve(entry);
       }),
+      updateMany: jest.fn(({ where, data }: any) => {
+        const entry = timeEntries.find(
+          (t) =>
+            t.id === where.id &&
+            (typeof where.status === 'string'
+              ? t.status === where.status
+              : where.status.in.includes(t.status)),
+        );
+        if (entry) Object.assign(entry, data);
+        return Promise.resolve({ count: entry ? 1 : 0 });
+      }),
+      findUniqueOrThrow: jest.fn(({ where }: any) =>
+        Promise.resolve(timeEntries.find((t) => t.id === where.id)),
+      ),
       findMany: jest.fn(({ where }: any) =>
         Promise.resolve(
           timeEntries.filter((t) => {
@@ -56,6 +70,9 @@ function createPrismaMock() {
           }),
         ),
       ),
+    },
+    auditLog: {
+      create: jest.fn(({ data }: any) => Promise.resolve(data)),
     },
     company: {
       findUniqueOrThrow: jest.fn(() =>
@@ -138,10 +155,12 @@ describe('TimeEntriesService', () => {
     const service = new TimeEntriesService(prisma as any, employees as any);
 
     const started = await service.start('company-a', 'user-a', {});
-    await expect(service.approve('company-a', started.id)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.approve('company-a', 'user-boss', started.id)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
 
     await service.stop('company-a', 'user-a', {});
-    const approved = await service.approve('company-a', started.id);
+    const approved = await service.approve('company-a', 'user-boss', started.id);
     expect(approved.status).toBe('approved');
   });
 
@@ -150,7 +169,9 @@ describe('TimeEntriesService', () => {
     const employees = createEmployeesServiceMock('emp-1');
     const service = new TimeEntriesService(prisma as any, employees as any);
 
-    await expect(service.approve('company-a', 'does-not-exist')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.approve('company-a', 'user-boss', 'does-not-exist')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });
 

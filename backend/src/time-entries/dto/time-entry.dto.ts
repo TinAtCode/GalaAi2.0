@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class StartTimeEntryDto {
   @IsOptional()
@@ -16,4 +16,27 @@ export class StopTimeEntryDto {
   @Min(0)
   @Max(1440)
   breakMinutes?: number;
+}
+
+// Korrektur durch Vorgesetzte (z.B. vergessenes "Stopp"). Die Begründung ist
+// Pflicht und landet im Audit-Log.
+export class CorrectTimeEntryDto {
+  @IsOptional()
+  @IsDateString()
+  startTime?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endTime?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  breakMinutes?: number;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(500)
+  reason!: string;
 }

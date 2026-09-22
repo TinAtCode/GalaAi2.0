@@ -361,7 +361,10 @@ model TimeEntry {
   endTime      DateTime?
   breakMinutes Int             @default(0)
   activity     String?
-  status       TimeEntryStatus @default(open)
+  status       TimeEntryStatus @default(open) // open = läuft noch
+  // Wer hat wann freigegeben (freigegebene Einträge sind gesperrt)
+  approvedByUserId String?
+  approvedAt       DateTime?
   createdAt    DateTime        @default(now())
 
   @@index([projectId])
