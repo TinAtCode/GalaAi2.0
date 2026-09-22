@@ -83,14 +83,14 @@ describe('QuotesService – Preis-Snapshot', () => {
     });
 
     expect(quote.lineItems[0].unitPrice).toBe(20);
-    expect(quote.totalNet).toBe(200);
+    expect(Number(quote.totalNet)).toBe(200);
 
     // Jetzt "ändert sich der Artikelpreis" – simuliert durch eine neue
     // CalculationsService-Instanz, die 35€/Einheit liefern würde.
     // Das bereits erstellte Angebot darf davon NICHT betroffen sein.
     const storedQuote = await service.findOne('company-a', quote.id);
     expect(storedQuote.lineItems[0].unitPrice).toBe(20);
-    expect(storedQuote.totalNet).toBe(200);
+    expect(Number(storedQuote.totalNet)).toBe(200);
   });
 });
 

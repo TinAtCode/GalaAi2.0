@@ -53,4 +53,27 @@ describe('calculateServiceCost', () => {
       }
     }
   });
+
+  it('rundet Zwischenwerte nicht (kein Aufsummieren von Rundungsfehlern über die Menge)', () => {
+    // 0,3333 × 1,99 € = 0,663267 € Material je m². Früher wurde das zuerst auf
+    // 0,66 € gerundet, dann Gemeinkosten und Aufschlag darauf gerechnet:
+    // Verkaufspreis 0,91 €/m² statt richtig 0,92 €/m² – bei 1.000 m² 10 € zu wenig.
+    const components = [{ quantityPer: 0.3333, laborMinutes: null, articlePurchasePrice: 1.99 }];
+    const result = calculateServiceCost(components, 1000, 45, 15, 20);
+
+    expect(result.costPerUnit).toBe(0.76); // exakt 0,76275705
+    expect(result.salePricePerUnit).toBe(0.92); // exakt 0,91530846
+    expect(result.salePriceTotal).toBe(920); // = gerundeter Einzelpreis × Menge (nachrechenbar)
+    expect(result.costTotal).toBe(762.76); // früher 760 (0,76 × 1000)
+    expect(result.marginTotal).toBe(157.24);
+  });
+
+  it('rundet kaufmännisch und ohne Floating-Point-Fehler', () => {
+    // 1,005 € ist als JavaScript-Zahl 1,00499999… und würde mit Math.round auf 1,00 fallen.
+    const components = [{ quantityPer: 1, laborMinutes: null, articlePurchasePrice: 1.005 }];
+    const result = calculateServiceCost(components, 1, 0, 0, 0);
+
+    expect(result.costPerUnit).toBe(1.01);
+    expect(result.salePricePerUnit).toBe(1.01);
+  });
 });

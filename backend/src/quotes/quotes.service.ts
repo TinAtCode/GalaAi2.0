@@ -1,9 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CalculationsService } from '../calculations/calculations.service';
 import { CreateQuoteDto, QuoteStatus } from './dto/quote.dto';
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 @Injectable()
 export class QuotesService {
@@ -87,7 +86,9 @@ export class QuotesService {
       }),
     );
 
-    const totalNet = round2(lineItemsData.reduce((sum, li) => sum + li.lineTotal, 0));
+    // Summe exakt als Dezimalwert bilden (Positionsbeträge sind bereits auf
+    // Cent gerundet, die Summe ist es damit ebenfalls).
+    const totalNet = lineItemsData.reduce((sum, li) => sum.plus(li.lineTotal), new Prisma.Decimal(0));
 
     return this.prisma.quote.create({
       data: {
