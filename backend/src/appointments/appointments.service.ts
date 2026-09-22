@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAppointmentDto, UpdateAppointmentStatusDto } from './dto/appointment.dto';
 import { dayRangeInZone, formatTimeInZone } from '../common/time-zone';
+import { lockFor } from '../common/advisory-lock';
+import { Prisma } from '@prisma/client';
 
 const DEFAULT_DURATION_MS = 60 * 60 * 1000; // 1h Annahme, wenn kein endTime gesetzt ist
 
@@ -47,6 +49,7 @@ export class AppointmentsService {
   // (Terminüberschneidungen über Mitternacht hinweg sind für dieses
   // Geschäftsfeld praktisch irrelevant).
   private async assertNoCollision(
+    db: Prisma.TransactionClient,
     companyId: string,
     assignedUserId: string,
     newStart: Date,
@@ -56,7 +59,7 @@ export class AppointmentsService {
     const timeZone = await this.getTimeZone(companyId);
     const { start: dayStart, end: dayEnd } = dayRangeInZone(newStart, timeZone);
 
-    const candidates = await this.prisma.appointment.findMany({
+    const candidates = await db.appointment.findMany({
       where: {
         companyId,
         assignedUserId,
@@ -90,33 +93,41 @@ export class AppointmentsService {
   async create(companyId: string, dto: CreateAppointmentDto) {
     await this.assertProjectBelongsToCompany(companyId, dto.projectId);
 
-    if (dto.assignedUserId) {
-      // Mandantenprüfung: der zugewiesene Mitarbeiter muss zur selben
-      // Firma gehören wie das Projekt.
-      const user = await this.prisma.user.findFirst({
-        where: { id: dto.assignedUserId, companyId },
-      });
-      if (!user) {
-        throw new NotFoundException('Zugewiesener Benutzer nicht gefunden.');
-      }
-
-      const startTime = new Date(dto.startTime);
-      const endTime = dto.endTime
-        ? new Date(dto.endTime)
-        : new Date(startTime.getTime() + DEFAULT_DURATION_MS);
-      await this.assertNoCollision(companyId, dto.assignedUserId, startTime, endTime);
+    const startTime = new Date(dto.startTime);
+    const endTime = dto.endTime ? new Date(dto.endTime) : null;
+    if (endTime && endTime <= startTime) {
+      throw new BadRequestException('Das Ende eines Termins muss nach dem Beginn liegen.');
     }
 
-    return this.prisma.appointment.create({
-      data: {
-        companyId,
-        projectId: dto.projectId,
-        title: dto.title,
-        startTime: new Date(dto.startTime),
-        endTime: dto.endTime ? new Date(dto.endTime) : null,
-        assignedUserId: dto.assignedUserId,
-        notes: dto.notes,
-      },
+    const data = {
+      companyId,
+      projectId: dto.projectId,
+      title: dto.title,
+      startTime,
+      endTime,
+      assignedUserId: dto.assignedUserId,
+      notes: dto.notes,
+    };
+
+    if (!dto.assignedUserId) {
+      return this.prisma.appointment.create({ data });
+    }
+    const assignedUserId = dto.assignedUserId;
+
+    // Mandantenprüfung: der zugewiesene Mitarbeiter muss zur selben Firma
+    // gehören wie das Projekt.
+    const user = await this.prisma.user.findFirst({ where: { id: assignedUserId, companyId } });
+    if (!user) {
+      throw new NotFoundException('Zugewiesener Benutzer nicht gefunden.');
+    }
+
+    // Kollisionsprüfung und Anlegen unter einer Sperre pro Mitarbeiter –
+    // sonst könnten zwei gleichzeitige Buchungen beide die Prüfung bestehen.
+    return this.prisma.$transaction(async (tx) => {
+      await lockFor(tx, 'appointment', assignedUserId);
+      const effectiveEnd = endTime ?? new Date(startTime.getTime() + DEFAULT_DURATION_MS);
+      await this.assertNoCollision(tx, companyId, assignedUserId, startTime, effectiveEnd);
+      return tx.appointment.create({ data });
     });
   }
 

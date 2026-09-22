@@ -5,7 +5,7 @@ function createPrismaMock() {
   const projects = [{ id: 'proj-a', property: { customer: { companyId: 'company-a' } } }];
   const timeEntries: any[] = [];
 
-  return {
+  const mock: any = {
     project: {
       findFirst: jest.fn(({ where }: any) =>
         where.id === 'proj-a' ? Promise.resolve(projects[0]) : Promise.resolve(null),
@@ -63,6 +63,10 @@ function createPrismaMock() {
       ),
     },
   };
+  // Interaktive Transaktion: der Callback bekommt denselben Mock als tx.
+  mock.$transaction = jest.fn((arg: any) => (typeof arg === 'function' ? arg(mock) : Promise.all(arg)));
+  mock.$executeRaw = jest.fn(() => Promise.resolve(0));
+  return mock;
 }
 
 function createEmployeesServiceMock(employeeId: string | null) {
@@ -105,11 +109,27 @@ describe('TimeEntriesService', () => {
     const employees = createEmployeesServiceMock('emp-1');
     const service = new TimeEntriesService(prisma as any, employees as any);
 
-    await service.start('company-a', 'user-a', { projectId: 'proj-a', activity: 'Terrasse pflastern' });
+    const started = await service.start('company-a', 'user-a', {
+      projectId: 'proj-a',
+      activity: 'Terrasse pflastern',
+    });
+    started.startTime = new Date(Date.now() - 4 * 60 * 60 * 1000); // vor 4 Stunden begonnen
     const stopped = await service.stop('company-a', 'user-a', { breakMinutes: 30 });
 
     expect(stopped.status).toBe('completed');
     expect(stopped.breakMinutes).toBe(30);
+  });
+
+  it('stop lehnt eine Pause ab, die länger ist als die erfasste Zeit', async () => {
+    const prisma = createPrismaMock();
+    const employees = createEmployeesServiceMock('emp-1');
+    const service = new TimeEntriesService(prisma as any, employees as any);
+
+    const started = await service.start('company-a', 'user-a', { projectId: 'proj-a' });
+    started.startTime = new Date(Date.now() - 20 * 60 * 1000); // vor 20 Minuten begonnen
+    await expect(service.stop('company-a', 'user-a', { breakMinutes: 30 })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('approve funktioniert nur aus dem Status "completed"', async () => {

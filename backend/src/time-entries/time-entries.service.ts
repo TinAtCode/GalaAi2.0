@@ -4,6 +4,7 @@ import { EmployeesService } from '../employees/employees.service';
 import { StartTimeEntryDto, StopTimeEntryDto } from './dto/time-entry.dto';
 import { calculateOvertime, OvertimeResult } from './overtime';
 import { dayRangeInZone } from '../common/time-zone';
+import { lockFor } from '../common/advisory-lock';
 
 @Injectable()
 export class TimeEntriesService {
@@ -30,13 +31,6 @@ export class TimeEntriesService {
   async start(companyId: string, userId: string, dto: StartTimeEntryDto) {
     const employee = await this.getOwnEmployeeOrThrow(companyId, userId);
 
-    const openEntry = await this.prisma.timeEntry.findFirst({
-      where: { employeeId: employee.id, status: 'open' },
-    });
-    if (openEntry) {
-      throw new BadRequestException('Es läuft bereits eine offene Zeiterfassung – zuerst beenden.');
-    }
-
     if (dto.projectId) {
       const project = await this.prisma.project.findFirst({
         where: { id: dto.projectId, companyId },
@@ -46,30 +40,51 @@ export class TimeEntriesService {
       }
     }
 
-    return this.prisma.timeEntry.create({
-      data: {
-        companyId,
-        employeeId: employee.id,
-        projectId: dto.projectId,
-        activity: dto.activity,
-        startTime: new Date(),
-      },
+    // Prüfen und Anlegen unter einer Sperre pro Mitarbeiter: zwei schnelle
+    // Klicks auf "Start" ergeben sonst zwei laufende Zeiterfassungen.
+    return this.prisma.$transaction(async (tx) => {
+      await lockFor(tx, 'time-entry', employee.id);
+      const openEntry = await tx.timeEntry.findFirst({
+        where: { employeeId: employee.id, companyId, status: 'open' },
+      });
+      if (openEntry) {
+        throw new BadRequestException('Es läuft bereits eine offene Zeiterfassung – zuerst beenden.');
+      }
+      return tx.timeEntry.create({
+        data: {
+          companyId,
+          employeeId: employee.id,
+          projectId: dto.projectId,
+          activity: dto.activity,
+          startTime: new Date(),
+        },
+      });
     });
   }
 
   async stop(companyId: string, userId: string, dto: StopTimeEntryDto) {
     const employee = await this.getOwnEmployeeOrThrow(companyId, userId);
 
-    const openEntry = await this.prisma.timeEntry.findFirst({
-      where: { employeeId: employee.id, status: 'open' },
-    });
-    if (!openEntry) {
-      throw new BadRequestException('Keine offene Zeiterfassung vorhanden.');
-    }
+    return this.prisma.$transaction(async (tx) => {
+      await lockFor(tx, 'time-entry', employee.id);
+      const openEntry = await tx.timeEntry.findFirst({
+        where: { employeeId: employee.id, companyId, status: 'open' },
+      });
+      if (!openEntry) {
+        throw new BadRequestException('Keine offene Zeiterfassung vorhanden.');
+      }
 
-    return this.prisma.timeEntry.update({
-      where: { id: openEntry.id },
-      data: { endTime: new Date(), breakMinutes: dto.breakMinutes ?? 0, status: 'completed' },
+      const endTime = new Date();
+      const breakMinutes = dto.breakMinutes ?? 0;
+      const workedMinutes = (endTime.getTime() - openEntry.startTime.getTime()) / 60000;
+      if (breakMinutes > workedMinutes) {
+        throw new BadRequestException('Die Pause kann nicht länger sein als die erfasste Zeit.');
+      }
+
+      return tx.timeEntry.update({
+        where: { id: openEntry.id },
+        data: { endTime, breakMinutes, status: 'completed' },
+      });
     });
   }
 

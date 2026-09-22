@@ -101,14 +101,22 @@ export class QuotesService {
     });
   }
 
+  // Der Statuswechsel ist EIN bedingtes Update ("nur wenn der Status noch
+  // einer von <from> ist"). Getrenntes Lesen und Schreiben würde zwei
+  // gleichzeitige Klicks (z.B. "angenommen" und "abgelehnt") beide
+  // durchlassen – der zweite überschriebe den ersten.
   private async transitionStatus(companyId: string, id: string, from: QuoteStatus[], to: QuoteStatus) {
+    const { count } = await this.prisma.quote.updateMany({
+      where: { id, companyId, status: { in: from } },
+      data: { status: to },
+    });
     const quote = await this.assertQuoteBelongsToCompany(companyId, id);
-    if (!from.includes(quote.status as QuoteStatus)) {
+    if (count === 0) {
       throw new BadRequestException(
         `Statuswechsel nicht erlaubt: Angebot ist "${quote.status}", erwartet einer von [${from.join(', ')}].`,
       );
     }
-    return this.prisma.quote.update({ where: { id }, data: { status: to }, include: { lineItems: true } });
+    return quote;
   }
 
   // draft -> approved (interne Freigabe, permission: quote.approve)

@@ -6,7 +6,7 @@ function createPrismaMock() {
   const services = [{ id: 'service-1', companyId: 'company-a', name: 'Terrasse', unit: 'm2' }];
   const quotes: any[] = [];
 
-  return {
+  const mock: any = {
     project: {
       findFirst: jest.fn(({ where }: any) => {
         if (where.id !== 'proj-a') return Promise.resolve(null);
@@ -41,8 +41,19 @@ function createPrismaMock() {
         Object.assign(quote, data);
         return Promise.resolve(quote);
       }),
+      updateMany: jest.fn(({ where, data }: any) => {
+        const quote = quotes.find(
+          (q) => q.id === where.id && where.companyId === 'company-a' && where.status.in.includes(q.status),
+        );
+        if (quote) Object.assign(quote, data);
+        return Promise.resolve({ count: quote ? 1 : 0 });
+      }),
     },
   };
+  // Interaktive Transaktion: der Callback bekommt denselben Mock als tx.
+  mock.$transaction = jest.fn((arg: any) => (typeof arg === 'function' ? arg(mock) : Promise.all(arg)));
+  mock.$executeRaw = jest.fn(() => Promise.resolve(0));
+  return mock;
 }
 
 // Simuliert CalculationsService, ohne die echte DB-Logik neu zu bauen –
