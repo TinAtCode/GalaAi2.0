@@ -1,5 +1,13 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
+// Wird vom AuthProvider gesetzt: bei 401 auf eine Anfrage MIT Token ist die
+// Sitzung abgelaufen oder ungültig – dann abmelden statt überall
+// Fehlermeldungen anzuzeigen.
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -23,6 +31,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...options.headers,
     },
   });
+
+  if (response.status === 401 && token) {
+    onUnauthorized?.();
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));

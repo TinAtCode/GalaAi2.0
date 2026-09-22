@@ -23,4 +23,17 @@ test.describe('Login', () => {
     await page.goto('/projekte');
     await expect(page).toHaveURL('/login');
   });
+
+  test('mit abgelaufener Sitzung landet man mit Hinweis auf der Login-Seite', async ({ page }) => {
+    await loginViaUi(page);
+    // Token serverseitig ungültig machen (z.B. abgelaufen oder Secret geändert)
+    await page.evaluate(() => {
+      const [header, payload] = localStorage.getItem('gartenai.token')!.split('.');
+      localStorage.setItem('gartenai.token', `${header}.${payload}.ungueltige-signatur`);
+    });
+    await page.goto('/projekte');
+
+    await expect(page).toHaveURL('/login');
+    await expect(page.getByTestId('login-session-expired')).toBeVisible();
+  });
 });
