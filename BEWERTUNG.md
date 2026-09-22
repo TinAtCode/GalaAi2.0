@@ -1,6 +1,6 @@
 # GartenAI – Bewertung des Gesamtstands
 
-Stand: 22.09.2026 · Branch `claude/galaai-repo-review-2yitns`
+Stand: 22.09.2026 · Branch `claude/galaai-repo-review-2yitns` · ✅ erledigt, 🔶 teilweise erledigt
 
 Grundlage: der gesamte Code (Prisma-Schema mit 23 Modellen, alle Services und Controller, Tests, Frontend) sowie echte Läufe gegen PostgreSQL 16 und Chromium (113 Unit-Tests und 12 E2E-Tests grün, 1 E2E-Test bewusst übersprungen).
 
@@ -32,8 +32,8 @@ Die technische Grundlage ist ordentlich. Als Geschäftssoftware für einen Garte
 |---|---|
 | **Rechnungen** (Abschlagsrechnung, Schlussrechnung, Gutschrift) | Das Ziel jedes Auftrags ist die Rechnung. Rechnungen stehen nicht einmal in der Roadmap (`GartenAI-Architektur-v1.md`). Dazu kommt die E-Rechnungspflicht (XRechnung/ZUGFeRD), die für Betriebe ab 2027/28 greift. |
 | **Umsatzsteuer, Angebotsnummern, Angebots-PDF** | Ein Angebot lässt sich weder verschicken noch rechtssicher nummerieren. |
-| **Benutzerverwaltung** | Es gibt keinen Endpunkt zum Anlegen von Nutzern oder zum Ändern und Zurücksetzen von Passwörtern. Nutzer entstehen nur über das Demo-Seed. |
-| **Bearbeiten** | Es gibt nur 6 PATCH-/DELETE-Routen, fast ausschließlich für Statuswechsel und Rollen. Kunden, Artikel und Projekte lassen sich nicht korrigieren, ein vergessenes „Stopp“ in der Zeiterfassung ebenso wenig. |
+| **Benutzerverwaltung** ✅ | Es gibt keinen Endpunkt zum Anlegen von Nutzern oder zum Ändern und Zurücksetzen von Passwörtern. Nutzer entstehen nur über das Demo-Seed. **Stand:** Nutzer anlegen, deaktivieren, Passwort ändern und neu setzen – im Backend und in den Einstellungen. |
+| **Bearbeiten** ✅ | Es gibt nur 6 PATCH-/DELETE-Routen, fast ausschließlich für Statuswechsel und Rollen. Kunden, Artikel und Projekte lassen sich nicht korrigieren, ein vergessenes „Stopp“ in der Zeiterfassung ebenso wenig. **Stand:** PATCH für Kunden, Objekte, Projekte, Artikel, Maschinen, Lieferanten, Dienstleistungen und Zeiteinträge (Korrektur mit Begründung). Die Oberfläche dafür fehlt noch größtenteils. |
 | **Seitenweises Laden** | Keine einzige Liste lädt seitenweise, jede lädt immer alle Einträge. |
 
 Die bisherige Entwicklung hat in die Breite gebaut (OCR, KI-Gateway, Datenwächter), bevor ein einziger Ablauf vom Angebot bis zur Rechnung wirklich benutzbar war.
@@ -66,22 +66,23 @@ Diese Punkte sind im Code gefunden, aber nicht einzeln durch Tests bestätigt.
 | **Maschinen** | Maschinen haben einen Stundensatz, fließen aber in keine Berechnung ein. Das ist im GaLaBau (Bagger, Rüttler) ein wesentlicher Kostenblock. | Maschinenzeit als Bestandteil der Rezeptur |
 | **Nachkalkulation** | Der Soll-Wert kommt aus der aktuellen Rezeptur statt aus dem eingefrorenen Angebot. Der Soll-Ist-Vergleich verschiebt sich, sobald jemand eine Rezeptur ändert. | Soll-Werte aus `QuoteLineItem` lesen oder beim Auftrag einfrieren |
 | **Zeitzonen** ✅ | Tagesgrenzen für „Mein Tag“, Überstunden und Terminkollisionen berechnet der Server mit seiner eigenen Zeitzone (`setHours(0)`). In Docker ist das UTC. Termine zwischen 0 und 2 Uhr deutscher Zeit landen am falschen Tag, und die Uhrzeiten in Fehlermeldungen sind in UTC. | Zeitzone `Europe/Berlin` pro Firma, Tagesgrenzen explizit berechnen |
-| **Gleichzeitige Zugriffe** | Mehrere Prüfungen lesen erst und schreiben dann getrennt. Bei zwei fast gleichzeitigen Anfragen kann es zwei laufende Zeiterfassungen geben, zwei sich überschneidende Termine oder doppelte Statuswechsel beim Angebot. | `updateMany` mit Status-Bedingung bzw. eindeutiger Teil-Index |
-| **Auftragsstatus** | Ein Auftrag kann beliebig springen, etwa von „erledigt“ zurück auf „offen“. Statuswerte sind freier Text. | Prisma-Enums ✅ und feste Übergangsregeln wie beim Angebot (offen) |
+| **Gleichzeitige Zugriffe** ✅ | Mehrere Prüfungen lesen erst und schreiben dann getrennt. Bei zwei fast gleichzeitigen Anfragen kann es zwei laufende Zeiterfassungen geben, zwei sich überschneidende Termine oder doppelte Statuswechsel beim Angebot. | Behoben: Transaktionssperre pro Mitarbeiter, bedingte Updates; Parallel-Tests in der CI |
+| **Auftragsstatus** ✅ | Ein Auftrag kann beliebig springen, etwa von „erledigt“ zurück auf „offen“. Statuswerte sind freier Text. | Behoben: Prisma-Enums und feste Übergänge |
 | **Personenmodell** | Termine werden einem `User` zugewiesen, Zeiten einem `Employee`. Ein Mitarbeiter ohne Login kann keine Termine bekommen. | Einheitlich auf `Employee` planen |
-| **Nachvollziehbarkeit** | Das Audit-Log wird nur beim Datenwächter und beim KI-Gateway geschrieben. Wer eine Arbeitszeit freigegeben hat, wird nicht gespeichert. | Audit für Zeiterfassung, Preise, Status und Rechte |
-| **Preislisten-Import** | Er läuft ohne Transaktion und mit einer Abfrage pro Zeile. Bricht er mittendrin ab, ist die Preisliste halb importiert. | Eine Transaktion, gesammelte Abfragen |
+| **Nachvollziehbarkeit** 🔶 | Das Audit-Log wird nur beim Datenwächter und beim KI-Gateway geschrieben. Wer eine Arbeitszeit freigegeben hat, wird nicht gespeichert. | Teilweise: Preisänderungen, Zeitkorrekturen und Freigaben (mit Nutzer) werden protokolliert; Status- und Rechteänderungen noch nicht |
+| **Preislisten-Import** ✅ | Er läuft ohne Transaktion und mit einer Abfrage pro Zeile. Bricht er mittendrin ab, ist die Preisliste halb importiert. | Behoben: eine Transaktion, doppelte Artikelnummern ergeben 400 |
 
 ---
 
 ## 4. Sicherheit und Betrieb
 
-- **Login-Limit in der Praxis:** Die 5 Logins pro Minute zählen pro IP. Ein Trupp von 10 Leuten im selben Büro-WLAN, oder alle Nutzer hinter einem Reverse-Proxy ohne `trust proxy`, sperrt sich morgens gegenseitig aus. Besser: nach E-Mail plus IP zählen.
-- **`xlsx` bei hochgeladenen Dateien:** Die Bibliothek hat eine bekannte, ungefixte Prototype-Pollution-Lücke und verarbeitet ausgerechnet Dateien von Nutzern. Besser `exceljs` oder die gepflegte SheetJS-Version vom Hersteller-CDN.
-- **`bcrypt` 5.x:** zieht eine kritisch verwundbare `tar`-Version nach. Update auf `bcrypt` 6 oder Wechsel zu `bcryptjs`.
-- **Token-Handhabung:**
-  - Das JWT liegt 8 Stunden im `localStorage`, ohne Refresh und ohne Sperrmöglichkeit. Deaktivierte Nutzer bleiben bis zu 8 Stunden drin.
-  - Das Frontend reagiert nicht auf 401: Ist das Token abgelaufen, sieht der Nutzer nur Fehlermeldungen statt der Login-Seite.
+- ✅ **Login-Limit in der Praxis:** Die 5 Logins pro Minute zählen pro IP. Ein Trupp von 10 Leuten im selben Büro-WLAN, oder alle Nutzer hinter einem Reverse-Proxy ohne `trust proxy`, sperrt sich morgens gegenseitig aus. Besser: nach E-Mail plus IP zählen. **Stand:** 5/Minute je Konto und IP plus 30/Minute je IP, `TRUST_PROXY` konfigurierbar.
+- ✅ **`xlsx` bei hochgeladenen Dateien:** Die Bibliothek hat eine bekannte, ungefixte Prototype-Pollution-Lücke und verarbeitet ausgerechnet Dateien von Nutzern. Besser `exceljs` oder die gepflegte SheetJS-Version vom Hersteller-CDN. **Stand:** ersetzt durch `read-excel-file` (keine bekannten Lücken); `.xls` wird mit klarer Meldung abgelehnt.
+- ✅ **`bcrypt` 5.x:** zieht eine kritisch verwundbare `tar`-Version nach. Update auf `bcrypt` 6 oder Wechsel zu `bcryptjs`. **Stand:** `bcrypt` 6. Übrig bleiben Funde in NestJS 10 selbst (multer, body-parser) sowie React Router 6 und Vite 5 im Frontend – alle nur mit einem Major-Upgrade behebbar.
+- 🔶 **Token-Handhabung:**
+  - ✅ War: deaktivierte Nutzer und entzogene Rechte blieben bis zu 8 Stunden wirksam. Jetzt werden Rechte und „aktiv“ pro Anfrage live geprüft, Passwortänderung und Deaktivierung melden sofort ab.
+  - ✅ War: das Frontend reagierte nicht auf 401. Jetzt geht es mit Hinweis zur Login-Seite.
+  - Offen: das Token liegt weiterhin im `localStorage` (bei einer XSS-Lücke auslesbar); ein httpOnly-Cookie wäre robuster.
 - **Kein Logging:** Es gibt kein strukturiertes Logging und kein Monitoring. (Echte Migrationen sind inzwischen angelegt ✅.)
 - **OCR im Server-Prozess:** Die Texterkennung läuft direkt im API-Prozess. Einige große Scans gleichzeitig blockieren dann den ganzen Server. Das gehört in eine Hintergrund-Warteschlange.
 
@@ -98,7 +99,7 @@ Bereits behoben (Commits auf dem Branch):
 | Schritt | Inhalt |
 |---|---|
 | **1. Fundament** ✅ | echte Migrationen · Integrationstests gegen PostgreSQL in der CI · `companyId` in allen Tabellen · Enums statt Status-Texte · exakte Dezimalrechnung · Zeitzone `Europe/Berlin` explizit. Noch offen: zentrale Erzwingung der Mandantentrennung (z.B. Row-Level-Security) |
-| **2. Benutzbarkeit** | Benutzerverwaltung mit Passwort-Reset · Bearbeiten und Archivieren für alle Stammdaten · Korrektur von Zeiteinträgen mit Audit-Log · seitenweises Laden · 401-Behandlung im Frontend |
+| **2. Benutzbarkeit** 🔶 | Benutzerverwaltung mit Passwort-Reset · Bearbeiten und Archivieren für alle Stammdaten · Korrektur von Zeiteinträgen mit Audit-Log · seitenweises Laden · 401-Behandlung im Frontend. **Stand:** alles außer seitenweisem Laden und den Bearbeiten-Masken im Frontend erledigt |
 | **3. Kernablauf schließen** | Angebotsnummer · Umsatzsteuer · Angebots-PDF · **Rechnungen** (Abschlag und Schluss) mit Blick auf die E-Rechnung |
 | **4. Kalkulation vervollständigen** | Maschinen · Rundung pro Gesamtposition · Nachkalkulation auf Basis des eingefrorenen Angebots |
 | **5. Erst danach ausbauen** | Mobile App mit Offline-Sync · KI · Schnittstellen (DATEV, GAEB, DATANORM) |

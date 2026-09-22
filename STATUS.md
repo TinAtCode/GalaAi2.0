@@ -28,7 +28,7 @@ Letzte Aktualisierung: 22.09.2026 – Fundament (Schritt 1 aus BEWERTUNG.md): ec
 | 16–18 | Mobile App, Schnittstellen, Admin-Auslagerung | ⬜ |
 
 Backend: NestJS + Prisma + PostgreSQL. Frontend: React + Vite + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
-Tests: `cd backend && npm test` (121 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen), `npm run test:integration` (25 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (13 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
+Tests: `cd backend && npm test` (124 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen), `npm run test:integration` (55 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (15 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
 
 ---
 
@@ -195,6 +195,19 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
     bis zur Nachkalkulation und Mandantentrennung über alle wichtigen Endpunkte.
   - `companyId` direkt in allen Mandanten-Tabellen, Status-Felder als Enums, Kalkulation mit
     `Prisma.Decimal` ohne Zwischenrundung, Tagesgrenzen in der Zeitzone der Firma (`Company.timeZone`).
+
+- **Nachtrag – Schritt 2 (Benutzbarkeit) und Absicherung**, jeweils mit Integrationstests gegen PostgreSQL:
+  - Gleichzeitige Anfragen: Sperre pro Mitarbeiter für Zeiterfassung und Termine, bedingte Statuswechsel,
+    feste Übergänge für den Auftragsstatus. Die Integrationstests laufen in der CI mit nur 2 Verbindungen,
+    damit Verbindungs-Deadlocks sofort auffallen (einer wurde so gefunden und behoben).
+  - Benutzerverwaltung (`/users`, Einstellungen), Passwort ändern, Rechte und Sperren wirken sofort
+    (`User.tokenVersion`, Rechte werden pro Anfrage live geladen).
+  - Bearbeiten für Kunden, Objekte, Projekte und Stammdaten; Preisänderungen, Zeitkorrekturen und
+    Freigaben im Audit-Log. Zeiteinträge korrigierbar (vergessenes „Stopp“) mit Pflicht-Begründung.
+  - Preislisten-Import in einer Transaktion; `.xlsx` über `read-excel-file` (statt `xlsx` mit
+    ungefixten Lücken), `.xls` wird mit Hinweis abgelehnt; `bcrypt` 6.
+  - Login-Limit je Konto und IP (`LOGIN_RATE_LIMIT`, `LOGIN_IP_RATE_LIMIT`, `TRUST_PROXY`), Frontend
+    leitet bei abgelaufener Sitzung zur Login-Seite, Obergrenzen für Zahlenfelder passend zu den Spalten.
 
 ---
 
