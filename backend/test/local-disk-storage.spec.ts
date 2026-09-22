@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { LocalDiskStorage } from '../src/documents/storage/local-disk.storage';
@@ -26,7 +26,7 @@ describe('LocalDiskStorage – echter Dateisystem-Roundtrip', () => {
     const stored = await storage.save('company-a', 'Rechnung 4711.pdf', content);
     expect(stored.storagePath).toContain('company-a');
 
-    const readBack = await storage.read(stored.storagePath);
+    const readBack = await storage.read('company-a', stored.storagePath);
     expect(readBack.toString('utf-8')).toBe(content.toString('utf-8'));
   });
 
@@ -37,8 +37,8 @@ describe('LocalDiskStorage – echter Dateisystem-Roundtrip', () => {
     const fileB = await storage.save('company-b', 'test.pdf', Buffer.from('B'));
 
     expect(fileA.storagePath).not.toBe(fileB.storagePath);
-    expect((await storage.read(fileA.storagePath)).toString()).toBe('A');
-    expect((await storage.read(fileB.storagePath)).toString()).toBe('B');
+    expect((await storage.read('company-a', fileA.storagePath)).toString()).toBe('A');
+    expect((await storage.read('company-b', fileB.storagePath)).toString()).toBe('B');
   });
 
   it('bereinigt gefährliche Zeichen im Dateinamen (kein Path-Traversal)', async () => {
@@ -50,6 +50,32 @@ describe('LocalDiskStorage – echter Dateisystem-Roundtrip', () => {
 
   it('wirft NotFoundException bei nicht existierender Datei', async () => {
     const storage = new LocalDiskStorage();
-    await expect(storage.read('company-a/does-not-exist.pdf')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(storage.read('company-a', 'company-a/does-not-exist.pdf')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('liest keine Dateien einer anderen Firma (auch nicht mit gültigem Pfad)', async () => {
+    const storage = new LocalDiskStorage();
+    const fileB = await storage.save('company-b', 'geheim.pdf', Buffer.from('B'));
+
+    await expect(storage.read('company-a', fileB.storagePath)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('blockiert Path-Traversal über einen manipulierten storagePath', async () => {
+    const storage = new LocalDiskStorage();
+    await storage.save('company-b', 'geheim.pdf', Buffer.from('B'));
+    writeFileSync(join(tempDir, 'ausserhalb.txt'), 'nicht lesbar');
+
+    for (const path of [
+      '../company-b',
+      'company-a/../company-b/x',
+      '../ausserhalb.txt',
+      'ausserhalb.txt',
+      '/etc/passwd',
+      '../../../../etc/passwd',
+    ]) {
+      await expect(storage.read('company-a', path)).rejects.toBeInstanceOf(NotFoundException);
+    }
   });
 });

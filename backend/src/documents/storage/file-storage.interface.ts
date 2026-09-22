@@ -10,7 +10,10 @@ export interface StoredFile {
 export interface FileStorage {
   readonly name: string;
   save(companyId: string, originalName: string, content: Buffer): Promise<StoredFile>;
-  read(storagePath: string): Promise<Buffer>;
+  // companyId begrenzt den Zugriff auf den Speicherbereich der Firma –
+  // storagePath stammt aus der DB und kann über POST /documents vom Client
+  // gesetzt worden sein, darf also nie ungeprüft verwendet werden.
+  read(companyId: string, storagePath: string): Promise<Buffer>;
 }
 
 export const FILE_STORAGE = Symbol('FILE_STORAGE');

@@ -89,7 +89,7 @@ export class DocumentsService {
 
   async getFileContent(companyId: string, id: string): Promise<{ buffer: Buffer; fileName: string }> {
     const document = await this.findOne(companyId, id);
-    const buffer = await this.storage.read(document.storagePath);
+    const buffer = await this.storage.read(companyId, document.storagePath);
     return { buffer, fileName: document.fileName };
   }
 }
