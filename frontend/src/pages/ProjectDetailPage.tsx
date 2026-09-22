@@ -188,7 +188,7 @@ export function ProjectDetailPage() {
       )}
 
       {quotes?.map((quote) => (
-        <article key={quote.id} className="job-card" data-testid="quote-card">
+        <article key={quote.id} className="job-card" data-testid="quote-card" data-quote-id={quote.id}>
           <div className="job-card-task">
             Angebot vom {new Date(quote.createdAt).toLocaleDateString('de-DE')}
           </div>

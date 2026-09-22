@@ -8,7 +8,7 @@ export const SEED = {
   serviceId: 'demo-service-id',
 };
 
-const API_BASE_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
+export const API_BASE_URL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 
 // UI-Login über das echte Formular – für Tests, die den Login-Vorgang
 // selbst als Teil der User Journey prüfen sollen.

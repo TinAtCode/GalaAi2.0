@@ -176,6 +176,16 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   nicht-blockierend gestellt, da `xlsx` zwei vom Hersteller aktuell ungefixte High-Findings hat –
   ein harter Abbruch hätte die Pipeline dauerhaft rot gehalten.
 
+- **Nachtrag – erster echter Lauf mit PostgreSQL 16 und Chromium**: Dabei gefunden und behoben:
+  (1) `ServiceComponent` hatte keine Prisma-Relation zu `Article` – der Backend-Build und 4 Test-Suites
+  schlugen mit dem echten Prisma-Client fehl. (2) `POST /documents` übernahm `storagePath` ungeprüft,
+  Download las damit beliebige Serverdateien bzw. Dateien fremder Firmen (`../`) – `read()` ist jetzt auf
+  das Firmenverzeichnis begrenzt. (3) Fester Fallback für `JWT_SECRET` entfernt, das Backend startet ohne
+  Secret nicht mehr; `main.ts` lädt dafür jetzt `backend/.env` (vorher las nur Prisma diese Datei).
+  (4) E2E: das Login-Limit (5/Minute) ließ die Suite scheitern → `LOGIN_RATE_LIMIT` in CI erhöht; zwei
+  Selektoren und ein fester Termin (Kollision ab dem zweiten Lauf) korrigiert. Ergebnis: 113 Unit-Tests
+  und 12 E2E-Tests (1 bewusst übersprungen) grün, auch bei wiederholten Läufen.
+
 ---
 
 ## 6. Optimierungsdurchgang (dieser Arbeitsschritt)
