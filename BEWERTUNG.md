@@ -44,11 +44,15 @@ Die bisherige Entwicklung hat in die Breite gebaut (OCR, KI-Gateway, Datenwächt
 
 **Empfehlung:** `companyId` direkt in diese Tabellen schreiben und die Prüfung zentral erzwingen, zum Beispiel per Prisma-Extension oder Postgres Row-Level-Security. Das hilft nebenbei auch der Geschwindigkeit, denn `Project.propertyId` hat derzeit nicht einmal einen Index.
 
+**Stand:** `companyId` und die fehlenden Indizes sind ergänzt, alle Services filtern direkt darüber. Die zentrale Erzwingung steht noch aus.
+
 ### 2.3 Die Tests haben ein falsches Bild vom Zustand gegeben
 
 Die `STATUS.md` meldete „111 Tests grün“, obwohl das Backend sich gar nicht bauen ließ (fehlende Relation `ServiceComponent → Article`). Der Grund: Die Tests laufen gegen nachgebaute Prisma-Objekte ohne echte Datenbank, und der Prisma-Client wurde nie erzeugt. Die Doku beschreibt ausführlich, was geprüft wurde, aber die entscheidende Prüfung fehlte.
 
 **Empfehlung:** Integrationstests gegen eine echte PostgreSQL in der CI. Dass das in dieser Umgebung geht, ist inzwischen gezeigt.
+
+**Stand:** 25 Integrationstests laufen als eigener CI-Job gegen PostgreSQL, dazu eine Prüfung, dass Schema und Migrationen übereinstimmen.
 
 ---
 
@@ -58,12 +62,12 @@ Diese Punkte sind im Code gefunden, aber nicht einzeln durch Tests bestätigt.
 
 | Bereich | Problem | Vorschlag |
 |---|---|---|
-| **Rundung** | Der Stückpreis wird zuerst auf Cent gerundet und dann mit der Menge multipliziert. Beispiel: 0,3333 Stück × 1,99 € ergeben 0,66 € statt 0,6633 €. Bei 1.000 m² sind das 3,27 € Abweichung pro Position. | Erst am Positionsbetrag runden, exakte Dezimalwerte statt JavaScript-Kommazahlen (`number`) |
+| **Rundung** ✅ | Zwischenwerte (Material, Arbeitszeit, Gemeinkosten) wurden je Schritt auf Cent gerundet, gerechnet wurde mit JavaScript-Kommazahlen. Beispiel: 0,3333 × 1,99 € Material je m² ergab 0,91 €/m² statt 0,92 €/m², bei 1.000 m² also 10 € zu wenig. | Behoben: `Prisma.Decimal`, kaufmännische Rundung nur der Ausgabewerte; der Einzelpreis bleibt auf Cent gerundet, damit Einzelpreis × Menge = Positionsbetrag |
 | **Maschinen** | Maschinen haben einen Stundensatz, fließen aber in keine Berechnung ein. Das ist im GaLaBau (Bagger, Rüttler) ein wesentlicher Kostenblock. | Maschinenzeit als Bestandteil der Rezeptur |
 | **Nachkalkulation** | Der Soll-Wert kommt aus der aktuellen Rezeptur statt aus dem eingefrorenen Angebot. Der Soll-Ist-Vergleich verschiebt sich, sobald jemand eine Rezeptur ändert. | Soll-Werte aus `QuoteLineItem` lesen oder beim Auftrag einfrieren |
-| **Zeitzonen** | Tagesgrenzen für „Mein Tag“, Überstunden und Terminkollisionen berechnet der Server mit seiner eigenen Zeitzone (`setHours(0)`). In Docker ist das UTC. Termine zwischen 0 und 2 Uhr deutscher Zeit landen am falschen Tag, und die Uhrzeiten in Fehlermeldungen sind in UTC. | Zeitzone `Europe/Berlin` pro Firma, Tagesgrenzen explizit berechnen |
+| **Zeitzonen** ✅ | Tagesgrenzen für „Mein Tag“, Überstunden und Terminkollisionen berechnet der Server mit seiner eigenen Zeitzone (`setHours(0)`). In Docker ist das UTC. Termine zwischen 0 und 2 Uhr deutscher Zeit landen am falschen Tag, und die Uhrzeiten in Fehlermeldungen sind in UTC. | Zeitzone `Europe/Berlin` pro Firma, Tagesgrenzen explizit berechnen |
 | **Gleichzeitige Zugriffe** | Mehrere Prüfungen lesen erst und schreiben dann getrennt. Bei zwei fast gleichzeitigen Anfragen kann es zwei laufende Zeiterfassungen geben, zwei sich überschneidende Termine oder doppelte Statuswechsel beim Angebot. | `updateMany` mit Status-Bedingung bzw. eindeutiger Teil-Index |
-| **Auftragsstatus** | Ein Auftrag kann beliebig springen, etwa von „erledigt“ zurück auf „offen“. Statuswerte sind freier Text. | Prisma-Enums und feste Übergangsregeln wie beim Angebot |
+| **Auftragsstatus** | Ein Auftrag kann beliebig springen, etwa von „erledigt“ zurück auf „offen“. Statuswerte sind freier Text. | Prisma-Enums ✅ und feste Übergangsregeln wie beim Angebot (offen) |
 | **Personenmodell** | Termine werden einem `User` zugewiesen, Zeiten einem `Employee`. Ein Mitarbeiter ohne Login kann keine Termine bekommen. | Einheitlich auf `Employee` planen |
 | **Nachvollziehbarkeit** | Das Audit-Log wird nur beim Datenwächter und beim KI-Gateway geschrieben. Wer eine Arbeitszeit freigegeben hat, wird nicht gespeichert. | Audit für Zeiterfassung, Preise, Status und Rechte |
 | **Preislisten-Import** | Er läuft ohne Transaktion und mit einer Abfrage pro Zeile. Bricht er mittendrin ab, ist die Preisliste halb importiert. | Eine Transaktion, gesammelte Abfragen |
@@ -78,7 +82,7 @@ Diese Punkte sind im Code gefunden, aber nicht einzeln durch Tests bestätigt.
 - **Token-Handhabung:**
   - Das JWT liegt 8 Stunden im `localStorage`, ohne Refresh und ohne Sperrmöglichkeit. Deaktivierte Nutzer bleiben bis zu 8 Stunden drin.
   - Das Frontend reagiert nicht auf 401: Ist das Token abgelaufen, sieht der Nutzer nur Fehlermeldungen statt der Login-Seite.
-- **Kein Logging und keine Migrationen:** Es gibt kein strukturiertes Logging und kein Monitoring. Die CI nutzt `db push` statt echter Migrationen.
+- **Kein Logging:** Es gibt kein strukturiertes Logging und kein Monitoring. (Echte Migrationen sind inzwischen angelegt ✅.)
 - **OCR im Server-Prozess:** Die Texterkennung läuft direkt im API-Prozess. Einige große Scans gleichzeitig blockieren dann den ganzen Server. Das gehört in eine Hintergrund-Warteschlange.
 
 Bereits behoben (Commits auf dem Branch):
@@ -93,7 +97,7 @@ Bereits behoben (Commits auf dem Branch):
 
 | Schritt | Inhalt |
 |---|---|
-| **1. Fundament** | echte Migrationen · Integrationstests gegen PostgreSQL in der CI · `companyId` in allen Tabellen plus zentrale Prüfung · Enums statt Status-Texte · exakte Dezimalrechnung · Zeitzone `Europe/Berlin` explizit |
+| **1. Fundament** ✅ | echte Migrationen · Integrationstests gegen PostgreSQL in der CI · `companyId` in allen Tabellen · Enums statt Status-Texte · exakte Dezimalrechnung · Zeitzone `Europe/Berlin` explizit. Noch offen: zentrale Erzwingung der Mandantentrennung (z.B. Row-Level-Security) |
 | **2. Benutzbarkeit** | Benutzerverwaltung mit Passwort-Reset · Bearbeiten und Archivieren für alle Stammdaten · Korrektur von Zeiteinträgen mit Audit-Log · seitenweises Laden · 401-Behandlung im Frontend |
 | **3. Kernablauf schließen** | Angebotsnummer · Umsatzsteuer · Angebots-PDF · **Rechnungen** (Abschlag und Schluss) mit Blick auf die E-Rechnung |
 | **4. Kalkulation vervollständigen** | Maschinen · Rundung pro Gesamtposition · Nachkalkulation auf Basis des eingefrorenen Angebots |

@@ -1,7 +1,7 @@
 name: CI - Lint & Unit Tests
 
 # Deckt nur ab, was tatsächlich im Repo existiert (Backend/Frontend Unit-
-# Tests, Lint). Playwright-E2E-Tests laufen bewusst in einem eigenen
+# Tests, Lint, Backend-Integrationstests gegen PostgreSQL). Playwright-E2E-Tests laufen bewusst in einem eigenen
 # Workflow (ci-e2e.yml), da sie einen echten Browser + laufende Server
 # brauchen. Kein Docker-Build/Deploy hier – siehe STATUS.md für den
 # tatsächlichen Umsetzungsstand gegenüber dem größeren CICD_GUIDE.md-Plan.
@@ -36,6 +36,44 @@ jobs:
       # Ergebnis bleibt trotzdem sichtbar im Log.
       - run: npm audit --audit-level=high
         continue-on-error: true
+
+  # Integrationstests gegen eine echte PostgreSQL: dieselben Migrationen wie
+  # in Produktion, echter Prisma-Client, echte HTTP-Aufrufe. Fängt Fehler, die
+  # die Unit-Tests mit gemocktem Prisma-Client nicht sehen können.
+  backend-integration:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: gartenai_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gartenai_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      # Schlägt fehl, wenn schema.prisma geändert wurde, ohne eine Migration
+      # dafür anzulegen (npx prisma migrate dev --name ...).
+      - name: Schema und Migrationen stimmen überein
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - run: npm run test:integration
 
   frontend:
     runs-on: ubuntu-latest

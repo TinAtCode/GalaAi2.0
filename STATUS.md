@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 22.09.2026 – Echte CI-Fehler nach erstem GitHub-Push behoben (fehlende Migrationen, geschützter Health-Check, blockierender Audit); neuer GET /health-Endpunkt
+Letzte Aktualisierung: 22.09.2026 – Fundament (Schritt 1 aus BEWERTUNG.md): echte Migrationen, Integrationstests gegen PostgreSQL, companyId in allen Mandanten-Tabellen, Status-Enums, Dezimalrechnung, Firmen-Zeitzone
 
 ---
 
@@ -28,7 +28,7 @@ Letzte Aktualisierung: 22.09.2026 – Echte CI-Fehler nach erstem GitHub-Push be
 | 16–18 | Mobile App, Schnittstellen, Admin-Auslagerung | ⬜ |
 
 Backend: NestJS + Prisma + PostgreSQL. Frontend: React + Vite + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
-Tests: `cd backend && npm test` (111 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen) und `cd frontend && npm run test:e2e` (13 Playwright-E2E-Tests, siehe Abschnitt 5 für den Ausführungsstatus). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
+Tests: `cd backend && npm test` (121 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen), `npm run test:integration` (25 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (13 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
 
 ---
 
@@ -57,7 +57,7 @@ Jedes Modul folgt demselben Muster: Controller (Guards + Permissions) → Servic
 cd backend
 cp .env.example .env   # DATABASE_URL anpassen
 npm install
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 npx prisma db seed
 npm run start:dev
 ```
@@ -86,7 +86,7 @@ npm run dev
 
 ## 3. Wichtige Architektur-Entscheidungen
 
-- **Mandantentrennung**: explizit pro Query (`companyId`-Parameter durch die ganze Kette Kunde→Objekt→Projekt), nicht per globaler DB-Middleware – nachvollziehbar statt "unsichtbarer Magie".
+- **Mandantentrennung**: jede Mandanten-Tabelle trägt ihre `companyId` selbst (auch Objekt, Projekt, Angebot, Auftrag, Termin, Zeiteintrag, Materialbuchung), jede Abfrage filtert direkt darüber. Beim Anlegen wird geprüft, dass das Elternobjekt zur selben Firma gehört. Die Integrationstests prüfen über HTTP, dass Firma B an keinem Endpunkt Daten von Firma A lesen oder ändern kann. Noch keine zentrale Erzwingung (z.B. Row-Level-Security) – siehe offene Punkte.
 - **Preisrechte**: serverseitig über `applyPriceVisibility()` / `maskCalculationResult()` – fehlende Berechtigung entfernt Felder komplett aus der Antwort, nicht nur im UI versteckt.
 - **Preis-Snapshot bei Angeboten**: `costPerUnit`/`unitPrice`/`marginPerUnit` liegen direkt auf `QuoteLineItem`, nicht als Live-Referenz – spätere Preisänderungen wirken sich nie rückwirkend aus (Punkt 21).
 - **Kalkulationsgrundwerte** (Stundensatz, Gemeinkosten-%, Aufschlag-%) sind pro Firma konfigurierbar, mit optionalem Override pro Anfrage – keine starre Marge (Punkt 20).
@@ -185,6 +185,16 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   (4) E2E: das Login-Limit (5/Minute) ließ die Suite scheitern → `LOGIN_RATE_LIMIT` in CI erhöht; zwei
   Selektoren und ein fester Termin (Kollision ab dem zweiten Lauf) korrigiert. Ergebnis: 113 Unit-Tests
   und 12 E2E-Tests (1 bewusst übersprungen) grün, auch bei wiederholten Läufen.
+
+- **Nachtrag – Fundament (Schritt 1 aus `BEWERTUNG.md`)**:
+  - Echte Migrationen in `prisma/migrations/` (CI und Anleitung nutzen `migrate deploy` statt `db push`).
+    Ein CI-Schritt schlägt fehl, wenn `schema.prisma` ohne passende Migration geändert wird. Die von Hand
+    geschriebenen `prisma/validation*.sql` sind entfernt – sie bildeten das alte Schema ab und sind durch
+    die echte Migration ersetzt.
+  - Integrationstests (`test/integration/`, eigener CI-Job) gegen PostgreSQL: kompletter Angebots-Workflow
+    bis zur Nachkalkulation und Mandantentrennung über alle wichtigen Endpunkte.
+  - `companyId` direkt in allen Mandanten-Tabellen, Status-Felder als Enums, Kalkulation mit
+    `Prisma.Decimal` ohne Zwischenrundung, Tagesgrenzen in der Zeitzone der Firma (`Company.timeZone`).
 
 ---
 

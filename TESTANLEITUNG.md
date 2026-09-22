@@ -38,17 +38,23 @@ cd backend
 cp .env.example .env
 npm install
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 npx prisma db seed
 npm run start:dev
 ```
 Läuft auf `http://localhost:3000`. Login (aus dem Seed): `admin@musterbetrieb.de` / `demo12345`.
 
-**Hinweis:** Das Datenmodell wurde zusätzlich von Hand als SQL geschrieben und gegen eine echte
-PostgreSQL-Instanz getestet (`prisma/validation.sql`, `prisma/validation-seed.sql`) – alle Tabellen,
-Fremdschlüssel und die kompletten Join-Pfade (Mandantentrennung, Nachkalkulation) wurden erfolgreich
-angelegt und abgefragt. Der reguläre Weg oben (`prisma migrate dev`) ist trotzdem der richtige –
-die beiden SQL-Dateien sind nur ein zusätzlicher Vertrauensbeweis, kein Ersatz.
+**Datenbank-Änderungen:** Das Schema wird über Migrationen in `prisma/migrations/` verwaltet.
+`migrate deploy` wendet alle noch fehlenden Migrationen an. Wer `schema.prisma` ändert, erzeugt mit
+`npx prisma migrate dev --name <kurze-beschreibung>` eine neue Migration und committet sie mit.
+
+**Integrationstests** (gegen eine echte PostgreSQL, Datenbank wird dabei geleert – daher eine
+eigene Test-Datenbank verwenden):
+```bash
+createdb -h localhost -U postgres gartenai_test   # einmalig
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/gartenai_test?schema=public" npx prisma migrate deploy
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/gartenai_test?schema=public" npm run test:integration
+```
 
 ## 4. Frontend starten
 

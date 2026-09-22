@@ -43,16 +43,11 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gartenai?schema=public
           JWT_SECRET: ci-test-secret
-        # `prisma db push` statt `migrate deploy`: es gibt bewusst keine
-        # `prisma/migrations/`-Ordner in diesem Repo (in der Entwicklungs-
-        # Sandbox konnte `prisma migrate dev` mangels Netzwerkzugriff nie
-        # ausgeführt werden, siehe STATUS.md). `db push` synchronisiert das
-        # Schema direkt, ohne Migrationshistorie zu brauchen – für dieses
-        # Projektstadium ausreichend.
+        # Dieselben Migrationen wie in Produktion (prisma/migrations/).
         run: |
           npm ci
           npx prisma generate
-          npx prisma db push --skip-generate
+          npx prisma migrate deploy
           npx prisma db seed
 
       - name: Backend starten
