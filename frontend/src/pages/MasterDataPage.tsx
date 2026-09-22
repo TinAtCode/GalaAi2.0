@@ -41,13 +41,25 @@ export function MasterDataPage() {
       </header>
 
       <div className="tab-bar">
-        <button className={tab === 'articles' ? 'active' : ''} onClick={() => setTab('articles')} data-testid="tab-articles">
+        <button
+          className={tab === 'articles' ? 'active' : ''}
+          onClick={() => setTab('articles')}
+          data-testid="tab-articles"
+        >
           Artikel
         </button>
-        <button className={tab === 'suppliers' ? 'active' : ''} onClick={() => setTab('suppliers')} data-testid="tab-suppliers">
+        <button
+          className={tab === 'suppliers' ? 'active' : ''}
+          onClick={() => setTab('suppliers')}
+          data-testid="tab-suppliers"
+        >
           Lieferanten
         </button>
-        <button className={tab === 'machines' ? 'active' : ''} onClick={() => setTab('machines')} data-testid="tab-machines">
+        <button
+          className={tab === 'machines' ? 'active' : ''}
+          onClick={() => setTab('machines')}
+          data-testid="tab-machines"
+        >
           Maschinen
         </button>
       </div>

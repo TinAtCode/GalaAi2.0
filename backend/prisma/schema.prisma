@@ -220,7 +220,8 @@ model Article {
   salePrice     Decimal @db.Decimal(10, 2)
   active        Boolean @default(true)
 
-  usages ProjectMaterialUsage[]
+  usages            ProjectMaterialUsage[]
+  serviceComponents ServiceComponent[]
 
   @@unique([companyId, articleNumber])
 }
@@ -244,6 +245,7 @@ model ServiceComponent {
   articleId    String?
   quantityPer  Decimal @db.Decimal(10, 4) // Menge pro Einheit der Leistung
   laborMinutes Int? // alternative: Arbeitszeit-Anteil
+  article      Article? @relation(fields: [articleId], references: [id])
 
   @@index([serviceId])
   @@index([articleId])
