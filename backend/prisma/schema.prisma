@@ -145,14 +145,14 @@ model Property {
 }
 
 model Project {
-  id         String   @id @default(uuid())
+  id         String        @id @default(uuid())
   companyId  String
-  company    Company  @relation(fields: [companyId], references: [id])
+  company    Company       @relation(fields: [companyId], references: [id])
   propertyId String
-  property   Property @relation(fields: [propertyId], references: [id])
+  property   Property      @relation(fields: [propertyId], references: [id])
   title      String
-  status     String   @default("open") // open, in_progress, done, cancelled
-  createdAt  DateTime @default(now())
+  status     ProjectStatus @default(open)
+  createdAt  DateTime      @default(now())
 
   quotes         Quote[]
   orders         Order[]
@@ -172,15 +172,15 @@ model Project {
 // direkt auf QuoteLineItem und werden nie live nachberechnet.
 // ─────────────────────────────────────────────
 model Quote {
-  id         String    @id @default(uuid())
+  id         String      @id @default(uuid())
   companyId  String
-  company    Company   @relation(fields: [companyId], references: [id])
+  company    Company     @relation(fields: [companyId], references: [id])
   projectId  String
-  project    Project   @relation(fields: [projectId], references: [id])
-  status     String    @default("draft") // draft, approved, sent, accepted, rejected, expired
-  totalNet   Decimal   @db.Decimal(12, 2)
+  project    Project     @relation(fields: [projectId], references: [id])
+  status     QuoteStatus @default(draft)
+  totalNet   Decimal     @db.Decimal(12, 2)
   validUntil DateTime?
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime    @default(now())
 
   lineItems QuoteLineItem[]
   order     Order?
@@ -214,16 +214,16 @@ model QuoteLineItem {
 // verhindert doppelte Auftragserzeugung aus demselben Angebot.
 // ─────────────────────────────────────────────
 model Order {
-  id        String   @id @default(uuid())
+  id        String      @id @default(uuid())
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
+  company   Company     @relation(fields: [companyId], references: [id])
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id])
-  quoteId   String   @unique
-  quote     Quote    @relation(fields: [quoteId], references: [id])
-  status    String   @default("open") // open, in_progress, done, cancelled
-  totalNet  Decimal  @db.Decimal(12, 2) // vom Angebot übernommener Snapshot
-  createdAt DateTime @default(now())
+  project   Project     @relation(fields: [projectId], references: [id])
+  quoteId   String      @unique
+  quote     Quote       @relation(fields: [quoteId], references: [id])
+  status    OrderStatus @default(open)
+  totalNet  Decimal     @db.Decimal(12, 2) // vom Angebot übernommener Snapshot
+  createdAt DateTime    @default(now())
 
   @@index([projectId])
   @@index([companyId])
@@ -304,19 +304,19 @@ model Machine {
 // Termine / "Mein Tag" (Punkt 23 & 24 im Ursprungsdokument)
 // ─────────────────────────────────────────────
 model Appointment {
-  id             String    @id @default(uuid())
+  id             String            @id @default(uuid())
   companyId      String
-  company        Company   @relation(fields: [companyId], references: [id])
+  company        Company           @relation(fields: [companyId], references: [id])
   projectId      String
-  project        Project   @relation(fields: [projectId], references: [id])
+  project        Project           @relation(fields: [projectId], references: [id])
   title          String
   startTime      DateTime
   endTime        DateTime?
   assignedUserId String?
-  assignedUser   User?     @relation(fields: [assignedUserId], references: [id])
+  assignedUser   User?             @relation(fields: [assignedUserId], references: [id])
   notes          String?
-  status         String    @default("planned") // planned, done, cancelled
-  createdAt      DateTime  @default(now())
+  status         AppointmentStatus @default(planned)
+  createdAt      DateTime          @default(now())
 
   @@index([projectId])
   @@index([companyId])
@@ -344,19 +344,19 @@ model Employee {
 }
 
 model TimeEntry {
-  id           String    @id @default(uuid())
+  id           String          @id @default(uuid())
   companyId    String
-  company      Company   @relation(fields: [companyId], references: [id])
+  company      Company         @relation(fields: [companyId], references: [id])
   employeeId   String
-  employee     Employee  @relation(fields: [employeeId], references: [id])
+  employee     Employee        @relation(fields: [employeeId], references: [id])
   projectId    String?
-  project      Project?  @relation(fields: [projectId], references: [id])
+  project      Project?        @relation(fields: [projectId], references: [id])
   startTime    DateTime
   endTime      DateTime?
-  breakMinutes Int       @default(0)
+  breakMinutes Int             @default(0)
   activity     String?
-  status       String    @default("open") // open (läuft), completed, approved
-  createdAt    DateTime  @default(now())
+  status       TimeEntryStatus @default(open)
+  createdAt    DateTime        @default(now())
 
   @@index([projectId])
   @@index([employeeId])
@@ -426,4 +426,45 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([companyId])
+}
+
+// ─────────────────────────────────────────────
+// Status-Werte (dieselben Werte wie bisher als Text – die API bleibt
+// unverändert, ungültige Werte lehnt jetzt aber schon die Datenbank ab)
+// ─────────────────────────────────────────────
+
+enum ProjectStatus {
+  open
+  in_progress
+  done
+  cancelled
+}
+
+enum QuoteStatus {
+  draft
+  approved
+  sent
+  accepted
+  rejected
+  expired
+}
+
+enum OrderStatus {
+  open
+  in_progress
+  done
+  cancelled
+}
+
+enum AppointmentStatus {
+  planned
+  done
+  cancelled
+}
+
+// open = Zeiterfassung läuft noch
+enum TimeEntryStatus {
+  open
+  completed
+  approved
 }

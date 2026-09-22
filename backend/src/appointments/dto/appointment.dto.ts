@@ -1,6 +1,5 @@
-import { IsDateString, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
-
-export const APPOINTMENT_STATUSES = ['planned', 'done', 'cancelled'] as const;
+import { IsDateString, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { AppointmentStatus } from '@prisma/client';
 
 export class CreateAppointmentDto {
   @IsString()
@@ -27,6 +26,6 @@ export class CreateAppointmentDto {
 }
 
 export class UpdateAppointmentStatusDto {
-  @IsIn(APPOINTMENT_STATUSES)
-  status!: (typeof APPOINTMENT_STATUSES)[number];
+  @IsEnum(AppointmentStatus)
+  status!: AppointmentStatus;
 }

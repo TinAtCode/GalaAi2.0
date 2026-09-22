@@ -1,6 +1,5 @@
-import { IsIn, IsString, MinLength } from 'class-validator';
-
-export const PROJECT_STATUSES = ['open', 'in_progress', 'done', 'cancelled'] as const;
+import { IsEnum, IsString, MinLength } from 'class-validator';
+import { ProjectStatus } from '@prisma/client';
 
 export class CreateProjectDto {
   @IsString()
@@ -12,6 +11,6 @@ export class CreateProjectDto {
 }
 
 export class UpdateProjectStatusDto {
-  @IsIn(PROJECT_STATUSES)
-  status!: (typeof PROJECT_STATUSES)[number];
+  @IsEnum(ProjectStatus)
+  status!: ProjectStatus;
 }

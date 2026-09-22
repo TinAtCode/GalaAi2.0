@@ -10,8 +10,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export const QUOTE_STATUSES = ['draft', 'approved', 'sent', 'accepted', 'rejected', 'expired'] as const;
-export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
+export { QuoteStatus } from '@prisma/client';
 
 class QuoteLineItemInputDto {
   @IsString()
