@@ -1,3 +1,4 @@
+import { join } from 'path';
 import PDFDocument from 'pdfkit';
 
 // Ein Beleg (Angebot oder Rechnung) als PDF – bewusst schlicht: Absender,
@@ -26,7 +27,55 @@ export interface BusinessDocumentPdf {
   }[];
   totals: { net: string; vatRate: string; vat: string; gross: string };
   notes: string[];
+  // E-Rechnung (CII/XRechnung) zum Einbetten -> ZUGFeRD-PDF (Factur-X)
+  eInvoiceXml?: Buffer;
 }
+
+// Eingebettete Schriften (Liberation Sans, maßgleich mit Helvetica; SIL OFL):
+// PDF/A verlangt, dass alle Schriften im Dokument stecken.
+const FONT_DIR = join(__dirname, '..', '..', 'assets', 'fonts');
+const REGULAR = 'Regular';
+const BOLD = 'Bold';
+
+// Im XMP stehen Titel und Autor unmaskiert (pdfkit) – Zeichen mit
+// XML-Bedeutung dort vermeiden, damit Info und XMP gleich bleiben.
+const xmpSafe = (text: string) => text.replace(/&/g, 'und').replace(/[<>"]/g, '');
+
+// ZUGFeRD 2.x / Factur-X: Beschreibung der eingebetteten Rechnung im XMP,
+// samt der für PDF/A nötigen Schema-Erklärung des fx-Namensraums.
+const FX = 'urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#';
+const fxProperty = (name: string, description: string) => `
+          <rdf:li rdf:parseType="Resource">
+            <pdfaProperty:name>${name}</pdfaProperty:name>
+            <pdfaProperty:valueType>Text</pdfaProperty:valueType>
+            <pdfaProperty:category>external</pdfaProperty:category>
+            <pdfaProperty:description>${description}</pdfaProperty:description>
+          </rdf:li>`;
+const ZUGFERD_XMP = `
+    <rdf:Description rdf:about="" xmlns:fx="${FX}">
+      <fx:DocumentType>INVOICE</fx:DocumentType>
+      <fx:DocumentFileName>factur-x.xml</fx:DocumentFileName>
+      <fx:Version>1.0</fx:Version>
+      <fx:ConformanceLevel>XRECHNUNG</fx:ConformanceLevel>
+    </rdf:Description>
+    <rdf:Description rdf:about=""
+        xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/"
+        xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#"
+        xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#">
+      <pdfaExtension:schemas>
+        <rdf:Bag>
+          <rdf:li rdf:parseType="Resource">
+            <pdfaSchema:schema>Factur-X PDFA Extension Schema</pdfaSchema:schema>
+            <pdfaSchema:namespaceURI>${FX}</pdfaSchema:namespaceURI>
+            <pdfaSchema:prefix>fx</pdfaSchema:prefix>
+            <pdfaSchema:property>
+              <rdf:Seq>${fxProperty('DocumentFileName', 'Name of the embedded XML invoice file')}${fxProperty('DocumentType', 'INVOICE')}${fxProperty('Version', 'Version of the Factur-X XML schema')}${fxProperty('ConformanceLevel', 'Conformance level of the embedded XML invoice')}
+              </rdf:Seq>
+            </pdfaSchema:property>
+          </rdf:li>
+        </rdf:Bag>
+      </pdfaExtension:schemas>
+    </rdf:Description>`;
 
 const euro = (value: string | number) =>
   Number(value).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
@@ -37,13 +86,30 @@ const addressLines = (p: PdfParty) =>
 
 export function renderBusinessDocumentPdf(doc: BusinessDocumentPdf): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    // bufferPages: für die Fußzeile mit "Seite x von y" am Ende
+    // bufferPages: für die Fußzeile mit "Seite x von y" am Ende.
+    // PDF/A-3b: archivtauglich (GoBD) und Voraussetzung für ZUGFeRD.
     const pdf = new PDFDocument({
       size: 'A4',
       margin: 50,
       bufferPages: true,
-      info: { Title: doc.title, Author: doc.seller.name },
+      pdfVersion: '1.7',
+      subset: 'PDF/A-3b',
+      lang: 'de-DE',
+      info: { Title: xmpSafe(doc.title), Author: xmpSafe(doc.seller.name) },
     });
+    pdf.registerFont(REGULAR, join(FONT_DIR, 'LiberationSans-Regular.ttf'));
+    pdf.registerFont(BOLD, join(FONT_DIR, 'LiberationSans-Bold.ttf'));
+    if (doc.eInvoiceXml) {
+      // relationship (AFRelationship) kennt pdfkit, @types/pdfkit noch nicht
+      const attachment: PDFKit.Mixins.PDFAttachmentOptions & { relationship: string } = {
+        name: 'factur-x.xml',
+        type: 'text/xml',
+        relationship: 'Alternative',
+        description: 'E-Rechnung (ZUGFeRD/Factur-X, Profil XRECHNUNG)',
+      };
+      pdf.file(doc.eInvoiceXml, attachment);
+      pdf.appendXML(ZUGFERD_XMP);
+    }
     const chunks: Buffer[] = [];
     pdf.on('data', (chunk: Buffer) => chunks.push(chunk));
     pdf.on('end', () => resolve(Buffer.concat(chunks)));
@@ -53,11 +119,7 @@ export function renderBusinessDocumentPdf(doc: BusinessDocumentPdf): Promise<Buf
     const width = pdf.page.width - pdf.page.margins.left - pdf.page.margins.right;
 
     // Absenderzeile und Empfänger
-    pdf
-      .font('Helvetica')
-      .fontSize(8)
-      .fillColor('#555555')
-      .text(addressLines(doc.seller).join(' · '), left, 50);
+    pdf.font(REGULAR).fontSize(8).fillColor('#555555').text(addressLines(doc.seller).join(' · '), left, 50);
     pdf.fontSize(11).fillColor('#000000').text(addressLines(doc.buyer).join('\n'), left, 80);
 
     // Kopfdaten rechts
@@ -68,13 +130,9 @@ export function renderBusinessDocumentPdf(doc: BusinessDocumentPdf): Promise<Buf
       metaY += 14;
     }
 
-    pdf.font('Helvetica-Bold').fontSize(16).text(doc.title, left, 190);
+    pdf.font(BOLD).fontSize(16).text(doc.title, left, 190);
     if (doc.draft) {
-      pdf
-        .font('Helvetica-Bold')
-        .fontSize(10)
-        .fillColor('#b00020')
-        .text('ENTWURF – keine gültige Rechnung', left, 212);
+      pdf.font(BOLD).fontSize(10).fillColor('#b00020').text('ENTWURF – keine gültige Rechnung', left, 212);
       pdf.fillColor('#000000');
     }
 
@@ -94,7 +152,7 @@ export function renderBusinessDocumentPdf(doc: BusinessDocumentPdf): Promise<Buf
     ];
     let y = 240;
     const row = (values: string[], bold = false) => {
-      pdf.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+      pdf.font(bold ? BOLD : REGULAR).fontSize(9);
       let x = left;
       const heights = values.map((v, i) => pdf.heightOfString(v, { width: cols[i].w - 4 }));
       const h = Math.max(...heights) + 6;
@@ -131,7 +189,7 @@ export function renderBusinessDocumentPdf(doc: BusinessDocumentPdf): Promise<Buf
     // Summen
     y += 10;
     const sum = (label: string, value: string, bold = false) => {
-      pdf.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10);
+      pdf.font(bold ? BOLD : REGULAR).fontSize(10);
       pdf.text(label, left + width - 250, y, { width: 160 });
       pdf.text(value, left + width - 90, y, { width: 90, align: 'right' });
       y += 16;
@@ -141,7 +199,7 @@ export function renderBusinessDocumentPdf(doc: BusinessDocumentPdf): Promise<Buf
     sum('Gesamtbetrag', euro(doc.totals.gross), true);
 
     y += 10;
-    pdf.font('Helvetica').fontSize(9);
+    pdf.font(REGULAR).fontSize(9);
     for (const note of doc.notes) {
       pdf.text(note, left, y, { width });
       y = pdf.y + 4;

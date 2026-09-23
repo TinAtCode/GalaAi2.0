@@ -131,6 +131,12 @@ die Regelwerke beim ersten Aufruf). Beispieldateien erzeugt
 meldet sie nicht. Verbindlich ist letztlich der [KoSIT-Validator](https://github.com/itplr-kosit/validator)
 bzw. die Prüfung beim Empfänger.
 
+**PDF/A und ZUGFeRD prüfen:** `backend/scripts/validate-pdfa.sh <Ordner>` prüft alle PDFs eines Ordners
+mit veraPDF auf PDF/A-3b und PDFs mit eingebetteter `factur-x.xml` zusätzlich mit dem Mustang-Validator
+als ZUGFeRD-Rechnung (braucht Java und Maven; lädt beide Validatoren beim ersten Aufruf). Beispieldateien
+erzeugt `PDFA_OUT=/tmp/pdfa npx jest test/zugferd.spec.ts` im Ordner `backend`; mit `PDFA_OUT` beim
+Integrationstest kommen die PDFs aller Tests dazu.
+
 ## 6. E2E-Tests (Playwright) ausführen
 
 Backend UND Frontend müssen laufen (Schritte 3+4). Die Tests melden sich sehr oft an und laufen alle

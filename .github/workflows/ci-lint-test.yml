@@ -78,6 +78,7 @@ jobs:
       - run: npm run test:integration
         env:
           XRECHNUNG_OUT: ${{ runner.temp }}/xrechnung
+          PDFA_OUT: ${{ runner.temp }}/pdfa
       # Die in den Tests erzeugten E-Rechnungen gegen XML-Schema, EN 16931
       # und XRechnung-Regeln prüfen (scripts/validate-xrechnung.sh).
       - name: E-Rechnungen validieren
@@ -88,6 +89,19 @@ jobs:
           command -v xmllint || (sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils > /dev/null)
           npx jest test/xrechnung.spec.ts
           scripts/validate-xrechnung.sh "$XRECHNUNG_OUT"
+      # Die in den Tests erzeugten PDFs: PDF/A-3b (veraPDF), Rechnungen
+      # zusätzlich als ZUGFeRD mit eingebetteter XRechnung (Mustang).
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/verapdf
+          key: verapdf-${{ hashFiles('backend/scripts/validate-pdfa.sh') }}
+      - name: PDF/A und ZUGFeRD validieren
+        env:
+          PDFA_OUT: ${{ runner.temp }}/pdfa
+          VERAPDF_DIR: ${{ runner.temp }}/verapdf
+        run: |
+          npx jest test/zugferd.spec.ts
+          scripts/validate-pdfa.sh "$PDFA_OUT"
 
   frontend:
     runs-on: ubuntu-latest

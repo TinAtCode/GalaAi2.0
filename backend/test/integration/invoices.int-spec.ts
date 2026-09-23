@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { INestApplication } from '@nestjs/common';
@@ -267,6 +268,24 @@ describe('Rechnungen', () => {
     expect(cancellation.body).toContain('<ram:TypeCode>381</ram:TypeCode>');
     expect(cancellation.body).toContain(`<ram:IssuerAssignedID>${R(2)}</ram:IssuerAssignedID>`);
     expect(cancellation.body).not.toMatch(/<ram:GrandTotalAmount>-/);
+
+    // Das PDF einer ausgestellten Rechnung ist zugleich ZUGFeRD-Rechnung:
+    // dieselbe E-Rechnung steckt als factur-x.xml darin.
+    for (const [n, res] of [
+      [1, partial],
+      [2, final],
+      [3, cancellation],
+    ] as const) {
+      const pdf = await fetchPdfText(app, `/invoices/${(await byNumber(n)).id}/pdf`, company.token);
+      const raw = pdf.body.toString('latin1');
+      expect(raw).toContain('/AFRelationship /Alternative');
+      expect(raw).toContain('<fx:ConformanceLevel>XRECHNUNG</fx:ConformanceLevel>');
+      const md5 = createHash('md5')
+        .update(res.body as string)
+        .digest('hex');
+      expect(raw).toContain(`/CheckSum (${md5})`);
+      expect(pdf.text).toContain(R(n));
+    }
 
     // Mit XRECHNUNG_OUT=<Verzeichnis> für den KoSIT-Validator speichern
     if (process.env.XRECHNUNG_OUT) {

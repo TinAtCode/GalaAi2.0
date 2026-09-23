@@ -363,6 +363,18 @@ export class InvoicesService {
     const vatNote = VAT_TREATMENT_NOTES[invoice.vatTreatment];
     if (vatNote) notes.unshift(vatNote);
 
+    // Ausgestellte Rechnungen als ZUGFeRD-PDF: die E-Rechnung steckt im PDF.
+    // Fehlen dafür Angaben (z.B. IBAN), bleibt es beim lesbaren PDF – die
+    // Meldung dazu gibt es beim Abruf der E-Rechnung.
+    let eInvoiceXml: Buffer | undefined;
+    if (!draft) {
+      try {
+        eInvoiceXml = (await this.renderXRechnung(companyId, id)).buffer;
+      } catch (err) {
+        if (!(err instanceof BadRequestException)) throw err;
+      }
+    }
+
     const buffer = await renderBusinessDocumentPdf({
       title: draft ? `${kindLabel} (Entwurf)` : `${kindLabel} ${invoice.number}`,
       draft,
@@ -377,6 +389,7 @@ export class InvoicesService {
         gross: invoice.totalGross.toString(),
       },
       notes,
+      eInvoiceXml,
     });
     return { buffer, fileName: `${invoice.number ?? 'Rechnung-Entwurf'}.pdf` };
   }
@@ -511,7 +524,7 @@ export class InvoicesService {
         '',
         `anbei erhalten Sie unsere ${kindLabel} ${invoice.number} zum Projekt „${project.title}“.`,
         attachments.length > 1
-          ? 'Die E-Rechnung (XRechnung) liegt als XML-Datei bei, dazu eine PDF-Fassung zum Lesen.'
+          ? 'Die E-Rechnung (XRechnung) liegt als XML-Datei bei, dazu das PDF zum Lesen (ZUGFeRD, mit eingebetteter E-Rechnung).'
           : 'Die Rechnung liegt als PDF bei.',
         '',
         'Mit freundlichen Grüßen',

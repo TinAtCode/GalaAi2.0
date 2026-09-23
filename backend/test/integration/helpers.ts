@@ -112,6 +112,13 @@ export async function fetchPdfText(app: INestApplication, path: string, token: s
       response.on('end', () => callback(null, Buffer.concat(chunks)));
     });
   const body = res.body as Buffer;
+  // Mit PDFA_OUT=<Verzeichnis> für die PDF/A-Prüfung (veraPDF) speichern
+  if (process.env.PDFA_OUT && res.status === 200) {
+    const { mkdirSync, writeFileSync } = await import('fs');
+    mkdirSync(process.env.PDFA_OUT, { recursive: true });
+    const name = path.replace(/[^\w-]+/g, '_').replace(/^_+/, '');
+    writeFileSync(`${process.env.PDFA_OUT}/${name}-${Date.now()}.pdf`, body);
+  }
   let text = '';
   if (res.status === 200) {
     const { PDFParse } = await import('pdf-parse');
@@ -121,6 +128,7 @@ export async function fetchPdfText(app: INestApplication, path: string, token: s
     status: res.status,
     contentType: res.headers['content-type'],
     text,
+    body,
     isPdf: body.subarray(0, 4).toString() === '%PDF',
   };
 }

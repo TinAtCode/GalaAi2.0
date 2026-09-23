@@ -230,7 +230,15 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   festgeschrieben. `backend/scripts/validate-xrechnung.sh` prüft XML-Schema, EN 16931 und XRechnung-Regeln
   und läuft in der CI auf allen in den Tests erzeugten E-Rechnungen. Versand per E-Mail (`POST /invoices/:id/send`, Button „Per E-Mail“): PDF und XRechnung im Anhang, an
   die Adresse des Kunden oder eine angegebene, protokolliert im Audit-Log; eingerichtet über `SMTP_URL`
-  und `MAIL_FROM`. Noch nicht unterstützt: ZUGFeRD (PDF/A-3), Versand über Peppol.
+  und `MAIL_FROM`. Noch nicht unterstützt: Versand über Peppol.
+
+- **Nachtrag – ZUGFeRD**: Alle PDFs (Angebote, Rechnungen) sind PDF/A-3b: eingebettete Schrift Liberation
+  Sans (maßgleich mit Helvetica, SIL OFL, `backend/assets/fonts`), sRGB-Farbprofil, XMP-Metadaten. Das PDF
+  einer ausgestellten Rechnung enthält dieselbe XRechnung als `factur-x.xml` (AFRelationship
+  „Alternative“, XMP nach Factur-X 1.0 / ZUGFeRD 2.x, Profil XRECHNUNG) und ist damit eine ZUGFeRD-Rechnung.
+  Fehlen Angaben für die E-Rechnung (z.B. IBAN), bleibt es beim lesbaren PDF. `backend/scripts/validate-pdfa.sh`
+  prüft mit veraPDF (PDF/A-3b) und dem Mustang-Validator (ZUGFeRD samt XML gegen EN 16931 und XRechnung);
+  die CI prüft damit alle in den Tests erzeugten PDFs.
 
 - **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
   (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt
