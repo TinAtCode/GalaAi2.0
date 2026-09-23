@@ -80,7 +80,7 @@ Diese Punkte sind im Code gefunden, aber nicht einzeln durch Tests bestätigt.
 
 - ✅ **Login-Limit in der Praxis:** Die 5 Logins pro Minute zählen pro IP. Ein Trupp von 10 Leuten im selben Büro-WLAN, oder alle Nutzer hinter einem Reverse-Proxy ohne `trust proxy`, sperrt sich morgens gegenseitig aus. Besser: nach E-Mail plus IP zählen. **Stand:** 5/Minute je Konto und IP plus 30/Minute je IP, `TRUST_PROXY` konfigurierbar.
 - ✅ **`xlsx` bei hochgeladenen Dateien:** Die Bibliothek hat eine bekannte, ungefixte Prototype-Pollution-Lücke und verarbeitet ausgerechnet Dateien von Nutzern. Besser `exceljs` oder die gepflegte SheetJS-Version vom Hersteller-CDN. **Stand:** ersetzt durch `read-excel-file` (keine bekannten Lücken); `.xls` wird mit klarer Meldung abgelehnt.
-- ✅ **`bcrypt` 5.x:** zieht eine kritisch verwundbare `tar`-Version nach. Update auf `bcrypt` 6 oder Wechsel zu `bcryptjs`. **Stand:** `bcrypt` 6. Übrig bleiben Funde in NestJS 10 selbst (multer, body-parser) sowie React Router 6 und Vite 5 im Frontend – alle nur mit einem Major-Upgrade behebbar.
+- ✅ **`bcrypt` 5.x:** zieht eine kritisch verwundbare `tar`-Version nach. Update auf `bcrypt` 6 oder Wechsel zu `bcryptjs`. **Stand:** `bcrypt` 6; NestJS 11 (mit `multer` 2.4 per Override), React Router 7, Vite 8. `npm audit`: 0 Funde in Backend und Frontend, die CI bricht bei neuen Funden ab „high“ in den Produktionsabhängigkeiten ab. NestJS 12 ist reines ESM und wäre ein eigener Umbau.
 - ✅ **Token-Handhabung:**
   - ✅ War: deaktivierte Nutzer und entzogene Rechte blieben bis zu 8 Stunden wirksam. Jetzt werden Rechte und „aktiv“ pro Anfrage live geprüft, Passwortänderung und Deaktivierung melden sofort ab.
   - ✅ War: das Frontend reagierte nicht auf 401. Jetzt geht es mit Hinweis zur Login-Seite.

@@ -29,11 +29,9 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
-      # Nicht blockierend: `xlsx` (Datenwächter-Excel-Import) hat laut
-      # Hersteller aktuell KEINEN Fix für zwei High-Findings (siehe
-      # STATUS.md/Entscheidungstabelle) – ein harter Abbruch hier würde die
-      # Pipeline dauerhaft rot färben, ohne dass wir etwas ändern könnten.
-      # Ergebnis bleibt trotzdem sichtbar im Log.
+      # Blockierend für Lücken ab "high" in den Produktionsabhängigkeiten
+      # (Stand: 0 Funde). Entwicklungswerkzeuge nur zur Information.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm audit --audit-level=high
         continue-on-error: true
 
@@ -108,5 +106,6 @@ jobs:
       - run: npm run format:check
       - run: npm run type-check
       - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm audit --audit-level=high
         continue-on-error: true
