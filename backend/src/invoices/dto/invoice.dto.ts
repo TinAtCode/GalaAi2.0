@@ -1,5 +1,7 @@
 import {
+  IsBoolean,
   IsDateString,
+  IsEmail,
   IsIn,
   IsNumber,
   IsOptional,
@@ -47,4 +49,22 @@ export class CancelInvoiceDto {
   @MinLength(3)
   @MaxLength(500)
   reason!: string;
+}
+
+export class SendInvoiceDto {
+  // Empfänger; ohne Angabe die E-Mail-Adresse des Kunden
+  @IsOptional()
+  @IsEmail()
+  to?: string;
+
+  // Eigener Text statt des Standardtexts
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  message?: string;
+
+  // E-Rechnung (XRechnung) anhängen; Standard: ja
+  @IsOptional()
+  @IsBoolean()
+  withXRechnung?: boolean;
 }

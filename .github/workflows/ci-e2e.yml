@@ -62,6 +62,9 @@ jobs:
           LOGIN_IP_RATE_LIMIT: 1000
           # Alle E2E-Tests laufen als derselbe Nutzer (Anfrage-Limit je Nutzer)
           RATE_LIMIT: 5000
+          # Mails nur im Speicher (Rechnungsversand im E2E-Test)
+          SMTP_URL: test
+          MAIL_FROM: Musterbetrieb <rechnung@musterbetrieb.de>
         run: |
           npm run build
           node dist/main.js &

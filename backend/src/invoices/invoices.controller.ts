@@ -6,7 +6,12 @@ import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { InvoicesService } from './invoices.service';
-import { CancelInvoiceDto, CreateInvoiceFromOrderDto, IssueInvoiceDto } from './dto/invoice.dto';
+import {
+  CancelInvoiceDto,
+  CreateInvoiceFromOrderDto,
+  IssueInvoiceDto,
+  SendInvoiceDto,
+} from './dto/invoice.dto';
 
 @Controller('invoices')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -60,5 +65,10 @@ export class InvoicesController {
   @Post(':id/cancel')
   cancel(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: CancelInvoiceDto) {
     return this.invoicesService.cancel(user.companyId, user.userId, id, dto.reason);
+  }
+
+  @Post(':id/send')
+  send(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: SendInvoiceDto) {
+    return this.invoicesService.sendByEmail(user.companyId, user.userId, id, dto);
   }
 }

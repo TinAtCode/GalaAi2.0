@@ -24,6 +24,7 @@ const ACTION_LABELS: Record<string, string> = {
   project_status: 'Projektstatus',
   invoice_issue: 'Rechnung ausgestellt',
   invoice_cancel: 'Rechnung storniert',
+  invoice_send: 'Rechnung per E-Mail versendet',
   time_entry_approve: 'Zeiteintrag freigegeben',
   time_entry_correct: 'Zeiteintrag korrigiert',
   user_update: 'Nutzer geändert',
@@ -67,6 +68,8 @@ const FIELD_LABELS: Record<string, string> = {
   role: 'Rolle',
   count: 'Anzahl',
   articleNumbers: 'Artikelnummern',
+  to: 'An',
+  attachments: 'Anhänge',
 };
 
 const VALUE_LABELS: Record<string, string> = {

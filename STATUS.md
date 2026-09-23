@@ -225,8 +225,9 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   positiven Preis (BR-27). Dafür neue Firmendaten (E-Mail, Telefon, Ansprechpartner, IBAN, BIC,
   Zahlungsziel) und beim Kunden die Käuferreferenz/Leitweg-ID; beides wird beim Ausstellen mit
   festgeschrieben. `backend/scripts/validate-xrechnung.sh` prüft XML-Schema, EN 16931 und XRechnung-Regeln
-  und läuft in der CI auf allen in den Tests erzeugten E-Rechnungen. Noch nicht unterstützt: ZUGFeRD,
-  Versand per E-Mail/Peppol.
+  und läuft in der CI auf allen in den Tests erzeugten E-Rechnungen. Versand per E-Mail (`POST /invoices/:id/send`, Button „Per E-Mail“): PDF und XRechnung im Anhang, an
+  die Adresse des Kunden oder eine angegebene, protokolliert im Audit-Log; eingerichtet über `SMTP_URL`
+  und `MAIL_FROM`. Noch nicht unterstützt: ZUGFeRD (PDF/A-3), Versand über Peppol.
 
 - **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
   (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt

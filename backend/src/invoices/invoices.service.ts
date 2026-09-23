@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { lockFor } from '../common/advisory-lock';
 import { writeAudit } from '../common/audit';
 import { VAT_TREATMENT_NOTES } from '../common/vat-treatment';
 import { formatDocumentNumber, nextSequenceValue, yearInZone } from '../common/numbering';
-import { CreateInvoiceFromOrderDto, IssueInvoiceDto } from './dto/invoice.dto';
+import { CreateInvoiceFromOrderDto, IssueInvoiceDto, SendInvoiceDto } from './dto/invoice.dto';
 import { BusinessDocumentPdf, PdfParty, renderBusinessDocumentPdf } from '../pdf/business-document.pdf';
 import { XRechnungInput, buildXRechnung } from './xrechnung';
 import { buyerFromProject, formatDate, pdfLines, sellerFromCompany } from '../pdf/pdf-data';
@@ -29,7 +30,10 @@ function totals(lines: LineInput[], vatRate: Prisma.Decimal) {
 
 @Injectable()
 export class InvoicesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mail: MailService,
+  ) {}
 
   findAllForProject(companyId: string, projectId: string) {
     return this.prisma.invoice.findMany({
@@ -466,5 +470,69 @@ export class InvoicesService {
       notes,
     });
     return { buffer: Buffer.from(xml, 'utf8'), fileName: `${invoice.number}.xml` };
+  }
+
+  // Versand per E-Mail: PDF und (Standard) die E-Rechnung als XML im Anhang.
+  // Das XML ist die rechtlich maßgebliche E-Rechnung, das PDF die lesbare
+  // Fassung. Der Versand wird protokolliert (die Rechnung selbst bleibt
+  // unverändert – ausgestellte Rechnungen sind unveränderlich).
+  async sendByEmail(companyId: string, userId: string, id: string, dto: SendInvoiceDto) {
+    const invoice = await this.findOne(companyId, id);
+    if (invoice.status === 'draft' || !invoice.number) {
+      throw new BadRequestException('Nur ausgestellte Rechnungen können versendet werden.');
+    }
+    const project = await this.prisma.project.findUniqueOrThrow({
+      where: { id: invoice.projectId },
+      include: { property: { include: { customer: true } } },
+    });
+    const to = dto.to ?? project.property.customer.email;
+    if (!to) {
+      throw new BadRequestException(
+        'Keine Empfängeradresse: beim Kunden ist keine E-Mail-Adresse hinterlegt.',
+      );
+    }
+    this.mail.assertConfigured();
+
+    const pdf = await this.renderPdf(companyId, id);
+    const attachments = [{ filename: pdf.fileName, content: pdf.buffer, contentType: 'application/pdf' }];
+    if (dto.withXRechnung ?? true) {
+      const xml = await this.renderXRechnung(companyId, id);
+      attachments.push({ filename: xml.fileName, content: xml.buffer, contentType: 'application/xml' });
+    }
+
+    const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+    const kindLabel = { partial: 'Abschlagsrechnung', final: 'Rechnung', cancellation: 'Stornorechnung' }[
+      invoice.kind
+    ];
+    const text =
+      dto.message ??
+      [
+        'Guten Tag,',
+        '',
+        `anbei erhalten Sie unsere ${kindLabel} ${invoice.number} zum Projekt „${project.title}“.`,
+        attachments.length > 1
+          ? 'Die E-Rechnung (XRechnung) liegt als XML-Datei bei, dazu eine PDF-Fassung zum Lesen.'
+          : 'Die Rechnung liegt als PDF bei.',
+        '',
+        'Mit freundlichen Grüßen',
+        company.name,
+      ].join('\n');
+
+    await this.mail.send({
+      to,
+      replyTo: company.email ?? undefined,
+      subject: `${kindLabel} ${invoice.number} – ${company.name}`,
+      text,
+      attachments,
+    });
+    await writeAudit(this.prisma, {
+      companyId,
+      userId,
+      action: 'invoice_send',
+      entity: 'Invoice',
+      entityId: id,
+      newData: { to, attachments: attachments.map((a) => a.filename) },
+    });
+    return { sent: true, to, attachments: attachments.map((a) => a.filename) };
   }
 }

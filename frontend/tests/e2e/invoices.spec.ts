@@ -73,6 +73,11 @@ test.describe('Rechnungen', () => {
     const xml = await (await download.createReadStream()).toArray();
     expect(Buffer.concat(xml).toString('utf8')).toContain('urn:xeinkauf.de:kosit:xrechnung_3.0');
 
+    // Per E-Mail an den Kunden (in der Testumgebung mit SMTP_URL=test)
+    page.once('dialog', (dialog) => dialog.accept(''));
+    await card.getByTestId('invoice-send').click();
+    await expect(page.getByTestId('invoice-notice')).toContainText('gesendet (PDF und E-Rechnung)');
+
     page.once('dialog', (dialog) => dialog.accept('Falsche Menge'));
     await card.getByTestId('invoice-cancel').click();
     await expect(card.getByTestId('invoice-status')).toHaveText('Storniert');

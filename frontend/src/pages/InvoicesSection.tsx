@@ -31,6 +31,7 @@ const STATUS_LABELS: Record<Invoice['status'], string> = {
 export function InvoicesSection({ projectId, orderIds }: { projectId: string; orderIds: string[] }) {
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(
@@ -69,6 +70,21 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
     }
   };
 
+  // Versand per E-Mail: PDF und E-Rechnung im Anhang. Ohne Eingabe geht die
+  // Mail an die E-Mail-Adresse des Kunden.
+  const sendByEmail = (invoice: Invoice) => {
+    const to = window.prompt(`${invoice.number} per E-Mail senden an (leer = E-Mail des Kunden):`, '');
+    if (to === null) return;
+    setNotice(null);
+    run(async () => {
+      const result = await api.post<{ to: string }>(
+        `/invoices/${invoice.id}/send`,
+        to.trim() ? { to: to.trim() } : {},
+      );
+      setNotice(`${invoice.number} wurde an ${result.to} gesendet (PDF und E-Rechnung).`);
+    });
+  };
+
   const cancel = (invoice: Invoice) => {
     const reason = window.prompt(`Grund für das Storno von ${invoice.number}:`);
     if (reason) run(() => api.post(`/invoices/${invoice.id}/cancel`, { reason }));
@@ -78,6 +94,11 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
     <>
       <h3 style={{ marginTop: 28, marginBottom: 8 }}>Rechnungen</h3>
       {error && <p className="field-error">{error}</p>}
+      {notice && (
+        <p className="list-item-meta" data-testid="invoice-notice">
+          {notice}
+        </p>
+      )}
 
       {orderIds.map((orderId) => (
         <div key={orderId} style={{ display: 'flex', gap: 10, marginBottom: 12 }} data-order-id={orderId}>
@@ -159,6 +180,16 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
                   Löschen
                 </button>
               </>
+            )}
+            {invoice.status !== 'draft' && invoice.number && (
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => sendByEmail(invoice)}
+                data-testid="invoice-send"
+              >
+                Per E-Mail
+              </button>
             )}
             {invoice.status === 'issued' && invoice.kind !== 'cancellation' && (
               <button
