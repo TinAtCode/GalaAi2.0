@@ -223,8 +223,14 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   positiven Preis (BR-27). Dafür neue Firmendaten (E-Mail, Telefon, Ansprechpartner, IBAN, BIC,
   Zahlungsziel) und beim Kunden die Käuferreferenz/Leitweg-ID; beides wird beim Ausstellen mit
   festgeschrieben. `backend/scripts/validate-xrechnung.sh` prüft XML-Schema, EN 16931 und XRechnung-Regeln
-  und läuft in der CI auf allen in den Tests erzeugten E-Rechnungen. Noch nicht unterstützt: 0 % USt
-  (steuerfrei, § 13b), ZUGFeRD, Versand per E-Mail/Peppol.
+  und läuft in der CI auf allen in den Tests erzeugten E-Rechnungen. Noch nicht unterstützt: ZUGFeRD,
+  Versand per E-Mail/Peppol.
+
+- **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
+  (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt
+  (`vatTreatment: "reverse_charge"`). Die Rechnung übernimmt die Behandlung vom Angebot, das Storno vom
+  Original. PDF mit Pflichthinweis; E-Rechnung mit Kategorie E bzw. AE und Befreiungsgrund, bei § 13b mit
+  der USt-IdNr. des Kunden (neues Feld am Kunden). 0 % ohne Grund bleibt als E-Rechnung gesperrt.
 
 - **Nachtrag – Audit-Log**: Statuswechsel von Angeboten, Aufträgen und Projekten, Nutzeränderungen
   (Sperren, Namen), Passwort-Reset (ohne das Passwort) sowie Rollenrechte und Rollenzuweisungen werden mit

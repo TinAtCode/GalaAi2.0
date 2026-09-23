@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { lockFor } from '../common/advisory-lock';
 import { writeAudit } from '../common/audit';
+import { VAT_TREATMENT_NOTES } from '../common/vat-treatment';
 import { formatDocumentNumber, nextSequenceValue, yearInZone } from '../common/numbering';
 import { CreateInvoiceFromOrderDto, IssueInvoiceDto } from './dto/invoice.dto';
 import { BusinessDocumentPdf, PdfParty, renderBusinessDocumentPdf } from '../pdf/business-document.pdf';
@@ -120,7 +121,7 @@ export class InvoicesService {
         }
       }
 
-      const vatRate = order.quote.vatRate;
+      const { vatRate, vatTreatment } = order.quote;
       return tx.invoice.create({
         data: {
           companyId,
@@ -128,6 +129,7 @@ export class InvoicesService {
           orderId: order.id,
           kind: dto.kind,
           vatRate,
+          vatTreatment,
           ...totals(lines, vatRate),
           servicePeriodStart: dto.servicePeriodStart ? new Date(dto.servicePeriodStart) : null,
           servicePeriodEnd: dto.servicePeriodEnd ? new Date(dto.servicePeriodEnd) : null,
@@ -199,6 +201,7 @@ export class InvoicesService {
         city: address.city,
         email: customer.email,
         buyerReference: customer.buyerReference,
+        vatId: customer.vatId,
       },
     };
   }
@@ -268,6 +271,7 @@ export class InvoicesService {
           kind: 'cancellation',
           cancelsInvoiceId: original.id,
           vatRate: original.vatRate,
+          vatTreatment: original.vatTreatment,
           totalNet: original.totalNet.negated(),
           totalVat: original.totalVat.negated(),
           totalGross: original.totalGross.negated(),
@@ -352,6 +356,8 @@ export class InvoicesService {
       notes.push(`Diese Stornorechnung hebt die Rechnung ${original.number} vollständig auf.`);
     }
     if (invoice.status === 'cancelled') notes.push('Diese Rechnung wurde storniert.');
+    const vatNote = VAT_TREATMENT_NOTES[invoice.vatTreatment];
+    if (vatNote) notes.unshift(vatNote);
 
     const buffer = await renderBusinessDocumentPdf({
       title: draft ? `${kindLabel} (Entwurf)` : `${kindLabel} ${invoice.number}`,
@@ -379,9 +385,9 @@ export class InvoicesService {
     if (invoice.status === 'draft' || !invoice.number || !invoice.issueDate) {
       throw new BadRequestException('Eine E-Rechnung gibt es erst für ausgestellte Rechnungen.');
     }
-    if (invoice.vatRate.isZero()) {
+    if (invoice.vatTreatment === 'standard' && invoice.vatRate.isZero()) {
       throw new BadRequestException(
-        'Rechnungen ohne Umsatzsteuer (z.B. steuerfrei oder § 13b UStG) können noch nicht als E-Rechnung ausgegeben werden.',
+        'Eine Rechnung mit 0 % Umsatzsteuer braucht einen Grund (§ 19 oder § 13b UStG) – als E-Rechnung so nicht möglich.',
       );
     }
     const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
@@ -415,6 +421,7 @@ export class InvoicesService {
       postalCode: pick(buyerSnap, 'postalCode', ''),
       city: pick(buyerSnap, 'city', ''),
       email: pick(buyerSnap, 'email', customer.email ?? ''),
+      vatId: pick<string | null>(buyerSnap, 'vatId', customer.vatId),
     };
     const buyerReference = pick(buyerSnap, 'buyerReference', customer.buyerReference ?? '') || project.title;
 
@@ -423,6 +430,7 @@ export class InvoicesService {
       !seller.phone && 'Telefon der Firma',
       !seller.iban && 'IBAN der Firma',
       !buyer.email && 'E-Mail des Kunden',
+      invoice.vatTreatment === 'reverse_charge' && !buyer.vatId && 'USt-IdNr. des Kunden (§ 13b UStG)',
     ].filter(Boolean);
     if (missing.length > 0) {
       throw new BadRequestException(`Für die E-Rechnung fehlen: ${missing.join(', ')}.`);
@@ -449,6 +457,7 @@ export class InvoicesService {
       precedingInvoice,
       seller,
       buyer,
+      vatTreatment: invoice.vatTreatment,
       vatRate: invoice.vatRate,
       totalNet: invoice.totalNet,
       totalVat: invoice.totalVat,

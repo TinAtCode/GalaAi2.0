@@ -14,6 +14,7 @@ interface CompanySettings {
   iban: string | null;
   bic: string | null;
   paymentTermDays: number;
+  smallBusiness: boolean;
   defaultVatRate: string | number;
 }
 
@@ -38,17 +39,19 @@ export function CompanySection() {
   const [form, setForm] = useState<Record<string, string> | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [smallBusiness, setSmallBusiness] = useState(false);
 
   useEffect(() => {
     api
       .get<CompanySettings>('/company/settings')
-      .then((settings) =>
+      .then((settings) => {
+        setSmallBusiness(settings.smallBusiness);
         setForm({
           ...Object.fromEntries(FIELDS.map((f) => [f.key, String(settings[f.key] ?? '')])),
           defaultVatRate: String(Number(settings.defaultVatRate)),
           paymentTermDays: String(settings.paymentTermDays),
-        }),
-      )
+        });
+      })
       .catch(() => setMessage({ ok: false, text: 'Firmendaten konnten nicht geladen werden.' }));
   }, []);
 
@@ -57,12 +60,13 @@ export function CompanySection() {
     setBusy(true);
     setMessage(null);
     try {
-      const body: Record<string, string | number> = {};
+      const body: Record<string, string | number | boolean> = {};
       for (const field of FIELDS) {
         if (form?.[field.key]?.trim()) body[field.key] = form[field.key].trim();
       }
       body.defaultVatRate = Number((form?.defaultVatRate ?? '19').replace(',', '.'));
       body.paymentTermDays = Number(form?.paymentTermDays ?? '14');
+      body.smallBusiness = smallBusiness;
       await api.patch('/company/settings', body);
       setMessage({ ok: true, text: 'Firmendaten gespeichert.' });
     } catch (err) {
@@ -110,6 +114,15 @@ export function CompanySection() {
               inputMode="numeric"
               data-testid="company-paymentTermDays"
             />
+          </label>
+          <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={smallBusiness}
+              onChange={(e) => setSmallBusiness(e.target.checked)}
+              data-testid="company-smallBusiness"
+            />
+            <span>Kleinunternehmer (§ 19 UStG) – Angebote und Rechnungen ohne Umsatzsteuer</span>
           </label>
           {message && (
             <p className={message.ok ? 'list-item-meta' : 'field-error'} data-testid="company-message">

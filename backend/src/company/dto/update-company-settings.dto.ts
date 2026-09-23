@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
   IsBIC,
+  IsBoolean,
   IsEmail,
   IsIBAN,
   IsInt,
@@ -79,6 +80,11 @@ export class UpdateCompanySettingsDto {
   @Min(0)
   @Max(365)
   paymentTermDays?: number;
+
+  // Kleinunternehmer nach § 19 UStG
+  @IsOptional()
+  @IsBoolean()
+  smallBusiness?: boolean;
 
   @IsOptional()
   @IsNumber()

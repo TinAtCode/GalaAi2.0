@@ -32,6 +32,12 @@ export class CreateCustomerDto {
   @IsString()
   @MaxLength(100)
   buyerReference?: string;
+
+  // USt-IdNr., z.B. DE123456789 (für § 13b-Rechnungen als E-Rechnung)
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  vatId?: string;
 }
 
 export class UpdateCustomerDto extends PartialType(CreateCustomerDto) {}

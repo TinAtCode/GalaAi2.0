@@ -4,6 +4,7 @@ import { formatDocumentNumber, nextSequenceValue, yearInZone } from '../common/n
 import { renderBusinessDocumentPdf } from '../pdf/business-document.pdf';
 import { buyerFromProject, formatDate, pdfLines, sellerFromCompany } from '../pdf/pdf-data';
 import { writeAudit } from '../common/audit';
+import { resolveVatTreatment, VAT_TREATMENT_NOTES } from '../common/vat-treatment';
 import { PrismaService } from '../prisma/prisma.service';
 import { CalculationsService } from '../calculations/calculations.service';
 import { CreateQuoteDto, QuoteStatus } from './dto/quote.dto';
@@ -97,7 +98,10 @@ export class QuotesService {
     // einmal auf die Nettosumme gerechnet und kaufmännisch gerundet.
     const totalNet = lineItemsData.reduce((sum, li) => sum.plus(li.lineTotal), new Prisma.Decimal(0));
     const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
-    const vatRate = new Prisma.Decimal(dto.vatRate ?? company.defaultVatRate);
+    const vatTreatment = resolveVatTreatment(company.smallBusiness, dto.vatTreatment);
+    const vatRate = new Prisma.Decimal(
+      vatTreatment === 'standard' ? (dto.vatRate ?? company.defaultVatRate) : 0,
+    );
     const totalVat = totalNet.times(vatRate).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
     // Nummer und Angebot in einer Transaktion: scheitert das Anlegen, ist
@@ -112,6 +116,7 @@ export class QuotesService {
           number: formatDocumentNumber('A', year, value),
           totalNet,
           vatRate,
+          vatTreatment,
           totalVat,
           totalGross: totalNet.plus(totalVat),
           lineItems: { create: lineItemsData },
@@ -204,7 +209,7 @@ export class QuotesService {
         vat: quote.totalVat.toString(),
         gross: quote.totalGross.toString(),
       },
-      notes: [],
+      notes: [VAT_TREATMENT_NOTES[quote.vatTreatment]].filter((n): n is string => !!n),
     });
     return { buffer, fileName: `${quote.number ?? 'Angebot'}.pdf` };
   }

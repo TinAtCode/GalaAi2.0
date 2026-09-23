@@ -26,6 +26,7 @@ interface Quote {
   number: string | null;
   status: 'draft' | 'approved' | 'sent' | 'accepted' | 'rejected' | 'expired';
   vatRate: number;
+  vatTreatment: 'standard' | 'small_business' | 'reverse_charge';
   totalNet?: number;
   totalGross?: number;
   createdAt: string;
@@ -263,7 +264,13 @@ export function ProjectDetailPage() {
             {quote.totalGross !== undefined && (
               <>
                 {' '}
-                · {formatEuro(quote.totalGross)} brutto ({Number(quote.vatRate)} % USt)
+                · {formatEuro(quote.totalGross)} brutto (
+                {quote.vatTreatment === 'small_business'
+                  ? 'ohne USt, § 19 UStG'
+                  : quote.vatTreatment === 'reverse_charge'
+                    ? 'ohne USt, § 13b UStG'
+                    : `${Number(quote.vatRate)} % USt`}
+                )
               </>
             )}
           </div>

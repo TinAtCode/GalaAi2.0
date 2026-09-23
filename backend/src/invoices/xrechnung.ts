@@ -34,7 +34,8 @@ export interface XRechnungInput {
     bic: string | null;
     paymentTermDays: number;
   };
-  buyer: XRechnungParty;
+  buyer: XRechnungParty & { vatId?: string | null };
+  vatTreatment: 'standard' | 'small_business' | 'reverse_charge';
   vatRate: Prisma.Decimal;
   totalNet: Prisma.Decimal;
   totalVat: Prisma.Decimal;
@@ -95,6 +96,17 @@ function dateInZone(date: Date, timeZone: string): string {
 }
 
 const amount = (d: Prisma.Decimal) => d.toFixed(2);
+
+// Umsatzsteuerkategorie (UNTDID 5305) und Befreiungsgrund je Behandlung
+const VAT_CATEGORIES = {
+  standard: { code: 'S', reason: null, reasonCode: null },
+  small_business: { code: 'E', reason: 'Kleinunternehmer gemäß § 19 UStG', reasonCode: null },
+  reverse_charge: {
+    code: 'AE',
+    reason: 'Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)',
+    reasonCode: 'VATEX-EU-AE',
+  },
+} as const;
 
 class Xml {
   private out: string[] = ['<?xml version="1.0" encoding="UTF-8"?>'];
@@ -159,7 +171,8 @@ export function buildXRechnung(input: XRechnungInput): string {
   const sign = input.kind === 'cancellation' ? -1 : 1;
   const typeCode = { partial: '326', final: '380', cancellation: '381' }[input.kind];
   const signed = (d: Prisma.Decimal) => d.times(sign);
-  const rate = input.vatRate.toFixed(2);
+  const category = VAT_CATEGORIES[input.vatTreatment];
+  const rate = input.vatTreatment === 'standard' ? input.vatRate.toFixed(2) : '0.00';
 
   const x = new Xml();
   x.open(
@@ -214,7 +227,7 @@ export function buildXRechnung(input: XRechnungInput): string {
       .open('ram:SpecifiedLineTradeSettlement')
       .open('ram:ApplicableTradeTax')
       .leaf('ram:TypeCode', 'VAT')
-      .leaf('ram:CategoryCode', 'S')
+      .leaf('ram:CategoryCode', category.code)
       .leaf('ram:RateApplicablePercent', rate)
       .close('ram:ApplicableTradeTax')
       .open('ram:SpecifiedTradeSettlementLineMonetarySummation')
@@ -255,7 +268,13 @@ export function buildXRechnung(input: XRechnungInput): string {
         .close('ram:EmailURIUniversalCommunication')
         .close('ram:DefinedTradeContact'),
   );
-  party(x, 'ram:BuyerTradeParty', buyer);
+  party(x, 'ram:BuyerTradeParty', buyer, (x) => {
+    if (buyer.vatId) {
+      x.open('ram:SpecifiedTaxRegistration')
+        .leaf('ram:ID', buyer.vatId, ' schemeID="VA"')
+        .close('ram:SpecifiedTaxRegistration');
+    }
+  });
   x.close('ram:ApplicableHeaderTradeAgreement');
 
   x.open('ram:ApplicableHeaderTradeDelivery');
@@ -283,11 +302,11 @@ export function buildXRechnung(input: XRechnungInput): string {
 
   x.open('ram:ApplicableTradeTax')
     .leaf('ram:CalculatedAmount', amount(signed(input.totalVat)))
-    .leaf('ram:TypeCode', 'VAT')
-    .leaf('ram:BasisAmount', amount(signed(input.totalNet)))
-    .leaf('ram:CategoryCode', 'S')
-    .leaf('ram:RateApplicablePercent', rate)
-    .close('ram:ApplicableTradeTax');
+    .leaf('ram:TypeCode', 'VAT');
+  if (category.reason) x.leaf('ram:ExemptionReason', category.reason);
+  x.leaf('ram:BasisAmount', amount(signed(input.totalNet))).leaf('ram:CategoryCode', category.code);
+  if (category.reasonCode) x.leaf('ram:ExemptionReasonCode', category.reasonCode);
+  x.leaf('ram:RateApplicablePercent', rate).close('ram:ApplicableTradeTax');
 
   if (input.servicePeriodStart) {
     x.open('ram:BillingSpecifiedPeriod')

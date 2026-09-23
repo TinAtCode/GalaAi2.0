@@ -37,6 +37,7 @@ const finalInvoice: XRechnungInput = {
     city: 'Musterstadt',
     email: 'rechnung@musterstadt.example',
   },
+  vatTreatment: 'standard',
   vatRate: D('19.00'),
   totalNet: D('1000.00'),
   totalVat: D('190.00'),
@@ -105,7 +106,33 @@ const taxNumberOnly: XRechnungInput = {
   seller: { ...partialInvoice.seller, vatId: null },
 };
 
-const samples = { final: finalInvoice, partial: partialInvoice, cancellation, taxNumberOnly };
+// Kleinunternehmer (§ 19 UStG): nur Steuernummer, keine Umsatzsteuer
+const smallBusiness: XRechnungInput = {
+  ...taxNumberOnly,
+  vatTreatment: 'small_business',
+  vatRate: D('0'),
+  totalVat: D('0.00'),
+  totalGross: D('500.00'),
+};
+
+// § 13b UStG: Kunde (Bauunternehmen) schuldet die Umsatzsteuer
+const reverseCharge: XRechnungInput = {
+  ...finalInvoice,
+  buyer: { ...finalInvoice.buyer, name: 'Bau GmbH', vatId: 'DE987654321' },
+  vatTreatment: 'reverse_charge',
+  vatRate: D('0'),
+  totalVat: D('0.00'),
+  totalGross: D('1000.00'),
+};
+
+const samples = {
+  final: finalInvoice,
+  partial: partialInvoice,
+  cancellation,
+  taxNumberOnly,
+  smallBusiness,
+  reverseCharge,
+};
 
 // Mit XRECHNUNG_OUT=<Verzeichnis> werden die Beispiele gespeichert, um sie
 // mit dem KoSIT-Validator zu prüfen (siehe TESTANLEITUNG.md).
@@ -169,6 +196,22 @@ describe('XRechnung (CII)', () => {
     expect(xml).toMatch(/<ram:SellerTradeParty>\s*<ram:ID>12\/345\/67890<\/ram:ID>/);
     expect(xml).not.toContain('schemeID="VA"');
     expect(buildXRechnung(finalInvoice)).not.toMatch(/<ram:SellerTradeParty>\s*<ram:ID>/);
+  });
+
+  it('Kleinunternehmer: Kategorie E mit Befreiungsgrund, keine Steuer', () => {
+    const xml = buildXRechnung(smallBusiness);
+    expect(between(xml, 'ram:CategoryCode')).toEqual(['E', 'E']);
+    expect(between(xml, 'ram:ExemptionReason')).toEqual(['Kleinunternehmer gemäß § 19 UStG']);
+    expect(between(xml, 'ram:RateApplicablePercent')).toEqual(['0.00', '0.00']);
+    expect(between(xml, 'ram:TaxTotalAmount')).toEqual(['0.00']);
+  });
+
+  it('§ 13b: Kategorie AE mit Befreiungsgrund und USt-IdNr. des Kunden', () => {
+    const xml = buildXRechnung(reverseCharge);
+    expect(between(xml, 'ram:CategoryCode')).toEqual(['AE', 'AE', 'AE', 'AE']);
+    expect(between(xml, 'ram:ExemptionReasonCode')).toEqual(['VATEX-EU-AE']);
+    expect(xml).toMatch(/<ram:BuyerTradeParty>[\s\S]*schemeID="VA">DE987654321</);
+    expect(between(xml, 'ram:GrandTotalAmount')).toEqual(['1000.00']);
   });
 
   it('bildet unbekannte Einheiten auf C62 ab', () => {

@@ -27,6 +27,7 @@ interface Customer {
   postalCode: string | null;
   city: string | null;
   buyerReference: string | null;
+  vatId: string | null;
   properties: Property[];
 }
 
@@ -39,6 +40,8 @@ const CUSTOMER_FIELDS: { key: keyof Customer; label: string; type?: string }[] =
   { key: 'city', label: 'Ort' },
   // Für E-Rechnungen an Behörden Pflicht; sonst optional
   { key: 'buyerReference', label: 'Leitweg-ID / Käuferreferenz' },
+  // Für E-Rechnungen nach § 13b UStG (Kunde schuldet die Umsatzsteuer)
+  { key: 'vatId', label: 'USt-IdNr.' },
 ];
 
 const STATUS_LABELS: Record<Project['status'], string> = {

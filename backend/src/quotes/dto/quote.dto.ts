@@ -50,6 +50,12 @@ export class CreateQuoteDto {
   @Max(100)
   vatRate?: number;
 
+  // "reverse_charge": § 13b UStG, der Kunde schuldet die Umsatzsteuer.
+  // Kleinunternehmer (Firmeneinstellung) stellen immer ohne Umsatzsteuer aus.
+  @IsOptional()
+  @IsIn(['standard', 'reverse_charge'])
+  vatTreatment?: 'standard' | 'reverse_charge';
+
   @IsString()
   projectId!: string;
 
