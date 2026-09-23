@@ -32,9 +32,9 @@ export async function apiLogin(request: APIRequestContext): Promise<string> {
   return body.accessToken as string;
 }
 
-// Erzeugt ein frisches Angebot im Status "draft" für das Seed-Projekt,
-// über die API (nicht über die UI, da es dafür bewusst kein Formular gibt –
-// Angebote entstehen aus einer Kalkulation, siehe STATUS.md).
+// Erzeugt ein frisches Angebot im Status "draft" für das Seed-Projekt über
+// die API – für Tests, die nicht das Anlegen selbst prüfen (das prüft
+// quote-create.spec.ts über das Formular).
 export async function createDraftQuote(request: APIRequestContext, token: string): Promise<string> {
   const res = await request.post(`${API_BASE_URL}/quotes`, {
     headers: { Authorization: `Bearer ${token}` },

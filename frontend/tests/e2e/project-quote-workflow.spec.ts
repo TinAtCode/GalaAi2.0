@@ -2,11 +2,9 @@ import { test, expect } from '@playwright/test';
 import { SEED, API_BASE_URL, loginViaUi, apiLogin, createDraftQuote } from './fixtures';
 
 // Kritische User Journey (siehe TESTING_GUIDE.md): Angebot → Freigeben →
-// Versenden → Kunde nimmt an → Auftrag erzeugen. Das Anlegen des
-// Angebots selbst läuft über die API (Arrange-Schritt) statt über die UI,
-// weil es dafür bewusst kein Formular gibt – Angebote entstehen aus einer
-// Kalkulation heraus (siehe STATUS.md); das eigentlich zu testende
-// Verhalten sind die Statuswechsel-Aktionen in der UI.
+// Versenden → Kunde nimmt an → Auftrag erzeugen. Das Angebot wird per API
+// vorbereitet (Arrange-Schritt); das Formular prüft quote-create.spec.ts,
+// hier geht es um die Statuswechsel-Aktionen in der UI.
 test.describe('Angebots-Workflow (Projekt-Detail)', () => {
   test('Angebot durchläuft alle Statuswechsel bis zum Auftrag', async ({ page, request }) => {
     const token = await apiLogin(request);

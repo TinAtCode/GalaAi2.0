@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatEuro } from '../format';
 import { InvoicesSection } from './InvoicesSection';
+import { QuoteForm } from './QuoteForm';
 
 interface Appointment {
   id: string;
@@ -238,12 +239,13 @@ export function ProjectDetailPage() {
       </form>
 
       <h3 style={{ marginBottom: 8 }}>Angebote &amp; Aufträge</h3>
+      {projectId && hasPermission('quote.create') && <QuoteForm projectId={projectId} onCreated={load} />}
       {!error && quotes === null && <p>Lädt …</p>}
 
       {quotes?.length === 0 && (
         <div className="empty-state">
           <strong>Noch keine Angebote für dieses Projekt.</strong>
-          Angebote werden aus einer Kalkulation heraus erstellt.
+          Ein Angebot entsteht aus Leistungen mit Rezeptur; die Preise kommen aus der Kalkulation.
         </div>
       )}
 
