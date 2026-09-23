@@ -50,13 +50,18 @@ test.describe('Rechnungen', () => {
     await expect(card.getByTestId('invoice-status')).toHaveText('Ausgestellt');
     await expect(card.getByTestId('invoice-number')).toHaveText(/^R-\d{4}-\d{4}$/);
 
-    // PDF öffnet sich in einem neuen Tab (mit Token geladen)
-    const [pdfTab] = await Promise.all([
-      page.context().waitForEvent('page'),
+    // PDF wird mit Token geladen und in einem neuen Tab geöffnet. Geprüft wird
+    // die Antwort selbst: Headless-Chrome zeigt PDFs nicht an, der Tab bleibt
+    // dort leer.
+    const [pdf] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith(`/invoices/${invoiceId}/pdf`)),
       card.getByTestId('invoice-pdf').click(),
     ]);
-    await pdfTab.waitForURL(/^blob:/);
-    await pdfTab.close();
+    expect(pdf.status()).toBe(200);
+    expect(pdf.headers()['content-type']).toContain('application/pdf');
+    for (const tab of page.context().pages()) {
+      if (tab !== page) await tab.close();
+    }
 
     // E-Rechnung (XRechnung) wird als XML-Datei heruntergeladen
     const [download] = await Promise.all([
