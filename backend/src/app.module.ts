@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { requestRateLimit, UserThrottlerGuard } from './common/user-throttler.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
@@ -32,10 +33,14 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
 
 @Module({
   imports: [
-    // Globales Rate-Limiting (Punkt 38: "sichere API"). 100 Anfragen/Minute
-    // pro IP als vernünftiger Standard; der Login bekommt zusätzlich eigene,
-    // engere Grenzen gegen Brute-Force (siehe auth/login-throttle.ts).
-    ThrottlerModule.forRoot([{ name: 'default', ttl: 60000, limit: 100 }, LOGIN_ACCOUNT_THROTTLER]),
+    // Globales Rate-Limiting (Punkt 38: "sichere API"): 300 Anfragen/Minute je
+    // angemeldetem Nutzer bzw. je IP für Anonyme (common/user-throttler.guard.ts);
+    // der Login bekommt zusätzlich eigene, engere Grenzen gegen Brute-Force
+    // (siehe auth/login-throttle.ts).
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60000, limit: requestRateLimit },
+      LOGIN_ACCOUNT_THROTTLER,
+    ]),
     PrismaModule,
     AuthModule,
     CustomersModule,
@@ -64,6 +69,6 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     UsersModule,
     InvoicesModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [{ provide: APP_GUARD, useClass: UserThrottlerGuard }],
 })
 export class AppModule {}

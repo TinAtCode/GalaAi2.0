@@ -5,6 +5,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { loadUserWithPermissions } from './permissions-of-user';
 import { hashPassword, normalizeEmail } from './passwords';
 
+const publicUser = (
+  user: { id: string; email: string; firstName: string; lastName: string },
+  permissions: string[],
+) => ({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, permissions });
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -30,16 +35,15 @@ export class AuthService {
     // und Deaktivierungen wirken damit sofort, nicht erst nach Ablauf des Tokens.
     const payload = { sub: user.id, companyId: user.companyId, email: user.email, tv: user.tokenVersion };
 
-    return {
-      accessToken: this.jwtService.sign(payload),
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        permissions,
-      },
-    };
+    return { accessToken: this.jwtService.sign(payload), user: publicUser(user, permissions) };
+  }
+
+  async me(userId: string) {
+    const found = await loadUserWithPermissions(this.prisma, { id: userId });
+    if (!found) {
+      throw new UnauthorizedException('Sitzung ist nicht mehr gültig.');
+    }
+    return publicUser(found.user, found.permissions);
   }
 
   async changeOwnPassword(userId: string, currentPassword: string, newPassword: string) {

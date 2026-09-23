@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
-import { api, ApiError, setUnauthorizedHandler } from '../api/client';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { api, ApiError, setUnauthorizedHandler, startNewSessionGeneration } from '../api/client';
 
 interface CurrentUser {
   id: string;
@@ -10,14 +10,15 @@ interface CurrentUser {
 }
 
 interface LoginResponse {
-  accessToken: string;
   user: CurrentUser;
 }
 
 interface AuthContextValue {
   user: CurrentUser | null;
+  // true, solange beim Start noch geprüft wird, ob eine Sitzung besteht
+  loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   // Eigenes Passwort ändern; andere Geräte werden dabei abgemeldet.
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   hasPermission: (key: string) => boolean;
@@ -27,40 +28,68 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const TOKEN_KEY = 'gartenai.token';
-const USER_KEY = 'gartenai.user';
+// Das Token liegt im httpOnly-Cookie (für JavaScript unsichtbar). Hier steht
+// nur ein Merker, dass jemand angemeldet war – damit die Login-Seite nach
+// Ablauf der Sitzung einen Hinweis zeigen kann. Kein Geheimnis.
+const SESSION_MARKER = 'gartenai.session';
+// Ältere Versionen haben das Token im localStorage gespeichert.
+const LEGACY_KEYS = ['gartenai.token', 'gartenai.user'];
 
-// Ablaufzeit aus dem JWT lesen (nur zur Anzeige – geprüft wird das Token
-// ausschließlich im Backend). Kaputte Tokens gelten als abgelaufen.
-function isTokenExpired(token: string): boolean {
+function marker(action: 'set' | 'remove' | 'get'): boolean {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now();
+    if (action === 'set') localStorage.setItem(SESSION_MARKER, '1');
+    if (action === 'remove') localStorage.removeItem(SESSION_MARKER);
+    return localStorage.getItem(SESSION_MARKER) === '1';
   } catch {
-    return true;
-  }
-}
-
-function loadStoredUser(): CurrentUser | null {
-  try {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const raw = localStorage.getItem(USER_KEY);
-    if (!token || !raw || isTokenExpired(token)) return null;
-    return JSON.parse(raw) as CurrentUser;
-  } catch {
-    return null;
+    return false;
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<CurrentUser | null>(() => loadStoredUser());
-  const [sessionExpired, setSessionExpired] = useState(
-    () => loadStoredUser() === null && localStorage.getItem(TOKEN_KEY) !== null,
-  );
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  // Meldet sich jemand an, während die Prüfung beim Start noch läuft, zählt
+  // die Anmeldung – nicht die ältere Antwort der Prüfung.
+  const loggedInMeanwhile = useRef(false);
+
+  const endSession = useCallback((expired: boolean) => {
+    if (expired && marker('get')) setSessionExpired(true);
+    marker('remove');
+    setUser(null);
+  }, []);
+
+  // Beim Start: besteht noch eine Sitzung (Cookie)? Nur ein 401 heißt "nicht
+  // angemeldet"; bei anderen Fehlern (Netz, 429, 5xx) wird einmal wiederholt,
+  // statt eine gültige Sitzung als abgelaufen zu melden.
+  useEffect(() => {
+    try {
+      LEGACY_KEYS.forEach((key) => localStorage.removeItem(key));
+    } catch {
+      // ohne Speicher (privater Modus) gibt es nichts aufzuräumen
+    }
+    const check = (retry: boolean): Promise<void> =>
+      api
+        .get<CurrentUser>('/auth/me')
+        .then((me) => {
+          if (loggedInMeanwhile.current) return;
+          marker('set');
+          setUser(me);
+        })
+        .catch((err: unknown) => {
+          if (loggedInMeanwhile.current) return;
+          if (err instanceof ApiError && err.status === 401) return endSession(true);
+          if (retry)
+            return new Promise<void>((resolve) => setTimeout(resolve, 1000)).then(() => check(false));
+          setUser(null);
+        });
+    check(true).finally(() => setLoading(false));
+  }, [endSession]);
 
   const startSession = (result: LoginResponse) => {
-    localStorage.setItem(TOKEN_KEY, result.accessToken);
-    localStorage.setItem(USER_KEY, JSON.stringify(result.user));
+    loggedInMeanwhile.current = true;
+    startNewSessionGeneration();
+    marker('set');
     setSessionExpired(false);
     setUser(result.user);
   };
@@ -73,29 +102,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     startSession(await api.post<LoginResponse>('/auth/change-password', { currentPassword, newPassword }));
   };
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    setUser(null);
-  }, []);
+  const logout = useCallback(async () => {
+    await api.post('/auth/logout').catch(() => undefined);
+    startNewSessionGeneration();
+    endSession(false);
+  }, [endSession]);
 
-  // Abgelaufenes Token beim Start aufräumen, 401 während der Nutzung abfangen.
+  // 401 während der Nutzung: Sitzung abgelaufen oder ungültig.
   useEffect(() => {
-    if (sessionExpired) {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
-    }
-    setUnauthorizedHandler(() => {
-      setSessionExpired(true);
-      logout();
-    });
+    setUnauthorizedHandler(() => endSession(true));
     return () => setUnauthorizedHandler(null);
-  }, [logout, sessionExpired]);
+  }, [endSession]);
 
   const hasPermission = (key: string) => user?.permissions.includes(key) ?? false;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, changePassword, hasPermission, sessionExpired }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, logout, changePassword, hasPermission, sessionExpired }}
+    >
       {children}
     </AuthContext.Provider>
   );

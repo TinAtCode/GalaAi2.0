@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
+import { corsOrigins, csrfGuard } from './auth/session-cookie';
 
 // Globale App-Konfiguration an einer Stelle – main.ts und die
 // Integrationstests nutzen dieselbe, damit die Tests genau das prüfen,
@@ -28,10 +29,9 @@ export function configureApp(app: INestApplication) {
   // niemand versehentlich oder absichtlich companyId im Body mitschickt.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
 
-  // CORS_ORIGIN in der .env setzen (z.B. "https://app.gartenai.de"), um auf
-  // eine bestimmte Domain einzuschränken; ohne gesetzten Wert bleibt es
-  // offen (praktisch für lokale Entwicklung, für Produktion einschränken).
-  const corsOrigin = process.env.CORS_ORIGIN;
+  // CORS: nur die eigenen Frontends (CORS_ORIGIN, kommagetrennt; ohne Wert
+  // das lokale Vite-Frontend), mit Cookies (credentials) für die Sitzung.
   // X-Total-Count: Gesamtzahl bei seitenweise geladenen Listen (common/pagination.ts).
-  app.enableCors({ ...(corsOrigin ? { origin: corsOrigin } : {}), exposedHeaders: ['X-Total-Count'] });
+  app.enableCors({ origin: corsOrigins(), credentials: true, exposedHeaders: ['X-Total-Count'] });
+  app.use(csrfGuard);
 }

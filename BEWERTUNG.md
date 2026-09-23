@@ -81,10 +81,11 @@ Diese Punkte sind im Code gefunden, aber nicht einzeln durch Tests bestätigt.
 - ✅ **Login-Limit in der Praxis:** Die 5 Logins pro Minute zählen pro IP. Ein Trupp von 10 Leuten im selben Büro-WLAN, oder alle Nutzer hinter einem Reverse-Proxy ohne `trust proxy`, sperrt sich morgens gegenseitig aus. Besser: nach E-Mail plus IP zählen. **Stand:** 5/Minute je Konto und IP plus 30/Minute je IP, `TRUST_PROXY` konfigurierbar.
 - ✅ **`xlsx` bei hochgeladenen Dateien:** Die Bibliothek hat eine bekannte, ungefixte Prototype-Pollution-Lücke und verarbeitet ausgerechnet Dateien von Nutzern. Besser `exceljs` oder die gepflegte SheetJS-Version vom Hersteller-CDN. **Stand:** ersetzt durch `read-excel-file` (keine bekannten Lücken); `.xls` wird mit klarer Meldung abgelehnt.
 - ✅ **`bcrypt` 5.x:** zieht eine kritisch verwundbare `tar`-Version nach. Update auf `bcrypt` 6 oder Wechsel zu `bcryptjs`. **Stand:** `bcrypt` 6. Übrig bleiben Funde in NestJS 10 selbst (multer, body-parser) sowie React Router 6 und Vite 5 im Frontend – alle nur mit einem Major-Upgrade behebbar.
-- 🔶 **Token-Handhabung:**
+- ✅ **Token-Handhabung:**
   - ✅ War: deaktivierte Nutzer und entzogene Rechte blieben bis zu 8 Stunden wirksam. Jetzt werden Rechte und „aktiv“ pro Anfrage live geprüft, Passwortänderung und Deaktivierung melden sofort ab.
   - ✅ War: das Frontend reagierte nicht auf 401. Jetzt geht es mit Hinweis zur Login-Seite.
-  - Offen: das Token liegt weiterhin im `localStorage` (bei einer XSS-Lücke auslesbar); ein httpOnly-Cookie wäre robuster.
+  - ✅ War: das Token lag im `localStorage` (bei einer XSS-Lücke auslesbar). Jetzt steckt die Browser-Sitzung in einem httpOnly-Cookie (`SameSite=Lax`, in Produktion `Secure`), dazu CSRF-Schutz über `X-Requested-With` und CORS nur für die eigenen Frontends. API-Clients nutzen weiter den Bearer-Header.
+  - ✅ Nebenbei gefunden: das allgemeine Anfrage-Limit (100/Minute) galt je IP – ein ganzes Büro hinter einem Router teilte sich ein Kontingent. Jetzt 300/Minute je angemeldetem Nutzer, anonym je IP.
 - **Kein Logging:** Es gibt kein strukturiertes Logging und kein Monitoring. (Echte Migrationen sind inzwischen angelegt ✅.)
 - **OCR im Server-Prozess:** Die Texterkennung läuft direkt im API-Prozess. Einige große Scans gleichzeitig blockieren dann den ganzen Server. Das gehört in eine Hintergrund-Warteschlange.
 

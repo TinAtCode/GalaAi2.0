@@ -128,7 +128,10 @@ bzw. die Prüfung beim Empfänger.
 
 ## 6. E2E-Tests (Playwright) ausführen
 
-Backend UND Frontend müssen laufen (Schritte 3+4), dann in einem dritten Terminal:
+Backend UND Frontend müssen laufen (Schritte 3+4). Die Tests melden sich sehr oft an und laufen alle
+als derselbe Nutzer – das Backend dafür mit höheren Limits starten:
+`LOGIN_RATE_LIMIT=1000 LOGIN_IP_RATE_LIMIT=1000 RATE_LIMIT=5000 npm run start:dev`. Dann in einem
+dritten Terminal:
 ```bash
 cd frontend
 npx playwright install chromium   # einmalig, lädt den Browser herunter
@@ -142,7 +145,10 @@ API an – mehrfaches Ausführen ist unproblematisch.
 
 ## 7. Wenn etwas nicht passt
 
-- **`429 Too Many Requests` beim Login:** Rate-Limit (5 Versuche/Minute) greift – kurz warten. Für die übrigen Endpunkte liegt das Limit bei 100/Minute pro IP.
+- **`429 Too Many Requests` beim Login:** Rate-Limit (5 Versuche/Minute) greift – kurz warten. Für die übrigen Endpunkte liegt das Limit bei 300/Minute je angemeldetem Nutzer (anonym je IP).
+- **Nach dem Login sofort wieder abgemeldet:** Das Frontend läuft unter einer Adresse, die das Backend
+  nicht kennt – `CORS_ORIGIN` in `backend/.env` auf die Frontend-Adresse setzen (Standard:
+  `http://localhost:5173`).
 
 - **`prisma generate` schlägt fehl / hängt:** meist Firewall/Proxy, der `binaries.prisma.sh`
   blockiert (siehe STATUS.md). Auf einer normalen Maschine mit Internetzugang tritt das nicht auf.

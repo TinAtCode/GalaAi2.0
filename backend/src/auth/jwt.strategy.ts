@@ -5,6 +5,7 @@ import { AuthenticatedUser } from '../common/authenticated-request';
 import { getJwtSecret } from './jwt-secret';
 import { PrismaService } from '../prisma/prisma.service';
 import { loadUserWithPermissions } from './permissions-of-user';
+import { sessionTokenFromCookie } from './session-cookie';
 
 interface JwtPayload {
   sub: string;
@@ -17,7 +18,11 @@ interface JwtPayload {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private prisma: PrismaService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      // Bearer-Header (API-Clients) oder httpOnly-Cookie (Browser)
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        sessionTokenFromCookie,
+      ]),
       ignoreExpiration: false,
       secretOrKey: getJwtSecret(),
     });

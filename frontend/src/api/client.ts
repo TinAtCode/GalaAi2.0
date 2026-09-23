@@ -1,11 +1,27 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
-// Wird vom AuthProvider gesetzt: bei 401 auf eine Anfrage MIT Token ist die
-// Sitzung abgelaufen oder ungültig – dann abmelden statt überall
-// Fehlermeldungen anzuzeigen.
+// Die Anmeldung steckt in einem httpOnly-Cookie, das der Browser selbst
+// mitschickt (credentials: 'include'); JavaScript sieht das Token nie.
+// X-Requested-With ist der CSRF-Schutz des Backends (auth/session-cookie.ts).
+const DEFAULTS: RequestInit = { credentials: 'include' };
+const CSRF_HEADER = { 'X-Requested-With': 'fetch' };
+
+// Wird vom AuthProvider gesetzt: bei 401 ist die Sitzung abgelaufen oder
+// ungültig – dann abmelden statt überall Fehlermeldungen anzuzeigen.
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(handler: (() => void) | null) {
   onUnauthorized = handler;
+}
+
+// Zählt An- und Abmeldungen. Eine 401-Antwort auf eine Anfrage, die noch
+// vor der aktuellen Anmeldung losgeschickt wurde (z.B. die Sitzungsprüfung
+// beim Start), darf die neue Sitzung nicht beenden.
+let sessionGeneration = 0;
+export function startNewSessionGeneration() {
+  sessionGeneration++;
+}
+function reportUnauthorized(generation: number) {
+  if (generation === sessionGeneration) onUnauthorized?.();
 }
 
 export class ApiError extends Error {
@@ -28,19 +44,16 @@ async function requestWithHeaders<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<{ data: T; headers: Headers }> {
-  const token = localStorage.getItem('gartenai.token');
-
+  const generation = sessionGeneration;
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...DEFAULTS,
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
+    headers: { 'Content-Type': 'application/json', ...CSRF_HEADER, ...options.headers },
   });
 
-  if (response.status === 401 && token) {
-    onUnauthorized?.();
+  // Ein falsches Passwort beim Login ist keine abgelaufene Sitzung.
+  if (response.status === 401 && !path.startsWith('/auth/login')) {
+    reportUnauthorized(generation);
   }
 
   if (!response.ok) {
@@ -52,13 +65,12 @@ async function requestWithHeaders<T>(
   return { data: (await response.json()) as T, headers: response.headers };
 }
 
-// Dateien (PDF, XML) mit Anmeldung laden – ein normaler Link sendet kein Token.
+// Dateien (PDF, XML) per fetch laden und als Blob öffnen – so kommen auch
+// Fehlermeldungen (z.B. fehlende Firmendaten) im Frontend an.
 async function fetchFile(path: string): Promise<Blob> {
-  const token = localStorage.getItem('gartenai.token');
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (response.status === 401 && token) onUnauthorized?.();
+  const generation = sessionGeneration;
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...DEFAULTS, headers: CSRF_HEADER });
+  if (response.status === 401) reportUnauthorized(generation);
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new ApiError(
@@ -83,8 +95,6 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
-  // Geschützte Datei (z.B. PDF) mit Token laden und in einem neuen Tab öffnen –
-  // ein einfacher Link ginge nicht, weil der Browser das Token nicht mitschickt.
   // PDF in einem neuen Tab öffnen
   openFile: async (path: string) => {
     const url = URL.createObjectURL(await fetchFile(path));
