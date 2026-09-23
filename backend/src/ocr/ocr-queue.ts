@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ocrQueueRunning, ocrQueueWaiting } from '../metrics/metrics';
 
 // Begrenzt, wie viele Texterkennungen gleichzeitig laufen. OCR ist
 // rechen- und speicherintensiv; ohne Grenze würden einige große Scans
@@ -19,14 +20,23 @@ export class OcrQueue {
 
   async run<T>(task: () => Promise<T>): Promise<T> {
     if (this.running >= this.limit) {
-      await new Promise<void>((resolve) => this.waiting.push(resolve));
+      const waitingTurn = new Promise<void>((resolve) => this.waiting.push(resolve));
+      this.report();
+      await waitingTurn;
     }
     this.running++;
+    this.report();
     try {
       return await task();
     } finally {
       this.running--;
       this.waiting.shift()?.();
+      this.report();
     }
+  }
+
+  private report() {
+    ocrQueueRunning.set(this.running);
+    ocrQueueWaiting.set(this.waiting.length);
   }
 }

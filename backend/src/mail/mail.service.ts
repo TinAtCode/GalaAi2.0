@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import nodemailer, { Transporter } from 'nodemailer';
 import type Mail from 'nodemailer/lib/mailer';
+import { mailSendFailures } from '../metrics/metrics';
 
 // E-Mail-Versand über SMTP. Eingerichtet über SMTP_URL (z.B.
 // "smtps://nutzer:passwort@mail.example.de:465") und MAIL_FROM (Absender,
@@ -39,6 +40,11 @@ export class MailService {
     if (process.env.SMTP_URL === 'test') {
       sentForTests.push({ ...full, attachments: full.attachments?.map((a) => ({ ...a })) });
     }
-    await transport.sendMail(full);
+    try {
+      await transport.sendMail(full);
+    } catch (err) {
+      mailSendFailures.inc();
+      throw err;
+    }
   }
 }

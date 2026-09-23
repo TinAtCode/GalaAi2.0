@@ -1,4 +1,5 @@
 import { OcrQueue } from '../src/ocr/ocr-queue';
+import { registry } from '../src/metrics/metrics';
 
 const deferred = () => {
   let resolve!: () => void;
@@ -25,6 +26,9 @@ describe('OcrQueue', () => {
     await tick();
     expect(started).toEqual([0, 1]);
     expect(queue.stats).toEqual({ running: 2, waiting: 1 });
+    const metrics = await registry.metrics();
+    expect(metrics).toMatch(/^ocr_queue_running 2$/m);
+    expect(metrics).toMatch(/^ocr_queue_waiting 1$/m);
 
     gates[1].resolve();
     await tick();

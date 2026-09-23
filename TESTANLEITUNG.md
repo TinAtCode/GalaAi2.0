@@ -106,6 +106,11 @@ allerersten Aufruf automatisch Sprachdaten (Deutsch+Englisch, insgesamt ca. 20-3
 Internet nach, danach lokal zwischengespeichert. Braucht also beim ersten OCR-Aufruf kurz
 Internetzugang.
 
+**Metriken testen:** in `backend/.env` `METRICS_TOKEN` setzen, Backend neu starten, dann
+`curl -H "Authorization: Bearer <Token>" http://localhost:3000/metrics` → Prometheus-Format mit
+`http_requests_total`, `http_request_duration_seconds`, `ocr_queue_running` usw. Ohne Token ist
+`/metrics` abgeschaltet (404).
+
 **Dokumente hochladen/herunterladen testen:** eine beliebige Datei als `multipart/form-data`-Feld
 `file` an `POST /documents/upload` schicken (optional `?projectId=...&documentType=invoice` als
 Query-Parameter) → legt die Datei unter `backend/uploads/<companyId>/...` ab und registriert die

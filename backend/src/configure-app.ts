@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import { HttpAdapterHost } from '@nestjs/core';
 import { corsOrigins, csrfGuard } from './auth/session-cookie';
 import { requestLogger } from './logging/request-logger';
+import { httpMetrics } from './metrics/metrics';
 import { ExceptionLoggerFilter } from './logging/exception-logger.filter';
 
 // Globale App-Konfiguration an einer Stelle – main.ts und die
@@ -26,6 +27,7 @@ export function configureApp(app: INestApplication) {
   // Sicherheits-Header (Punkt 38: "sichere API") – u.a. X-Content-Type-Options,
   // X-Frame-Options, keine Preisgabe der Express-Version im Header.
   app.use(requestLogger);
+  app.use(httpMetrics);
   app.useGlobalFilters(new ExceptionLoggerFilter(app.get(HttpAdapterHost).httpAdapter));
   app.use(helmet());
 
