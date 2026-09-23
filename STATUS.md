@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 24.09.2026 – Finanzbereich (Kontostände, Kontobewegungen, Forderungen, Monatsübersicht) mit Rolle Buchhaltung. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 24.09.2026 – Finanzen Schritt 2: Ausgabenkategorien (Regeln, Lernen aus Zuordnungen), Fixkosten mit Erkennung aus dem Kontoauszug, Jahresüberblick. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -337,8 +337,22 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Neue Rolle „Buchhaltung“ (per Migration für alle Firmen, auch bei Ersteinrichtung und Seed): Finanzen,
   Rechnungen und Zahlungen, DATEV-Export, Kunden und Dokumente lesen, Verkaufspreise – keine Einkaufspreise,
   keine Nutzer- oder Systemverwaltung. Die Geschäftsführung erhält `finance.read` automatisch.
-  Als Nächstes: Kategorien für Ausgaben (Regeln und Lernen aus Zuordnungen), wiederkehrende Zahlungen mit
-  Jahresüberblick, Eingangsrechnungen.
+
+- **Nachtrag – Finanzen Schritt 2** (Reiter Kontobewegungen, Fixkosten, Jahresüberblick, Kategorien):
+  Ausgabenkategorien je Firma (Start: Material, Fahrzeuge, Maschinen, Miete, Personal, Versicherungen, Büro,
+  Steuern, Sonstiges – einmalig angelegt, gelöschte kommen nicht wieder) mit Stichwort-Regeln (Name oder
+  Verwendungszweck, nur Name, nur Verwendungszweck, IBAN genau; Satzzeichen zählen wie Leerzeichen). Neue
+  Abbuchungen werden beim Import zugeordnet: zuerst wie derselbe Empfänger (IBAN, sonst Name) zuletzt von Hand
+  zugeordnet wurde, sonst nach der neuesten passenden Regel; eigene Regeln gehen vor den Startregeln. Die
+  Quelle steht an der Buchung (Regel, gelernt, von Hand); „ohne Kategorie“ von Hand bleibt so. Ältere
+  Abbuchungen ordnet „Automatisch zuordnen“ nach. Fixkosten (`RecurringPayment`: monatlich, viertel-,
+  halbjährlich, jährlich, optional mit Enddatum und Kategorie, pausierbar); Vorschläge aus den Abbuchungen der
+  letzten 13 Monate (mind. drei gleichmäßige Buchungen, jährlich zwei; Beträge höchstens 10 % auseinander).
+  Jahresüberblick `GET /finance/year?year=`: je Monat Eingänge und Ausgaben je Kategorie laut Kontoauszug,
+  noch nicht abgebuchte Fixkosten als geplant (Abbuchung gilt als bezahlt bei gleichem Empfänger und Betrag
+  höchstens 10 % daneben), erwartete Zahlungseingänge aus offenen Rechnungen nach Fälligkeit; Fixkosten je
+  Monat im Schnitt. Monatsende-sicher (31.01. → 28.02. → 31.03.). Alles unter `finance.read`, mandantengetrennt
+  per Trigger. Als Nächstes: Eingangsrechnungen.
 
 - **Nachtrag – Einheiten und Rundung** (Stammdaten → Einheiten): Einheitenkatalog in `common/units.ts`
   (mm, cm, m, km, cm², m², ha, l, m³, g, kg, t, Stk, Sack, Palette, h, min, psch) mit Dimension,
@@ -378,7 +392,7 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 ## 7. Offene Punkte
 
 - **Wartet auf Eingaben:** GAEB-Import (echte Beispieldateien vom Auftraggeber), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Hero-Vergleich (später), KI-Anbieter (Entscheidung; bestimmt die Qualität bei Screenshots, Fotos und freien PDFs).
-- **In Arbeit bzw. als Nächstes:** Einheitenkatalog mit Umrechnung und Rundung (Firma → Einheit → Artikel/Leistung → Position), Finanzen mit Kategorien, wiederkehrenden Zahlungen und Jahresüberblick, Eingangsrechnungen, Mahngebühren und Verzugszinsen (optional).
+- **In Arbeit bzw. als Nächstes:** Eingangsrechnungen (Beleg mit Texterkennung, Abgleich mit Abbuchungen, Liquiditätsvorschau), Mahngebühren und Verzugszinsen (optional).
 - **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Aufmaß-App, Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, automatischer Bankabruf, Peppol, OCR über mehrere Server-Instanzen, automatisches Ausrollen auf einen Server.
 - Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 

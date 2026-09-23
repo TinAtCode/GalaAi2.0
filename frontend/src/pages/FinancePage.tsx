@@ -1,7 +1,12 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { formatEuro } from '../format';
+import { CategoriesTab } from './finance/CategoriesTab';
+import { RecurringTab } from './finance/RecurringTab';
+import { day, monthLabel } from './finance/shared';
+import { TransactionsTab } from './finance/TransactionsTab';
+import { YearTab } from './finance/YearTab';
 
 interface Month {
   month: string; // JJJJ-MM
@@ -19,21 +24,6 @@ interface Overview {
   months: Month[];
 }
 
-interface Transaction {
-  id: string;
-  bookingDate: string;
-  direction: 'credit' | 'debit';
-  reversal: boolean;
-  amount: string;
-  counterpartyName: string | null;
-  counterpartyIban: string | null;
-  remittance: string | null;
-}
-
-const PAGE_SIZE = 50;
-const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-const monthLabel = (month: string) => `${MONTH_NAMES[Number(month.slice(5, 7)) - 1]} ${month.slice(2, 4)}`;
-const day = (iso: string) => iso.slice(0, 10).split('-').reverse().join('.');
 // IBAN in Vierergruppen, gekürzt: DE89 3704 … 3000
 const shortIban = (iban: string) => `${iban.slice(0, 4)} ${iban.slice(4, 8)} … ${iban.slice(-4)}`;
 
@@ -254,16 +244,22 @@ function MonthChart({ months }: { months: Month[] }) {
   );
 }
 
+type Tab = 'overview' | 'transactions' | 'recurring' | 'year' | 'categories';
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'overview', label: 'Übersicht' },
+  { key: 'transactions', label: 'Kontobewegungen' },
+  { key: 'recurring', label: 'Fixkosten' },
+  { key: 'year', label: 'Jahresüberblick' },
+  { key: 'categories', label: 'Kategorien' },
+];
+
 // Finanzbereich für Geschäftsführung und Buchhaltung: eine Übersicht aus
 // Kontoauszügen und Rechnungen – die Buchführung bleibt bei DATEV.
 export function FinancePage() {
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.find((t) => t.key === params.get('tab'))?.key ?? 'overview';
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[] | null>(null);
-  const [total, setTotal] = useState(0);
-  const [filter, setFilter] = useState({ direction: '', q: '', from: '', to: '' });
-  const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const latestLoad = useRef(0);
 
   useEffect(() => {
     api
@@ -273,40 +269,6 @@ export function FinancePage() {
         setError(err instanceof ApiError ? err.message : 'Übersicht konnte nicht geladen werden.'),
       );
   }, []);
-
-  const params = useCallback(() => {
-    const p = new URLSearchParams();
-    for (const [key, value] of Object.entries(filter)) if (value) p.set(key, value);
-    const text = p.toString();
-    return `/finance/transactions${text ? `?${text}` : ''}`;
-  }, [filter]);
-
-  const load = useCallback(
-    (skip = 0) => {
-      const requestId = ++latestLoad.current;
-      return api
-        .getPage<Transaction>(params(), PAGE_SIZE, skip)
-        .then(({ items, total: count }) => {
-          if (requestId !== latestLoad.current) return;
-          setTransactions((current) => (skip === 0 ? items : [...(current ?? []), ...items]));
-          setTotal(count);
-        })
-        .catch((err) => {
-          if (requestId === latestLoad.current)
-            setError(err instanceof ApiError ? err.message : 'Kontobewegungen konnten nicht geladen werden.');
-        });
-    },
-    [params],
-  );
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const search = (event: FormEvent) => {
-    event.preventDefault();
-    setFilter({ ...filter, q: query.trim() });
-  };
 
   const r = overview?.receivables;
   return (
@@ -321,115 +283,66 @@ export function FinancePage() {
           ? `; eingelesen bis ${day(overview.transactionsUntil)}.`
           : '; noch keiner eingelesen.'}
       </p>
-      {error && <p className="field-error">{error}</p>}
-      {overview === null && !error && <p>Lädt …</p>}
+      <div className="tab-bar">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            className={tab === t.key ? 'active' : ''}
+            onClick={() => setParams(t.key === 'overview' ? {} : { tab: t.key }, { replace: true })}
+            data-testid={`finance-tab-${t.key}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {overview && r && (
+      {tab === 'overview' && (
         <>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
-            <StatTile
-              label="Kontostand"
-              value={overview.accounts.length ? formatEuro(overview.totalBalance) : '–'}
-              note={
-                overview.accounts.length
-                  ? overview.accounts.map((a) => `${shortIban(a.iban)}: Stand ${day(a.date)}`).join(' · ')
-                  : 'aus dem nächsten Kontoauszug'
-              }
-              testId="finance-balance"
-            />
-            <StatTile
-              label="Offene Forderungen"
-              value={formatEuro(r.open)}
-              note={`${r.count} Rechnung${r.count === 1 ? '' : 'en'}`}
-              testId="finance-receivables"
-            />
-            <StatTile
-              label="Davon überfällig"
-              value={formatEuro(r.overdue)}
-              note={Number(r.overdue) > 0 ? '⚠ Mahnung prüfen – siehe Offene Posten' : 'nichts überfällig'}
-              testId="finance-overdue"
-            />
-            <StatTile
-              label="Fällig in 30 Tagen"
-              value={formatEuro(r.dueNext30Days)}
-              note="erwartete Zahlungseingänge"
-              testId="finance-due-soon"
-            />
-          </div>
-          <MonthChart months={overview.months} />
+          {error && <p className="field-error">{error}</p>}
+          {overview === null && !error && <p>Lädt …</p>}
+          {overview && r && (
+            <>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
+                <StatTile
+                  label="Kontostand"
+                  value={overview.accounts.length ? formatEuro(overview.totalBalance) : '–'}
+                  note={
+                    overview.accounts.length
+                      ? overview.accounts.map((a) => `${shortIban(a.iban)}: Stand ${day(a.date)}`).join(' · ')
+                      : 'aus dem nächsten Kontoauszug'
+                  }
+                  testId="finance-balance"
+                />
+                <StatTile
+                  label="Offene Forderungen"
+                  value={formatEuro(r.open)}
+                  note={`${r.count} Rechnung${r.count === 1 ? '' : 'en'}`}
+                  testId="finance-receivables"
+                />
+                <StatTile
+                  label="Davon überfällig"
+                  value={formatEuro(r.overdue)}
+                  note={
+                    Number(r.overdue) > 0 ? '⚠ Mahnung prüfen – siehe Offene Posten' : 'nichts überfällig'
+                  }
+                  testId="finance-overdue"
+                />
+                <StatTile
+                  label="Fällig in 30 Tagen"
+                  value={formatEuro(r.dueNext30Days)}
+                  note="erwartete Zahlungseingänge"
+                  testId="finance-due-soon"
+                />
+              </div>
+              <MonthChart months={overview.months} />
+            </>
+          )}
         </>
       )}
-
-      <section style={{ marginTop: 28 }}>
-        <h3 style={{ marginBottom: 8 }}>Kontobewegungen</h3>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 8 }}>
-          <label className="field">
-            <span>Art</span>
-            <select
-              value={filter.direction}
-              onChange={(e) => setFilter({ ...filter, direction: e.target.value })}
-              data-testid="finance-direction"
-            >
-              <option value="">Alle</option>
-              <option value="credit">Eingänge</option>
-              <option value="debit">Ausgaben</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>Von</span>
-            <input
-              type="date"
-              value={filter.from}
-              onChange={(e) => setFilter({ ...filter, from: e.target.value })}
-            />
-          </label>
-          <label className="field">
-            <span>Bis</span>
-            <input
-              type="date"
-              value={filter.to}
-              onChange={(e) => setFilter({ ...filter, to: e.target.value })}
-            />
-          </label>
-          <form onSubmit={search} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <label className="field">
-              <span>Suche</span>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Name, IBAN oder Verwendungszweck"
-                maxLength={100}
-                data-testid="finance-search"
-              />
-            </label>
-            <button type="submit" className="btn">
-              Suchen
-            </button>
-          </form>
-        </div>
-        {transactions?.length === 0 && <p className="list-item-meta">Keine Kontobewegungen.</p>}
-        {transactions?.map((t) => (
-          <div key={t.id} className="list-item" data-testid="finance-transaction">
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="list-item-name">{t.counterpartyName ?? 'Unbekannt'}</div>
-              <div className="list-item-meta">
-                {day(t.bookingDate)}
-                {t.reversal && ' · Rückbuchung'}
-                {t.remittance && ` · ${t.remittance}`}
-              </div>
-            </div>
-            <strong data-testid="finance-transaction-amount">
-              {t.direction === 'credit' ? '+' : '−'}
-              {formatEuro(t.amount)}
-            </strong>
-          </div>
-        ))}
-        {transactions && transactions.length < total && (
-          <button className="btn" onClick={() => load(transactions.length)} data-testid="finance-more">
-            Weitere laden ({total - transactions.length})
-          </button>
-        )}
-      </section>
+      {tab === 'transactions' && <TransactionsTab />}
+      {tab === 'recurring' && <RecurringTab />}
+      {tab === 'year' && <YearTab />}
+      {tab === 'categories' && <CategoriesTab />}
     </div>
   );
 }

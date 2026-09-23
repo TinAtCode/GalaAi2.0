@@ -126,6 +126,7 @@ export class FinanceService {
             },
           }
         : {}),
+      ...(query.category ? { categoryId: query.category === 'none' ? null : query.category } : {}),
       ...(q
         ? {
             OR: [
@@ -139,6 +140,7 @@ export class FinanceService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.bankTransaction.findMany({
         where,
+        include: { category: { select: { id: true, name: true } } },
         orderBy: [{ bookingDate: 'desc' }, { createdAt: 'desc' }],
         ...pageArgs(query),
       }),
@@ -155,6 +157,8 @@ export class FinanceService {
         counterpartyName: t.counterpartyName,
         counterpartyIban: t.counterpartyIban,
         remittance: t.remittance,
+        category: t.category,
+        categorySource: t.categorySource,
       })),
       total,
     };

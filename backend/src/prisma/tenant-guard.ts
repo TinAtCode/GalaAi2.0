@@ -30,6 +30,9 @@ export const TENANT_MODELS = new Set([
   'BankTransaction',
   'BankBalance',
   'UnitSetting',
+  'ExpenseCategory',
+  'CategoryRule',
+  'RecurringPayment',
 ]);
 
 const GUARDED_ACTIONS = new Set([

@@ -5,6 +5,7 @@ import { writeAudit } from '../common/audit';
 import { PaymentsService, paidAmount } from '../invoices/payments.service';
 import { invoiceNumbersIn, parseCamt053 } from './camt053';
 import { BookBankTransactionDto } from './bank.dto';
+import { CategoriesService } from '../finance/categories.service';
 
 type OpenInvoice = { id: string; number: string; open: Prisma.Decimal; customer: string };
 
@@ -15,6 +16,7 @@ export class BankService {
   constructor(
     private prisma: PrismaService,
     private payments: PaymentsService,
+    private categories: CategoriesService,
   ) {}
 
   // Offene Rechnungen der Firma mit Restbetrag (für Vorschläge)
@@ -91,6 +93,8 @@ export class BankService {
         update: { amount: new Prisma.Decimal(b.amount) },
       });
     }
+    // neue Abbuchungen gleich einer Kategorie zuordnen (Gelerntes, Regeln)
+    if (debits > 0) await this.categories.categorizeOpen(companyId);
     const result = {
       imported: count,
       credits,

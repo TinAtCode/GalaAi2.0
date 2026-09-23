@@ -158,6 +158,10 @@ gerundete Menge und, falls abweichend, die genaue („genau 12,31 m²“).
 **Finanzen testen:** Im Bankabgleich einen Kontoauszug (CAMT.053) einlesen – jetzt werden auch Abbuchungen
 und der Kontostand übernommen. Unter „Finanzen“ (Geschäftsführung und Rolle „Buchhaltung“) stehen Kontostand,
 offene Forderungen, die letzten zwölf Monate als Grafik oder Tabelle und alle Kontobewegungen mit Suche.
+Unter „Kontobewegungen“ tragen Abbuchungen eine Kategorie (per Regel oder gelernt); eine andere wählen –
+künftige Abbuchungen desselben Empfängers bekommen sie automatisch, auf Wunsch als feste Regel. „Kategorien“:
+eigene anlegen und Stichwörter hinzufügen. „Fixkosten“: erkannte wiederkehrende Zahlungen übernehmen oder
+selbst anlegen; im „Jahresüberblick“ stehen sie als geplant, bis die Abbuchung im Kontoauszug steht.
 
 **Dokumente testen:** Auf einer Projektseite unter „Dokumente“ die Art wählen und ein PDF oder Foto
 hochladen, „Text erkennen“ angehakt lassen. Nach wenigen Sekunden steht „Text erkannt“ mit einem Ausschnitt
