@@ -51,6 +51,14 @@ model Company {
   // Standard-Umsatzsteuersatz für neue Angebote (Prozent)
   defaultVatRate Decimal @default(19.00) @db.Decimal(5, 2)
 
+  // DATEV-Export (Buchungsstapel für den Steuerberater)
+  datevConsultantNumber Int? // Beraternummer
+  datevClientNumber     Int? // Mandantennummer
+  datevChartOfAccounts  DatevChart @default(SKR03)
+  // Abweichende Erlöskonten: {"standard19": 8400, "standard7": 8300,
+  // "smallBusiness": 8195, "reverseCharge": 8337}; fehlende Einträge = Standard
+  datevRevenueAccounts  Json?
+
   users     User[]
   roles     Role[]
   customers Customer[]
@@ -158,10 +166,13 @@ model Customer {
   buyerReference String?
   // USt-IdNr. des Kunden – nötig für E-Rechnungen nach § 13b UStG
   vatId          String?
+  // Debitorenkonto in der Buchhaltung (DATEV: 10000–69999), fortlaufend
+  debtorNumber   Int?
   createdAt      DateTime @default(now())
 
   properties Property[]
 
+  @@unique([companyId, debtorNumber])
   @@index([companyId])
 }
 
@@ -552,6 +563,12 @@ model NumberSequence {
 // (GoBD). Korrigiert wird nur über eine Stornorechnung. Die Nummer wird
 // erst beim Ausstellen vergeben – so bleibt der Nummernkreis lückenlos.
 // ─────────────────────────────────────────────
+
+// Kontenrahmen für den DATEV-Export
+enum DatevChart {
+  SKR03
+  SKR04
+}
 
 // Umsatzsteuerliche Behandlung eines Angebots bzw. einer Rechnung
 // Texterkennung im Hintergrund (siehe ocr/ocr-queue.ts)

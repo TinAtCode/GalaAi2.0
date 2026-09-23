@@ -4,6 +4,7 @@ import { ChangePasswordSection } from './ChangePasswordSection';
 import { UsersSection } from './UsersSection';
 import { CompanySection } from './CompanySection';
 import { AuditLogSection } from './AuditLogSection';
+import { DatevSection } from './DatevSection';
 
 const COLOR_FIELDS: { key: keyof ReturnType<typeof useTheme>['theme']; label: string; hint: string }[] = [
   { key: 'primary', label: 'Primärfarbe', hint: 'Navigation, Buttons, Hervorhebungen' },
@@ -51,6 +52,12 @@ export function SettingsPage() {
 
       <ChangePasswordSection />
       {hasPermission('system.settings.write') && <CompanySection />}
+      {(hasPermission('system.settings.write') || hasPermission('data.export')) && (
+        <DatevSection
+          canEdit={hasPermission('system.settings.write')}
+          canExport={hasPermission('data.export')}
+        />
+      )}
       {hasPermission('system.settings.write') && <UsersSection />}
       {hasPermission('audit.read') && <AuditLogSection />}
     </div>

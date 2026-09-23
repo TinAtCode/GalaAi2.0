@@ -28,6 +28,7 @@ interface Customer {
   city: string | null;
   buyerReference: string | null;
   vatId: string | null;
+  debtorNumber: number | null;
   properties: Property[];
 }
 
@@ -42,6 +43,8 @@ const CUSTOMER_FIELDS: { key: keyof Customer; label: string; type?: string }[] =
   { key: 'buyerReference', label: 'Leitweg-ID / Käuferreferenz' },
   // Für E-Rechnungen nach § 13b UStG (Kunde schuldet die Umsatzsteuer)
   { key: 'vatId', label: 'USt-IdNr.' },
+  // Debitorenkonto für den DATEV-Export (wird automatisch vergeben)
+  { key: 'debtorNumber', label: 'Debitorennummer (DATEV)' },
 ];
 
 const STATUS_LABELS: Record<Project['status'], string> = {
@@ -110,7 +113,11 @@ export function CustomerDetailPage() {
   const saveCustomer = async (event: FormEvent) => {
     event.preventDefault();
     const ok = await run(async () => {
-      await api.patch(`/customers/${customerId}`, filled(form));
+      const { debtorNumber, ...rest } = filled(form);
+      await api.patch(`/customers/${customerId}`, {
+        ...rest,
+        ...(debtorNumber ? { debtorNumber: Number(debtorNumber) } : {}),
+      });
       edited.current = false;
     });
     if (ok) setSaved(true);

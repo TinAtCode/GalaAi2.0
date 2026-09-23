@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
 
 export class CreateCustomerDto {
@@ -38,6 +38,14 @@ export class CreateCustomerDto {
   @IsString()
   @MaxLength(20)
   vatId?: string;
+
+  // Debitorenkonto (DATEV-Bereich 10000–69999). Ohne Angabe wird beim
+  // Anlegen die nächste freie Nummer vergeben.
+  @IsOptional()
+  @IsInt()
+  @Min(10000)
+  @Max(69999)
+  debtorNumber?: number;
 }
 
 export class UpdateCustomerDto extends PartialType(CreateCustomerDto) {}

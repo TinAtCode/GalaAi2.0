@@ -1,9 +1,10 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBIC,
   IsBoolean,
   IsEmail,
   IsIBAN,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -13,7 +14,35 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+
+// Abweichende Erlöskonten für den DATEV-Export (vierstellige Sachkonten)
+export class DatevRevenueAccountsDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(9999)
+  standard19?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(9999)
+  standard7?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(9999)
+  smallBusiness?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(9999)
+  reverseCharge?: number;
+}
 
 export class UpdateCompanySettingsDto {
   // Firmendaten für Rechnungen (§ 14 UStG)
@@ -127,4 +156,26 @@ export class UpdateCompanySettingsDto {
   @IsOptional()
   @IsTimeZone()
   timeZone?: string;
+
+  // DATEV: Beraternummer (1001–9999999) und Mandantennummer (1–99999)
+  @IsOptional()
+  @IsInt()
+  @Min(1001)
+  @Max(9_999_999)
+  datevConsultantNumber?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(99_999)
+  datevClientNumber?: number;
+
+  @IsOptional()
+  @IsIn(['SKR03', 'SKR04'])
+  datevChartOfAccounts?: 'SKR03' | 'SKR04';
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DatevRevenueAccountsDto)
+  datevRevenueAccounts?: DatevRevenueAccountsDto;
 }

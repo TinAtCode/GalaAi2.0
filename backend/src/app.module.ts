@@ -28,6 +28,7 @@ import { MaterialUsageModule } from './material-usage/material-usage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { DatevModule } from './datev/datev.module';
 import { UsersModule } from './users/users.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
@@ -70,6 +71,7 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     OcrModule,
     HealthModule,
     MetricsModule,
+    DatevModule,
     UsersModule,
     InvoicesModule,
     AuditLogModule,

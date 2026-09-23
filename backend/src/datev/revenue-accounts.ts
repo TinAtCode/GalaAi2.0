@@ -1,0 +1,37 @@
+import { BadRequestException } from '@nestjs/common';
+import { DatevChart, Prisma, VatTreatment } from '@prisma/client';
+
+export type RevenueAccountKey = 'standard19' | 'standard7' | 'smallBusiness' | 'reverseCharge';
+
+// Erlöskonten der DATEV-Standardkontenrahmen. 8400/4400 und 8300/4300 sind
+// Automatikkonten (die Umsatzsteuer bucht DATEV selbst), daher ohne
+// BU-Schlüssel. Abweichungen lassen sich je Firma einstellen.
+export const DEFAULT_REVENUE_ACCOUNTS: Record<DatevChart, Record<RevenueAccountKey, number>> = {
+  SKR03: { standard19: 8400, standard7: 8300, smallBusiness: 8195, reverseCharge: 8337 },
+  SKR04: { standard19: 4400, standard7: 4300, smallBusiness: 4185, reverseCharge: 4337 },
+};
+
+export function revenueAccounts(chart: DatevChart, overrides: Prisma.JsonValue | null) {
+  const custom = (
+    overrides && typeof overrides === 'object' && !Array.isArray(overrides) ? overrides : {}
+  ) as Record<string, unknown>;
+  const result = { ...DEFAULT_REVENUE_ACCOUNTS[chart] };
+  for (const key of Object.keys(result) as RevenueAccountKey[]) {
+    if (typeof custom[key] === 'number') result[key] = custom[key];
+  }
+  return result;
+}
+
+// Erlöskonto einer Rechnung nach umsatzsteuerlicher Behandlung und Satz.
+export function revenueAccountFor(
+  accounts: Record<RevenueAccountKey, number>,
+  invoice: { number: string | null; vatTreatment: VatTreatment; vatRate: Prisma.Decimal },
+): number {
+  if (invoice.vatTreatment === 'small_business') return accounts.smallBusiness;
+  if (invoice.vatTreatment === 'reverse_charge') return accounts.reverseCharge;
+  if (invoice.vatRate.equals(19)) return accounts.standard19;
+  if (invoice.vatRate.equals(7)) return accounts.standard7;
+  throw new BadRequestException(
+    `Rechnung ${invoice.number}: für ${invoice.vatRate.toString()} % Umsatzsteuer gibt es kein Erlöskonto im DATEV-Export (nur 19 % und 7 %).`,
+  );
+}

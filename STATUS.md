@@ -240,6 +240,18 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   prüft mit veraPDF (PDF/A-3b) und dem Mustang-Validator (ZUGFeRD samt XML gegen EN 16931 und XRechnung);
   die CI prüft damit alle in den Tests erzeugten PDFs.
 
+- **Nachtrag – DATEV-Export**: `GET /datev/bookings?from=JJJJ-MM-TT&to=JJJJ-MM-TT` (Recht `data.export`,
+  Einstellungen → DATEV-Export) liefert die Ausgangsrechnungen als DATEV-Buchungsstapel (EXTF, Version
+  700, Formatversion 12, 124 Spalten, Windows-1252, CRLF). Je ausgestellter Rechnung eine Buchung vom
+  Debitorenkonto des Kunden auf das Erlöskonto über den Bruttobetrag, Stornorechnungen im Haben;
+  Belegdatum in der Zeitzone der Firma, dazu Leistungsdatum und Fälligkeit. Erlöskonten: SKR03
+  8400/8300/8195/8337, SKR04 4400/4300/4185/4337 (19 %, 7 %, § 19, § 13b), je Firma änderbar. Kunden
+  bekommen fortlaufende Debitorennummern ab 10000 (bestehende per Migration, änderbar, eindeutig je
+  Firma). Abschlagsrechnungen gehen direkt auf das Erlöskonto; die Schlussrechnung verrechnet sie
+  bereits, die Summe der Erlöse stimmt. Wer „erhaltene Anzahlungen“ getrennt führt, bucht in DATEV um.
+  Ein Stapel umfasst höchstens ein Kalenderjahr (Wirtschaftsjahr = Kalenderjahr); jeder Export steht
+  im Audit-Log. Noch nicht: Debitoren-Stammdaten (Namen und Anschriften) als eigener Export, Belegbilder.
+
 - **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
   (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt
   (`vatTreatment: "reverse_charge"`). Die Rechnung übernimmt die Behandlung vom Angebot, das Storno vom
@@ -266,8 +278,8 @@ Auf ausdrücklichen Wunsch wurde der gesamte bisherige Code systematisch auf Lü
 
 - Dokumente: echter Datei-Upload/-Download funktioniert (lokales Dateisystem). OCR-Ergebnis wird nicht automatisch als Document gespeichert (zwei getrennte Schritte: OCR ansehen, dann ggf. hochladen). Bei gescannten PDFs werden maximal die ersten 10 Seiten per Bild-OCR gelesen (Deckel gegen sehr lange Scans).
 - KI-Gateway ohne aktiven Anbieter (bewusst zurückgestellt).
-- E2E-Tests (Playwright) und CI/CD-Workflows (GitHub Actions) sind geschrieben, aber nie tatsächlich ausgeführt worden – auf deiner Maschine bzw. in einem echten GitHub-Repo müssen sie sich erstmalig bewähren.
-- Mobile App (React Native/Expo), Schnittstellen (DATEV/GAEB/DATANORM), Admin-Auslagerung: noch nicht begonnen.
+- E2E-Tests (Playwright) und CI-Workflows (GitHub Actions) laufen bei jedem Push; ein Deployment-Workflow fehlt noch.
+- Mobile App (React Native/Expo), Schnittstellen GAEB/DATANORM, Admin-Auslagerung: noch nicht begonnen. DATEV: Buchungsstapel der Ausgangsrechnungen fertig (siehe Nachtrag).
 - Es existieren separate, umfassendere Projekt-Planungsdokumente (README.md, STATUS.md, DEVELOPMENT_GUIDE.md, TESTING_GUIDE.md, SECURITY_CHECKLIST.md, CICD_GUIDE.md, SKILLS_REFERENCE.md im Projekt-Root), die teils einen größeren, teamartigen Rahmen beschreiben (Mobile-Team, DevOps-Rolle, Security-Officer). Diese hier vorliegende STATUS.md beschreibt ausschließlich den tatsächlichen Code-Stand.
 
 ---

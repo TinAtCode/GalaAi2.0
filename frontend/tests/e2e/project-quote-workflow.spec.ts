@@ -8,12 +8,14 @@ import { SEED, API_BASE_URL, loginViaUi, apiLogin, createDraftQuote } from './fi
 test.describe('Angebots-Workflow (Projekt-Detail)', () => {
   test('Angebot durchläuft alle Statuswechsel bis zum Auftrag', async ({ page, request }) => {
     const token = await apiLogin(request);
-    await createDraftQuote(request, token);
+    const quoteId = await createDraftQuote(request, token);
 
     await loginViaUi(page);
     await page.goto(`/projekte/${SEED.projectId}`);
 
-    const quoteCard = page.getByTestId('quote-card').first();
+    // Über die ID anpinnen: parallel laufende Tests legen am selben Projekt
+    // weitere Angebote an, die "erste" Karte kann sich sonst mitten im Test ändern.
+    const quoteCard = page.locator(`[data-testid="quote-card"][data-quote-id="${quoteId}"]`);
     await expect(quoteCard).toBeVisible();
     await expect(quoteCard.getByTestId('quote-status')).toHaveText('Entwurf');
     await expect(quoteCard.getByTestId('quote-number')).toHaveText(/^A-\d{4}-\d{4}$/);

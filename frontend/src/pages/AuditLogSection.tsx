@@ -33,6 +33,7 @@ const ACTION_LABELS: Record<string, string> = {
   user_role_remove: 'Rolle entzogen',
   role_permissions: 'Rechte einer Rolle geändert',
   ai_completion: 'KI-Anfrage',
+  datev_export: 'DATEV-Export',
 };
 
 const FILTERS: { value: string; label: string }[] = [
@@ -46,6 +47,7 @@ const FILTERS: { value: string; label: string }[] = [
   { value: 'TimeEntry', label: 'Zeiterfassung' },
   { value: 'User', label: 'Nutzer' },
   { value: 'Role', label: 'Rollen' },
+  { value: 'Company', label: 'Firma' },
 ];
 
 const FIELD_LABELS: Record<string, string> = {
@@ -70,6 +72,7 @@ const FIELD_LABELS: Record<string, string> = {
   articleNumbers: 'Artikelnummern',
   to: 'An',
   attachments: 'Anhänge',
+  from: 'Von',
 };
 
 const VALUE_LABELS: Record<string, string> = {

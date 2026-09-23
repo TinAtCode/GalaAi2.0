@@ -132,6 +132,12 @@ die Regelwerke beim ersten Aufruf). Beispieldateien erzeugt
 meldet sie nicht. Verbindlich ist letztlich der [KoSIT-Validator](https://github.com/itplr-kosit/validator)
 bzw. die Prüfung beim Empfänger.
 
+**DATEV-Export testen:** in den Einstellungen unter „DATEV-Export“ Berater- und Mandantennummer eintragen
+(zum Ausprobieren z.B. 29098 und 55003), Kontenrahmen wählen, speichern. Dann einen Zeitraum mit
+ausgestellten Rechnungen wählen und „Buchungsstapel herunterladen“. Die CSV-Datei (Windows-1252) lässt sich
+in DATEV Rechnungswesen über Stapelverarbeitung → ASCII-Import einlesen. Die Debitorennummer eines
+Kunden steht auf der Kundenseite und kann dort geändert werden.
+
 **PDF/A und ZUGFeRD prüfen:** `backend/scripts/validate-pdfa.sh <Ordner>` prüft alle PDFs eines Ordners
 mit veraPDF auf PDF/A-3b und PDFs mit eingebetteter `factur-x.xml` zusätzlich mit dem Mustang-Validator
 als ZUGFeRD-Rechnung (braucht Java und Maven; lädt beide Validatoren beim ersten Aufruf). Beispieldateien

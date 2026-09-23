@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { allocateDebtorNumber } from './debtor-number';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/create-customer.dto';
 import { pageArgs, PageQueryDto } from '../common/pagination';
 
@@ -41,14 +43,34 @@ export class CustomersService {
     return customer;
   }
 
-  create(companyId: string, dto: CreateCustomerDto) {
-    return this.prisma.customer.create({
-      data: { ...dto, companyId },
-    });
+  async create(companyId: string, dto: CreateCustomerDto) {
+    return this.uniqueDebtorNumber(() =>
+      this.prisma.$transaction(async (tx) =>
+        tx.customer.create({
+          data: {
+            ...dto,
+            companyId,
+            debtorNumber: dto.debtorNumber ?? (await allocateDebtorNumber(tx, companyId)),
+          },
+        }),
+      ),
+    );
   }
 
   async update(companyId: string, id: string, dto: UpdateCustomerDto) {
     await this.findOne(companyId, id);
-    return this.prisma.customer.update({ where: { id }, data: dto });
+    return this.uniqueDebtorNumber(() => this.prisma.customer.update({ where: { id }, data: dto }));
+  }
+
+  // Eine Debitorennummer gibt es je Firma nur einmal.
+  private async uniqueDebtorNumber<T>(write: () => Promise<T>): Promise<T> {
+    try {
+      return await write();
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException('Diese Debitorennummer ist schon einem anderen Kunden zugeordnet.');
+      }
+      throw err;
+    }
   }
 }
