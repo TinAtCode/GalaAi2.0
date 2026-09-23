@@ -10,7 +10,9 @@ test.describe('Team – Zeiterfassungs-Freigabe', () => {
     await page.getByTestId('nav-team').click();
     await expect(page).toHaveURL('/team');
 
-    // Admin ist der einzige Mitarbeiter im Seed -> automatisch ausgewählt.
+    // Den Admin aus dem Seed gezielt auswählen – andere Tests (Benutzer-
+    // verwaltung) legen weitere Mitarbeiter an.
+    await page.getByTestId('team-employee-tab').filter({ hasText: 'Max Mustermann' }).click();
     const entry = page.getByTestId('time-entry-item').filter({ hasText: 'E2E-Test-Tätigkeit' }).first();
     await expect(entry).toBeVisible();
     await expect(entry.getByTestId('time-entry-status')).toHaveText('Abgeschlossen');

@@ -1,6 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { formatEuro } from '../format';
+import { InlineEdit } from '../layout/InlineEdit';
+import { ServicesTab } from './ServicesTab';
 
 interface Article {
   id: string;
@@ -22,12 +25,7 @@ interface Machine {
   hourlyRate?: number;
 }
 
-type Tab = 'articles' | 'suppliers' | 'machines';
-
-function formatEuro(value?: number): string {
-  if (value === undefined) return '–';
-  return value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-}
+type Tab = 'articles' | 'services' | 'suppliers' | 'machines';
 
 export function MasterDataPage() {
   const { hasPermission } = useAuth();
@@ -49,6 +47,13 @@ export function MasterDataPage() {
           Artikel
         </button>
         <button
+          className={tab === 'services' ? 'active' : ''}
+          onClick={() => setTab('services')}
+          data-testid="tab-services"
+        >
+          Leistungen
+        </button>
+        <button
           className={tab === 'suppliers' ? 'active' : ''}
           onClick={() => setTab('suppliers')}
           data-testid="tab-suppliers"
@@ -65,6 +70,7 @@ export function MasterDataPage() {
       </div>
 
       {tab === 'articles' && <ArticlesTab canWrite={canWrite} />}
+      {tab === 'services' && <ServicesTab canWrite={canWrite} />}
       {tab === 'suppliers' && <SuppliersTab canWrite={canWrite} />}
       {tab === 'machines' && <MachinesTab canWrite={canWrite} />}
     </div>
@@ -90,6 +96,18 @@ function ArticlesTab({ canWrite }: { canWrite: boolean }) {
   useEffect(() => {
     load();
   }, []);
+
+  // Änderung speichern und Liste neu laden; Fehler oben anzeigen.
+  const save = async (action: () => Promise<unknown>) => {
+    setError(null);
+    try {
+      await action();
+      await load();
+    } catch (e) {
+      setError(errMsg(e));
+      throw e;
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -121,8 +139,27 @@ function ArticlesTab({ canWrite }: { canWrite: boolean }) {
               {a.articleNumber} · {a.unit}
             </div>
           </div>
-          <div className="list-item-meta">
-            EK {formatEuro(a.purchasePrice)} / VK {formatEuro(a.salePrice)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div className="list-item-meta">
+              EK {formatEuro(a.purchasePrice)} / VK {formatEuro(a.salePrice)}
+            </div>
+            {canWrite && (
+              <InlineEdit
+                testId="article"
+                fields={[
+                  { key: 'name', label: 'Bezeichnung' },
+                  { key: 'unit', label: 'Einheit' },
+                  ...(a.purchasePrice !== undefined
+                    ? [{ key: 'purchasePrice', label: 'EK-Preis', type: 'number' as const }]
+                    : []),
+                  ...(a.salePrice !== undefined
+                    ? [{ key: 'salePrice', label: 'VK-Preis', type: 'number' as const }]
+                    : []),
+                ]}
+                initial={a}
+                onSave={(values) => save(() => api.patch(`/articles/${a.id}`, values))}
+              />
+            )}
           </div>
         </div>
       ))}
@@ -195,6 +232,18 @@ function SuppliersTab({ canWrite }: { canWrite: boolean }) {
     load();
   }, []);
 
+  // Änderung speichern und Liste neu laden; Fehler oben anzeigen.
+  const save = async (action: () => Promise<unknown>) => {
+    setError(null);
+    try {
+      await action();
+      await load();
+    } catch (e) {
+      setError(errMsg(e));
+      throw e;
+    }
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -221,6 +270,18 @@ function SuppliersTab({ canWrite }: { canWrite: boolean }) {
             <div className="list-item-name">{s.name}</div>
             {s.email && <div className="list-item-meta">{s.email}</div>}
           </div>
+          {canWrite && (
+            <InlineEdit
+              testId="supplier"
+              fields={[
+                { key: 'name', label: 'Name' },
+                { key: 'email', label: 'E-Mail', type: 'email' },
+                { key: 'phone', label: 'Telefon' },
+              ]}
+              initial={s}
+              onSave={(values) => save(() => api.patch(`/suppliers/${s.id}`, values))}
+            />
+          )}
         </div>
       ))}
 
@@ -262,6 +323,18 @@ function MachinesTab({ canWrite }: { canWrite: boolean }) {
     load();
   }, []);
 
+  // Änderung speichern und Liste neu laden; Fehler oben anzeigen.
+  const save = async (action: () => Promise<unknown>) => {
+    setError(null);
+    try {
+      await action();
+      await load();
+    } catch (e) {
+      setError(errMsg(e));
+      throw e;
+    }
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -281,7 +354,22 @@ function MachinesTab({ canWrite }: { canWrite: boolean }) {
       {items?.map((m) => (
         <div key={m.id} className="list-item">
           <div className="list-item-name">{m.name}</div>
-          <div className="list-item-meta">{formatEuro(m.hourlyRate)}/h</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div className="list-item-meta">{formatEuro(m.hourlyRate)}/h</div>
+            {canWrite && (
+              <InlineEdit
+                testId="machine"
+                fields={[
+                  { key: 'name', label: 'Name' },
+                  ...(m.hourlyRate !== undefined
+                    ? [{ key: 'hourlyRate', label: 'Stundensatz', type: 'number' as const }]
+                    : []),
+                ]}
+                initial={m}
+                onSave={(values) => save(() => api.patch(`/machines/${m.id}`, values))}
+              />
+            )}
+          </div>
         </div>
       ))}
 

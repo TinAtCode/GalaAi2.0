@@ -1,7 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { formatEuro } from '../format';
+import { DocumentsSection } from './DocumentsSection';
+import { InvoicesSection } from './InvoicesSection';
+import { QuoteForm } from './QuoteForm';
 
 interface Appointment {
   id: string;
@@ -12,19 +16,38 @@ interface Appointment {
 
 interface QuoteLineItem {
   id: string;
+  serviceId?: string | null;
   description: string;
   unit: string;
   quantity: number;
   unitPrice?: number;
+  costPerUnit?: number;
   lineTotal?: number;
 }
 
 interface Quote {
   id: string;
+  number: string | null;
   status: 'draft' | 'approved' | 'sent' | 'accepted' | 'rejected' | 'expired';
+  vatRate: number;
+  vatTreatment: 'standard' | 'small_business' | 'reverse_charge';
   totalNet?: number;
+  totalGross?: number;
   createdAt: string;
   lineItems: QuoteLineItem[];
+}
+
+interface ProjectInfo {
+  id: string;
+  title: string;
+  status: 'open' | 'in_progress' | 'done' | 'cancelled';
+  property: {
+    label: string;
+    street: string | null;
+    postalCode: string | null;
+    city: string | null;
+    customer: { id: string; name: string };
+  };
 }
 
 interface Order {
@@ -35,6 +58,20 @@ interface Order {
   createdAt: string;
 }
 
+const PROJECT_STATUS_LABELS: Record<ProjectInfo['status'], string> = {
+  open: 'Offen',
+  in_progress: 'In Arbeit',
+  done: 'Fertig',
+  cancelled: 'Storniert',
+};
+
+const ORDER_STATUS_LABELS: Record<Order['status'], string> = {
+  open: 'Offen',
+  in_progress: 'In Arbeit',
+  done: 'Erledigt',
+  cancelled: 'Storniert',
+};
+
 const QUOTE_STATUS_LABELS: Record<Quote['status'], string> = {
   draft: 'Entwurf',
   approved: 'Freigegeben',
@@ -44,17 +81,15 @@ const QUOTE_STATUS_LABELS: Record<Quote['status'], string> = {
   expired: 'Abgelaufen',
 };
 
-function formatEuro(value?: number): string {
-  if (value === undefined) return '–';
-  return value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-}
-
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const { user } = useAuth();
+  // Angebot, dessen Entwurf gerade bearbeitet wird
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const { user, hasPermission } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [orders, setOrders] = useState<Order[] | null>(null);
+  const [project, setProject] = useState<ProjectInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [newAppointment, setNewAppointment] = useState({
@@ -70,11 +105,13 @@ export function ProjectDetailPage() {
       api.get<Appointment[]>(`/appointments/by-project/${projectId}`),
       api.get<Quote[]>(`/quotes/by-project/${projectId}`),
       api.get<Order[]>(`/orders/by-project/${projectId}`),
+      api.get<ProjectInfo>(`/projects/${projectId}`),
     ])
-      .then(([a, q, o]) => {
+      .then(([a, q, o, p]) => {
         setAppointments(a);
         setQuotes(q);
         setOrders(o);
+        setProject(p);
       })
       .catch((err) =>
         setError(err instanceof ApiError ? err.message : 'Daten konnten nicht geladen werden.'),
@@ -119,7 +156,36 @@ export function ProjectDetailPage() {
   return (
     <div>
       <header className="my-day-header">
-        <h2>Projekt</h2>
+        <h2 data-testid="project-heading">{project?.title ?? 'Projekt'}</h2>
+        {project && (
+          <p className="list-item-meta">
+            <Link to={`/kunden/${project.property.customer.id}`}>{project.property.customer.name}</Link>
+            {' · '}
+            {project.property.label}
+            {project.property.street ? `, ${project.property.street}` : ''}
+            {project.property.city
+              ? `, ${[project.property.postalCode, project.property.city].filter(Boolean).join(' ')}`
+              : ''}
+          </p>
+        )}
+        {project && hasPermission('customer.write') && (
+          <label className="list-item-meta" style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+            Status
+            <select
+              value={project.status}
+              onChange={(e) =>
+                runAction(() => api.patch(`/projects/${project.id}/status`, { status: e.target.value }))
+              }
+              data-testid="project-status-select"
+            >
+              {Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </header>
 
       {error && <p className="field-error">{error}</p>}
@@ -178,19 +244,23 @@ export function ProjectDetailPage() {
       </form>
 
       <h3 style={{ marginBottom: 8 }}>Angebote &amp; Aufträge</h3>
+      {projectId && hasPermission('quote.create') && (
+        <QuoteForm projectId={projectId} onCreated={load} showCost={hasPermission('price.purchase.read')} />
+      )}
       {!error && quotes === null && <p>Lädt …</p>}
 
       {quotes?.length === 0 && (
         <div className="empty-state">
           <strong>Noch keine Angebote für dieses Projekt.</strong>
-          Angebote werden aus einer Kalkulation heraus erstellt.
+          Ein Angebot entsteht aus Leistungen mit Rezeptur; die Preise kommen aus der Kalkulation.
         </div>
       )}
 
       {quotes?.map((quote) => (
         <article key={quote.id} className="job-card" data-testid="quote-card" data-quote-id={quote.id}>
           <div className="job-card-task">
-            Angebot vom {new Date(quote.createdAt).toLocaleDateString('de-DE')}
+            Angebot <span data-testid="quote-number">{quote.number ?? ''}</span> vom{' '}
+            {new Date(quote.createdAt).toLocaleDateString('de-DE')}
           </div>
           <div className="job-card-meta" style={{ marginBottom: 10 }}>
             <span
@@ -199,9 +269,33 @@ export function ProjectDetailPage() {
             >
               {QUOTE_STATUS_LABELS[quote.status]}
             </span>{' '}
-            · {formatEuro(quote.totalNet)}
+            · {formatEuro(quote.totalNet)} netto
+            {quote.totalGross !== undefined && (
+              <>
+                {' '}
+                · {formatEuro(quote.totalGross)} brutto (
+                {quote.vatTreatment === 'small_business'
+                  ? 'ohne USt, § 19 UStG'
+                  : quote.vatTreatment === 'reverse_charge'
+                    ? 'ohne USt, § 13b UStG'
+                    : `${Number(quote.vatRate)} % USt`}
+                )
+              </>
+            )}
           </div>
 
+          {editingQuoteId === quote.id && quote.status === 'draft' && projectId && (
+            <QuoteForm
+              projectId={projectId}
+              quote={quote}
+              showCost={hasPermission('price.purchase.read')}
+              onCreated={() => {
+                setEditingQuoteId(null);
+                load();
+              }}
+              onCancel={() => setEditingQuoteId(null)}
+            />
+          )}
           <table className="calc-table">
             <tbody>
               {quote.lineItems.map((li) => (
@@ -216,7 +310,30 @@ export function ProjectDetailPage() {
           </table>
 
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-            {quote.status === 'draft' && (
+            {hasPermission('price.sale.read') && (
+              <button
+                className="btn"
+                onClick={() => runAction(() => api.openFile(`/quotes/${quote.id}/pdf`))}
+                data-testid="quote-pdf"
+              >
+                PDF
+              </button>
+            )}
+            {quote.status === 'draft' &&
+              editingQuoteId !== quote.id &&
+              hasPermission('quote.create') &&
+              hasPermission('price.sale.read') &&
+              hasPermission('price.purchase.read') && (
+                <button
+                  className="btn"
+                  disabled={busyId !== null}
+                  onClick={() => setEditingQuoteId(quote.id)}
+                  data-testid="quote-edit"
+                >
+                  Bearbeiten
+                </button>
+              )}
+            {quote.status === 'draft' && editingQuoteId !== quote.id && (
               <button
                 className="btn btn-primary"
                 disabled={busyId !== null}
@@ -302,10 +419,20 @@ export function ProjectDetailPage() {
                 </div>
                 <div className="list-item-meta">{formatEuro(order.totalNet)}</div>
               </div>
-              <span className={`status-badge status-${order.status}`}>{order.status}</span>
+              <span className={`status-badge status-${order.status}`}>
+                {ORDER_STATUS_LABELS[order.status]}
+              </span>
             </div>
           ))}
         </>
+      )}
+
+      {projectId && orders && orders.length > 0 && hasPermission('invoice.create') && (
+        <InvoicesSection projectId={projectId} orderIds={orders.map((o) => o.id)} />
+      )}
+
+      {projectId && hasPermission('document.read') && (
+        <DocumentsSection projectId={projectId} canDelete={hasPermission('document.delete')} />
       )}
     </div>
   );

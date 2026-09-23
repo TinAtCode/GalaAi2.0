@@ -17,3 +17,8 @@ frontend/test-results/
 
 # OS
 .DS_Store
+
+# Regelwerke für scripts/validate-xrechnung.sh
+backend/.xrechnung-rules/
+backend/.verapdf/
+.env.production

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+  <BkToCstmrStmt>
+    <GrpHdr>
+      <MsgId>STMT-2026-09-23-002</MsgId>
+      <CreDtTm>2026-09-23T06:00:00+02:00</CreDtTm>
+    </GrpHdr>
+    <Stmt>
+      <Id>2026-09-23-002</Id>
+      <CreDtTm>2026-09-23T06:00:00+02:00</CreDtTm>
+      <Acct>
+        <Id><IBAN>DE89370400440532013000</IBAN></Id>
+        <Ccy>EUR</Ccy>
+      </Acct>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="EUR">15230.45</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt><Dt>2026-09-22</Dt></Dt>
+      </Bal>
+      <Ntry>
+        <Amt Ccy="EUR">__AMOUNT1__</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-09-21</Dt></BookgDt>
+        <ValDt><Dt>2026-09-21</Dt></ValDt>
+        <AcctSvcrRef>REF-V02-0001</AcctSvcrRef>
+        <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>RCDT</Cd><SubFmlyCd>ESCT</SubFmlyCd></Fmly></Domn></BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs><EndToEndId>E2E-4711</EndToEndId></Refs>
+            <RltdPties>
+              <Dbtr><Nm>Familie Birke</Nm></Dbtr>
+              <DbtrAcct><Id><IBAN>DE02120300000000202051</IBAN></Id></DbtrAcct>
+            </RltdPties>
+            <RmtInf><Ustrd>RE __NUMBER1__</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { mkdir, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { dirname, join, extname, basename, resolve, sep } from 'path';
 import { FileStorage, StoredFile } from './file-storage.interface';
 
@@ -26,16 +26,24 @@ export class LocalDiskStorage implements FileStorage {
     return { storagePath: relativePath };
   }
 
-  async read(companyId: string, storagePath: string): Promise<Buffer> {
-    // Path-Traversal-Schutz: der aufgelöste Pfad muss im Verzeichnis der
-    // Firma liegen – sonst wären über "../" fremde Firmen oder beliebige
-    // Serverdateien lesbar. Bewusst dieselbe Antwort wie bei fehlender Datei.
+  // Path-Traversal-Schutz: der aufgelöste Pfad muss im Verzeichnis der
+  // Firma liegen – sonst wären über "../" fremde Firmen oder beliebige
+  // Serverdateien lesbar. Bewusst dieselbe Antwort wie bei fehlender Datei.
+  private pathInCompany(companyId: string, storagePath: string) {
     const companyDir = resolve(this.rootDir, companyId);
     const absolutePath = resolve(this.rootDir, storagePath);
     if (!absolutePath.startsWith(companyDir + sep)) {
       throw new NotFoundException('Datei nicht gefunden.');
     }
+    return absolutePath;
+  }
 
+  async remove(companyId: string, storagePath: string): Promise<void> {
+    await rm(this.pathInCompany(companyId, storagePath), { force: true });
+  }
+
+  async read(companyId: string, storagePath: string): Promise<Buffer> {
+    const absolutePath = this.pathInCompany(companyId, storagePath);
     try {
       return await readFile(absolutePath);
     } catch {

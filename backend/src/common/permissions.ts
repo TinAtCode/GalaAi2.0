@@ -21,6 +21,7 @@ export const PERMISSIONS = {
   EMPLOYEE_DATA_READ: 'employee.data.read',
 
   DOCUMENT_READ: 'document.read',
+  DOCUMENT_DELETE: 'document.delete',
 
   AI_USE: 'ai.use',
   AI_EXECUTE_ACTION: 'ai.execute_action',
@@ -30,6 +31,8 @@ export const PERMISSIONS = {
 
   MASTERDATA_WRITE: 'masterdata.write',
   SYSTEM_SETTINGS_WRITE: 'system.settings.write',
+
+  AUDIT_READ: 'audit.read',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

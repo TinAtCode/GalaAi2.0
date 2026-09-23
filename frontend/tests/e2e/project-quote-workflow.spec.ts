@@ -2,22 +2,26 @@ import { test, expect } from '@playwright/test';
 import { SEED, API_BASE_URL, loginViaUi, apiLogin, createDraftQuote } from './fixtures';
 
 // Kritische User Journey (siehe TESTING_GUIDE.md): Angebot → Freigeben →
-// Versenden → Kunde nimmt an → Auftrag erzeugen. Das Anlegen des
-// Angebots selbst läuft über die API (Arrange-Schritt) statt über die UI,
-// weil es dafür bewusst kein Formular gibt – Angebote entstehen aus einer
-// Kalkulation heraus (siehe STATUS.md); das eigentlich zu testende
-// Verhalten sind die Statuswechsel-Aktionen in der UI.
+// Versenden → Kunde nimmt an → Auftrag erzeugen. Das Angebot wird per API
+// vorbereitet (Arrange-Schritt); das Formular prüft quote-create.spec.ts,
+// hier geht es um die Statuswechsel-Aktionen in der UI.
 test.describe('Angebots-Workflow (Projekt-Detail)', () => {
   test('Angebot durchläuft alle Statuswechsel bis zum Auftrag', async ({ page, request }) => {
     const token = await apiLogin(request);
-    await createDraftQuote(request, token);
+    const quoteId = await createDraftQuote(request, token);
 
     await loginViaUi(page);
     await page.goto(`/projekte/${SEED.projectId}`);
 
-    const quoteCard = page.getByTestId('quote-card').first();
+    // Über die ID anpinnen: parallel laufende Tests legen am selben Projekt
+    // weitere Angebote an, die "erste" Karte kann sich sonst mitten im Test ändern.
+    const quoteCard = page.locator(`[data-testid="quote-card"][data-quote-id="${quoteId}"]`);
     await expect(quoteCard).toBeVisible();
     await expect(quoteCard.getByTestId('quote-status')).toHaveText('Entwurf');
+    await expect(quoteCard.getByTestId('quote-number')).toHaveText(/^A-\d{4}-\d{4}$/);
+    // Beträge als Euro formatiert, nicht als roher Dezimal-String ("151.8")
+    await expect(quoteCard).toContainText(/\d+,\d{2}\s€ netto/);
+    await expect(quoteCard).toContainText(/\d+,\d{2}\s€ brutto/);
 
     await quoteCard.getByTestId('quote-approve').click();
     await expect(quoteCard.getByTestId('quote-status')).toHaveText('Freigegeben');

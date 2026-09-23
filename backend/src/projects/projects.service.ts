@@ -1,18 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateProjectDto, UpdateProjectStatusDto } from './dto/project.dto';
+import { writeAudit } from '../common/audit';
+import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from './dto/project.dto';
+import { pageArgs, PageQueryDto } from '../common/pagination';
 
 @Injectable()
 export class ProjectsService {
   constructor(private prisma: PrismaService) {}
 
-  // Ein Projekt hängt an einem Objekt, das Objekt an einem Kunden, der Kunde
-  // an der Company. Die Kette wird bei jedem Zugriff komplett über die
-  // Prisma-Relation geprüft (property.customer.companyId) – so kann niemand
-  // über eine fremde propertyId Daten einer anderen Firma anlegen oder lesen.
+  // Ein Projekt trägt seine companyId selbst. Beim Anlegen wird geprüft, dass
+  // das Objekt zur selben Firma gehört – so kann niemand über eine fremde
+  // propertyId Daten einer anderen Firma anlegen.
   private async assertPropertyBelongsToCompany(companyId: string, propertyId: string) {
     const property = await this.prisma.property.findFirst({
-      where: { id: propertyId, customer: { companyId } },
+      where: { id: propertyId, companyId },
     });
     if (!property) {
       throw new NotFoundException('Objekt nicht gefunden.');
@@ -22,25 +23,32 @@ export class ProjectsService {
   // Übersicht über ALLE Projekte der Firma (nicht nur je Objekt) – für eine
   // zentrale Projekt-Liste im Frontend, mit Kunde/Objekt direkt mitgeladen,
   // damit das Frontend nicht pro Zeile nachladen muss.
-  findAllForCompany(companyId: string) {
-    return this.prisma.project.findMany({
-      where: { property: { customer: { companyId } } },
-      include: { property: { include: { customer: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAllForCompany(companyId: string, page: PageQueryDto = {}) {
+    const where = { companyId };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.project.findMany({
+        where,
+        include: { property: { include: { customer: true } } },
+        orderBy: { createdAt: 'desc' },
+        ...pageArgs(page),
+      }),
+      this.prisma.project.count({ where }),
+    ]);
+    return { items, total };
   }
 
   async findAllForProperty(companyId: string, propertyId: string) {
     await this.assertPropertyBelongsToCompany(companyId, propertyId);
     return this.prisma.project.findMany({
-      where: { propertyId },
+      where: { propertyId, companyId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async findOne(companyId: string, id: string) {
     const project = await this.prisma.project.findFirst({
-      where: { id, property: { customer: { companyId } } },
+      where: { id, companyId },
+      include: { property: { include: { customer: { select: { id: true, name: true } } } } },
     });
     if (!project) {
       throw new NotFoundException('Projekt nicht gefunden.');
@@ -51,17 +59,34 @@ export class ProjectsService {
   async create(companyId: string, dto: CreateProjectDto) {
     await this.assertPropertyBelongsToCompany(companyId, dto.propertyId);
     return this.prisma.project.create({
-      data: { propertyId: dto.propertyId, title: dto.title },
+      data: { companyId, propertyId: dto.propertyId, title: dto.title },
     });
   }
 
-  async updateStatus(companyId: string, id: string, dto: UpdateProjectStatusDto) {
-    // findOne wirft bereits NotFoundException, wenn das Projekt nicht zur
-    // Company gehört -> updateMany direkt danach ist sicher.
-    await this.findOne(companyId, id);
-    return this.prisma.project.update({
-      where: { id },
-      data: { status: dto.status },
+  updateStatus(companyId: string, userId: string, id: string, dto: UpdateProjectStatusDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const project = await tx.project.findFirst({ where: { id, companyId } });
+      if (!project) {
+        throw new NotFoundException('Projekt nicht gefunden.');
+      }
+      const updated = await tx.project.update({ where: { id }, data: { status: dto.status } });
+      if (project.status !== dto.status) {
+        await writeAudit(tx, {
+          companyId,
+          userId,
+          action: 'project_status',
+          entity: 'Project',
+          entityId: id,
+          oldData: { status: project.status },
+          newData: { status: dto.status },
+        });
+      }
+      return updated;
     });
+  }
+
+  async update(companyId: string, id: string, dto: UpdateProjectDto) {
+    await this.findOne(companyId, id);
+    return this.prisma.project.update({ where: { id }, data: { title: dto.title } });
   }
 }

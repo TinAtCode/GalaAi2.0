@@ -1,4 +1,5 @@
 import { IsOptional, IsString, MinLength } from 'class-validator';
+import { OmitType, PartialType } from '@nestjs/mapped-types';
 
 export class CreatePropertyDto {
   @IsString()
@@ -20,3 +21,6 @@ export class CreatePropertyDto {
   @IsString()
   city?: string;
 }
+
+// Das Objekt bleibt beim Kunden – customerId ist nicht änderbar.
+export class UpdatePropertyDto extends PartialType(OmitType(CreatePropertyDto, ['customerId'] as const)) {}

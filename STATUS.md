@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 22.09.2026 – Echte CI-Fehler nach erstem GitHub-Push behoben (fehlende Migrationen, geschützter Health-Check, blockierender Audit); neuer GET /health-Endpunkt
+Letzte Aktualisierung: 22.09.2026 – Fundament (Schritt 1 aus BEWERTUNG.md): echte Migrationen, Integrationstests gegen PostgreSQL, companyId in allen Mandanten-Tabellen, Status-Enums, Dezimalrechnung, Firmen-Zeitzone
 
 ---
 
@@ -27,8 +27,8 @@ Letzte Aktualisierung: 22.09.2026 – Echte CI-Fehler nach erstem GitHub-Push be
 | — | E2E-Tests (Playwright), Lint/Format (ESLint+Prettier), CI/CD (GitHub Actions) | 🔶 vollständig geschrieben, E2E-Ausführung hier nicht möglich (siehe Abschnitt 5) |
 | 16–18 | Mobile App, Schnittstellen, Admin-Auslagerung | ⬜ |
 
-Backend: NestJS + Prisma + PostgreSQL. Frontend: React + Vite + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
-Tests: `cd backend && npm test` (111 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen) und `cd frontend && npm run test:e2e` (13 Playwright-E2E-Tests, siehe Abschnitt 5 für den Ausführungsstatus). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
+Backend: NestJS 11 (Express 5) + Prisma 5 + PostgreSQL. Frontend: React 18 + React Router 7 + Vite 8 + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
+Tests: `cd backend && npm test` (125 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen), `npm run test:integration` (76 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (16 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
 
 ---
 
@@ -57,7 +57,7 @@ Jedes Modul folgt demselben Muster: Controller (Guards + Permissions) → Servic
 cd backend
 cp .env.example .env   # DATABASE_URL anpassen
 npm install
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 npx prisma db seed
 npm run start:dev
 ```
@@ -86,7 +86,7 @@ npm run dev
 
 ## 3. Wichtige Architektur-Entscheidungen
 
-- **Mandantentrennung**: explizit pro Query (`companyId`-Parameter durch die ganze Kette Kunde→Objekt→Projekt), nicht per globaler DB-Middleware – nachvollziehbar statt "unsichtbarer Magie".
+- **Mandantentrennung**: jede Mandanten-Tabelle trägt ihre `companyId` selbst (auch Objekt, Projekt, Angebot, Auftrag, Termin, Zeiteintrag, Materialbuchung), jede Abfrage filtert direkt darüber. Beim Anlegen wird geprüft, dass das Elternobjekt zur selben Firma gehört. Die Integrationstests prüfen über HTTP, dass Firma B an keinem Endpunkt Daten von Firma A lesen oder ändern kann. Zentral erzwungen: Datenbank-Trigger `tenant_guard` lehnen Verknüpfungen über Firmengrenzen ab (Angebot → fremdes Projekt, Rolle → fremder Nutzer, Rezeptur → fremder Artikel usw.), und der `PrismaService` lässt Listen- und Massenabfragen (`findMany`, `findFirst`, `count`, `updateMany`, `deleteMany` …) auf Mandanten-Tabellen nur mit `companyId`-Filter zu (`src/prisma/tenant-guard.ts`).
 - **Preisrechte**: serverseitig über `applyPriceVisibility()` / `maskCalculationResult()` – fehlende Berechtigung entfernt Felder komplett aus der Antwort, nicht nur im UI versteckt.
 - **Preis-Snapshot bei Angeboten**: `costPerUnit`/`unitPrice`/`marginPerUnit` liegen direkt auf `QuoteLineItem`, nicht als Live-Referenz – spätere Preisänderungen wirken sich nie rückwirkend aus (Punkt 21).
 - **Kalkulationsgrundwerte** (Stundensatz, Gemeinkosten-%, Aufschlag-%) sind pro Firma konfigurierbar, mit optionalem Override pro Anfrage – keine starre Marge (Punkt 20).
@@ -101,8 +101,13 @@ npm run dev
 - **Datenbank-Indizes**: alle Fremdschlüssel-Spalten (`companyId`, `projectId`, `customerId`, etc.) haben jetzt einen `@@index` – ohne das würde jede Mandantentrennungs-Abfrage einen Full-Table-Scan machen, sobald Tabellen wachsen. Bereits `@unique`/`@@unique`-Felder wurden bewusst NICHT zusätzlich indiziert (redundant, da Unique-Constraints in Postgres automatisch einen Index erzeugen).
 - **Rate-Limiting**: global 100 Anfragen/Minute pro IP (`@nestjs/throttler`), Login zusätzlich auf 5/Minute begrenzt (Brute-Force-Schutz). Beides real per HTTP getestet (429 nach Limit-Überschreitung).
 - **Security-Header**: `helmet()` global aktiv (entfernt `X-Powered-By`, setzt `X-Content-Type-Options`, `X-Frame-Options` etc.) – real per HTTP-Header-Vergleich verifiziert.
-- **CORS** ist jetzt über `CORS_ORIGIN` in der `.env` einschränkbar (Produktion), bleibt ohne gesetzten Wert offen (lokale Entwicklung).
-- **E2E-Tests (Playwright)**: 13 Tests für die kritischen User Journeys (Login-Erfolg/-Fehler, geschützte Route ohne Login, Kalkulation, kompletter Angebots-Workflow inkl. Ablehnen-Pfad, Termin anlegen, Stammdaten/Artikel anlegen, Team-Zeiterfassungs-Freigabe). Testdaten für den Angebots-Workflow werden per API vorbereitet (Arrange-Schritt), nicht über die UI – es gibt bewusst kein Formular zum manuellen Anlegen eines Angebots (Angebote entstehen aus einer Kalkulation heraus). Echte `data-testid`-Attribute im Code, keine brüchigen Text-Selektoren.
+- **CORS** nur für die eigenen Frontends: `CORS_ORIGIN` (kommagetrennt), ohne Wert das lokale Vite-Frontend. Mit Cookies wäre „offen für alle“ nicht mehr vertretbar.
+- **Sitzung im httpOnly-Cookie** (`gartenai_session`, `SameSite=Lax`, `Secure` in Produktion bzw. `COOKIE_SECURE`): JavaScript im Browser kommt nicht an das Token. Ändernde Anfragen mit Cookie brauchen `X-Requested-With` (CSRF-Schutz). `GET /auth/me` stellt die Sitzung nach dem Neuladen wieder her, `POST /auth/logout` löscht das Cookie. API-Clients (Tests, spätere Mobile-App) schicken das Token weiter als Bearer-Header. Betrieb: Frontend und API unter derselben Domain (z.B. `app.` und `api.` einer Domain); liegen sie auf verschiedenen Domains, `COOKIE_SAMESITE=none` und HTTPS.
+- **OCR-Warteschlange**: alle Texterkennungen laufen über eine Warteschlange mit begrenzter Parallelität (`OCR_CONCURRENCY`, Standard 2). `POST /ocr/jobs` legt einen Auftrag an und antwortet sofort (202), `GET /ocr/jobs/:id` liefert Status und Ergebnis; `POST /ocr/extract` wartet wie bisher auf das Ergebnis. Die Datei liegt nur bis zur Verarbeitung im Speicher; nach einem Neustart werden unterbrochene Aufträge als fehlgeschlagen markiert. Für mehrere Server-Instanzen wäre eine gemeinsame Warteschlange (Redis/BullMQ) nötig.
+- **Logging**: `LOG_FORMAT=json` für den Betrieb (eine JSON-Zeile pro Ereignis für Log-Sammler), sonst lesbare Ausgabe. Je Anfrage eine Zeile mit Methode, Pfad ohne Query, Status, Dauer, Nutzer/Firma und Request-ID (vom Proxy übernommen oder erzeugt, in `X-Request-Id` zurückgegeben); 5xx mit Stacktrace. Keine Bodies, Cookies oder Tokens im Log.
+- **Metriken**: `GET /metrics` im Prometheus-Format, nur mit `METRICS_TOKEN` als Bearer-Token (ohne Token abgeschaltet, 404). Anfragen je Methode, Routen-Muster (`/customers/:id`, nie echte IDs) und Status, Antwortzeiten als Histogramm, OCR-Warteschlange (laufend/wartend), fehlgeschlagene E-Mails, dazu Prozesswerte (CPU, Speicher, Event-Loop). Beispiel-Konfiguration und Alarmregeln (Backend nicht erreichbar, Serverfehler über 5 %, langsame Antworten, OCR-Stau, fehlgeschlagene E-Mails, blockierter Event-Loop, Speicher) in `ops/prometheus`; die CI prüft die Regeln mit `promtool` samt Regeltests.
+- **Anfrage-Limit** 300/Minute je angemeldetem Nutzer, anonym je IP (`RATE_LIMIT`, `common/user-throttler.guard.ts`). Vorher 100/Minute je IP – Kollegen hinter derselben Büro-IP teilten sich ein Kontingent.
+- **E2E-Tests (Playwright)**: 21 Tests für die kritischen User Journeys (Login, Sitzung im Cookie, geschützte Routen, Kalkulation, Angebot im Formular anlegen, kompletter Angebots-Workflow inkl. Ablehnen-Pfad, Rechnung mit PDF und E-Rechnung, Termine, Stammdaten, Kunden/Objekte/Projekte, Team-Freigabe, Benutzerverwaltung). Für Tests, die nicht das Anlegen selbst prüfen, werden Angebote per API vorbereitet (Arrange-Schritt).
 - **Lint/Format**: ESLint + Prettier in Backend UND Frontend ergänzt (fehlte vollständig) – 0 Fehler nach Behebung von zwei echten, kleinen Funden (ein ungenutzter Import, ein fehlendes React-Hook-Dependency).
 - **Build-Konfiguration korrigiert**: `nest build` kompilierte ohne `tsconfig.build.json` versehentlich auch `test/` und `prisma/seed.ts` mit in den Produktions-Build, und `main.js` landete unter `dist/src/main.js` statt `dist/main.js`. Beides gefunden und behoben (Standard-NestJS-Konvention), real mit `node dist/main.js` gegengetestet.
 - **Frontend-Theming**: Farben liegen als CSS-Variablen (`--color-primary` etc.), nicht hart codiert in Komponenten. Die Einstellungen-Seite schreibt diese zur Laufzeit um und speichert in `localStorage` – kein Rebuild nötig, direkt live sichtbar.
@@ -186,6 +191,149 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Selektoren und ein fester Termin (Kollision ab dem zweiten Lauf) korrigiert. Ergebnis: 113 Unit-Tests
   und 12 E2E-Tests (1 bewusst übersprungen) grün, auch bei wiederholten Läufen.
 
+- **Nachtrag – Fundament (Schritt 1 aus `BEWERTUNG.md`)**:
+  - Echte Migrationen in `prisma/migrations/` (CI und Anleitung nutzen `migrate deploy` statt `db push`).
+    Ein CI-Schritt schlägt fehl, wenn `schema.prisma` ohne passende Migration geändert wird. Die von Hand
+    geschriebenen `prisma/validation*.sql` sind entfernt – sie bildeten das alte Schema ab und sind durch
+    die echte Migration ersetzt.
+  - Integrationstests (`test/integration/`, eigener CI-Job) gegen PostgreSQL: kompletter Angebots-Workflow
+    bis zur Nachkalkulation und Mandantentrennung über alle wichtigen Endpunkte.
+  - `companyId` direkt in allen Mandanten-Tabellen, Status-Felder als Enums, Kalkulation mit
+    `Prisma.Decimal` ohne Zwischenrundung, Tagesgrenzen in der Zeitzone der Firma (`Company.timeZone`).
+
+- **Nachtrag – Schritt 2 (Benutzbarkeit) und Absicherung**, jeweils mit Integrationstests gegen PostgreSQL:
+  - Gleichzeitige Anfragen: Sperre pro Mitarbeiter für Zeiterfassung und Termine, bedingte Statuswechsel,
+    feste Übergänge für den Auftragsstatus. Die Integrationstests laufen in der CI mit nur 2 Verbindungen,
+    damit Verbindungs-Deadlocks sofort auffallen (einer wurde so gefunden und behoben).
+  - Benutzerverwaltung (`/users`, Einstellungen), Passwort ändern, Rechte und Sperren wirken sofort
+    (`User.tokenVersion`, Rechte werden pro Anfrage live geladen).
+  - Bearbeiten für Kunden, Objekte, Projekte und Stammdaten; Preisänderungen, Zeitkorrekturen und
+    Freigaben im Audit-Log. Zeiteinträge korrigierbar (vergessenes „Stopp“) mit Pflicht-Begründung.
+  - Preislisten-Import in einer Transaktion; `.xlsx` über `read-excel-file` (statt `xlsx` mit
+    ungefixten Lücken), `.xls` wird mit Hinweis abgelehnt; `bcrypt` 6.
+  - Login-Limit je Konto und IP (`LOGIN_RATE_LIMIT`, `LOGIN_IP_RATE_LIMIT`, `TRUST_PROXY`), Frontend
+    leitet bei abgelaufener Sitzung zur Login-Seite, Obergrenzen für Zahlenfelder passend zu den Spalten.
+
+- **Nachtrag – Schritt 3 und 4**: Maschinen in der Kalkulation; Soll-Werte der Nachkalkulation am Angebot
+  eingefroren; seitenweises Laden (`take`/`skip`, `X-Total-Count`); fortlaufende Angebotsnummern
+  (A-2026-0001) und Umsatzsteuer; Rechnungen (Abschlag, Schluss mit Abzug der Abschläge, Storno) mit
+  lückenlosen Nummern (R-2026-0001), Prüfung der Pflichtangaben nach § 14 UStG und Unveränderlichkeit
+  ausgestellter Rechnungen per Datenbank-Trigger. Firmendaten in den Einstellungen. Euro-Beträge werden
+  jetzt richtig formatiert (Prisma liefert Decimal als Text).
+
+- **Nachtrag – PDF und E-Rechnung**: Angebote und Rechnungen als PDF (`GET /quotes/:id/pdf`,
+  `GET /invoices/:id/pdf`). E-Rechnung im Format XRechnung 3.0, Syntax UN/CEFACT CII
+  (`GET /invoices/:id/xrechnung`, Button „E-Rechnung“ am Projekt): Abschlag = 326, Schlussrechnung = 380,
+  Storno = Gutschrift 381 mit Bezug auf die Originalrechnung; verrechnete Abschläge als negative Menge zum
+  positiven Preis (BR-27). Dafür neue Firmendaten (E-Mail, Telefon, Ansprechpartner, IBAN, BIC,
+  Zahlungsziel) und beim Kunden die Käuferreferenz/Leitweg-ID; beides wird beim Ausstellen mit
+  festgeschrieben. `backend/scripts/validate-xrechnung.sh` prüft XML-Schema, EN 16931 und XRechnung-Regeln
+  und läuft in der CI auf allen in den Tests erzeugten E-Rechnungen. Versand per E-Mail (`POST /invoices/:id/send`, Button „Per E-Mail“): PDF und XRechnung im Anhang, an
+  die Adresse des Kunden oder eine angegebene, protokolliert im Audit-Log; eingerichtet über `SMTP_URL`
+  und `MAIL_FROM`. Noch nicht unterstützt: Versand über Peppol.
+
+- **Nachtrag – ZUGFeRD**: Alle PDFs (Angebote, Rechnungen) sind PDF/A-3b: eingebettete Schrift Liberation
+  Sans (maßgleich mit Helvetica, SIL OFL, `backend/assets/fonts`), sRGB-Farbprofil, XMP-Metadaten. Das PDF
+  einer ausgestellten Rechnung enthält dieselbe XRechnung als `factur-x.xml` (AFRelationship
+  „Alternative“, XMP nach Factur-X 1.0 / ZUGFeRD 2.x, Profil XRECHNUNG) und ist damit eine ZUGFeRD-Rechnung.
+  Fehlen Angaben für die E-Rechnung (z.B. IBAN), bleibt es beim lesbaren PDF. `backend/scripts/validate-pdfa.sh`
+  prüft mit veraPDF (PDF/A-3b) und dem Mustang-Validator (ZUGFeRD samt XML gegen EN 16931 und XRechnung);
+  die CI prüft damit alle in den Tests erzeugten PDFs.
+
+- **Nachtrag – Zahlungen und offene Posten**: Zahlungseingänge werden an der ausgestellten Rechnung
+  erfasst (`POST /invoices/:id/payments`: Betrag, Eingangstag, Art Überweisung/bar/sonstige, Notiz;
+  Korrektur per `DELETE`), eigene Tabelle `InvoicePayment` – die Rechnung selbst bleibt unverändert.
+  Keine Überzahlung, keine Zahlungen auf Entwürfe, Stornos und stornierte Rechnungen; gleichzeitige
+  Zahlungen und ein gleichzeitiges Storno werden über Sperren serialisiert. `GET /open-items` bzw. die Seite
+  „Offene Posten“ zeigt alle Rechnungen mit Restbetrag, Fälligkeit (Rechnungsdatum + Zahlungsziel in
+  Kalendertagen der Firmen-Zeitzone) und Tagen im Verzug. Jede Zahlung und Korrektur steht im Audit-Log.
+  Zahlungsbuchungen optional im DATEV-Export (siehe dort). Noch nicht: Bankabgleich.
+
+- **Nachtrag – Mahnwesen**: Aus den offenen Posten heraus Zahlungserinnerung, 1. und 2. Mahnung
+  (`POST /invoices/:id/dunning`, Tabelle `DunningNotice`). Nur für überfällige, offene Rechnungen; die
+  nächste Stufe erst nach Ablauf der Frist der vorigen; neue Frist = Mahndatum + Einstellung „Frist in
+  Mahnungen“ (Standard 7 Tage). Offener Betrag und Frist werden beim Erstellen festgehalten. PDF/A im
+  Layout der Rechnung (`GET …/dunning/:id/pdf`) mit Tabelle Betrag/bezahlt/offen und Bankverbindung;
+  Versand per E-Mail (`POST …/dunning/:id/send`) nur für die neueste, noch gültige Mahnung – nicht nach
+  einer Zahlung, nach Ablauf der Frist oder bei stornierter Rechnung. Erstellen und Versand im Audit-Log.
+  Bewusst noch nicht: Mahngebühren und Verzugszinsen (eigene Forderung neben der Rechnung).
+
+- **Nachtrag – Freie Angebotspositionen**: Neben Leistungen aus dem Katalog kann ein Angebot freie
+  Positionen enthalten (Text, Einheit, Menge, Preis je Einheit, optional Kosten je Einheit für die
+  Marge) – z.B. Pauschalen oder Einzelleistungen. Beides gemischt in einer Position lehnt die API ab.
+  Freie Positionen haben keine Soll-Werte für die Nachkalkulation. Positionen tragen jetzt eine feste
+  Reihenfolge (`position`); vorher lieferte die Datenbank sie ohne ORDER BY in beliebiger Reihenfolge,
+  was auf PDF und Rechnung durchschlagen konnte. Mengen höchstens mit 2 Nachkommastellen.
+  Entwürfe lassen sich bearbeiten (`PUT /quotes/:id`, Knopf „Bearbeiten“ an der Angebotskarte):
+  Positionen und Umsatzsteuer werden ersetzt, Katalog-Leistungen mit der aktuellen Rezeptur neu
+  berechnet; die Nummer bleibt. Ab der Freigabe ist das Angebot eingefroren (400). Bearbeiten in der
+  Oberfläche braucht Verkaufs- und Einkaufsrechte, damit keine verborgenen Kosten verloren gehen.
+
+- **Nachtrag – DATEV-Export**: `GET /datev/bookings?from=JJJJ-MM-TT&to=JJJJ-MM-TT` (Recht `data.export`,
+  Einstellungen → DATEV-Export) liefert die Ausgangsrechnungen als DATEV-Buchungsstapel (EXTF, Version
+  700, Formatversion 12, 124 Spalten, Windows-1252, CRLF). Je ausgestellter Rechnung eine Buchung vom
+  Debitorenkonto des Kunden auf das Erlöskonto über den Bruttobetrag, Stornorechnungen im Haben;
+  Belegdatum in der Zeitzone der Firma, dazu Leistungsdatum und Fälligkeit. Erlöskonten: SKR03
+  8400/8300/8195/8337, SKR04 4400/4300/4185/4337 (19 %, 7 %, § 19, § 13b), je Firma änderbar. Kunden
+  bekommen fortlaufende Debitorennummern ab 10000 (bestehende per Migration, änderbar, eindeutig je
+  Firma). Abschlagsrechnungen gehen direkt auf das Erlöskonto; die Schlussrechnung verrechnet sie
+  bereits, die Summe der Erlöse stimmt. Wer „erhaltene Anzahlungen“ getrennt führt, bucht in DATEV um.
+  Ein Stapel umfasst höchstens ein Kalenderjahr (Wirtschaftsjahr = Kalenderjahr); jeder Export steht
+  im Audit-Log. Auf Wunsch (`&payments=1`, Häkchen „Zahlungseingänge mitexportieren“) kommen die
+  Zahlungseingänge des Zeitraums dazu: Bank (SKR03 1200 / SKR04 1800), Kasse (1000 / 1600) bzw. für
+  sonstige Zahlungen Geldtransit (1360 / 1460) an Debitor, Belegfeld 1 = Rechnungsnummer für den
+  OP-Ausgleich; Konten einstellbar. Standard ist aus, weil viele Kanzleien die Bankumsätze direkt aus dem
+  Bankkonto übernehmen – sonst wären sie doppelt gebucht. Noch nicht: Debitoren-Stammdaten (Namen und
+  Anschriften) als eigener Export, Belegbilder.
+
+- **Nachtrag – Bankabgleich (CAMT.053)**: Kontoauszug im ISO-20022-Format CAMT.053 (XML, Versionen
+  001.02 bis 001.08, wie ihn das Online-Banking liefert) unter „Bankabgleich“ einlesen. Übernommen werden
+  nur gebuchte Gutschriften in EUR; Abbuchungen, vorgemerkte Umsätze und Fremdwährung werden gezählt und
+  übersprungen. Sammelgutschriften mit Einzelbeträgen werden in Einzelumsätze aufgeteilt. Jeder Umsatz
+  hat einen Schlüssel (IBAN + Bankreferenz), derselbe Auszug lässt sich daher gefahrlos mehrfach einlesen.
+  Zuordnung: zuerst die Rechnungsnummer im Verwendungszweck (auch „RE 2026 0001“ oder „R20260001“),
+  sonst – nur wenn eindeutig – eine offene Rechnung mit genau diesem Restbetrag; der Vorschlag wird bei
+  jedem Laden neu berechnet. Gebucht wird erst nach Bestätigung, als normale Zahlung (Bank) zur Rechnung
+  mit denselben Prüfungen (kein Überzahlen, kein Storno). Ein Umsatz kann mehrere Rechnungen begleichen:
+  er bleibt offen, bis sein ganzer Betrag verteilt ist; eine Zeilensperre auf dem Umsatz verhindert, dass
+  gleichzeitige Buchungen zusammen mehr verteilen. Wird eine Zahlung an der Rechnung gelöscht, ist der
+  Umsatz wieder offen. Umsätze ohne Rechnungsbezug (oder der Rest nach einer Überzahlung) lassen sich
+  ignorieren und wieder öffnen. Ohne Bankreferenz bildet sich der Dublettenschlüssel aus Auszugskennung,
+  Position und Merkmalen – nicht aus der vom Zahler gewählten EndToEndId. XML ohne DOCTYPE (Schutz vor
+  XXE), Datei höchstens 5 MB. Noch nicht: MT940 und CSV-Formate, automatische Abholung per EBICS/FinTS.
+
+- **Nachtrag – Dokumente am Projekt**: Abschnitt „Dokumente“ auf der Projektseite (Recht `document.read`):
+  mehrere Dateien auf einmal hochladen mit Art (Foto, Lieferschein, Plan, Aufmaß …), herunterladen,
+  löschen (mit Audit-Log; eigenes Recht `document.delete`, per Migration an alle Rollen mit
+  `system.settings.write`). Auf Wunsch (`POST /documents/upload?…&ocr=1`, Häkchen „Text erkennen“) läuft die
+  Texterkennung für PDF und Bilder über die OCR-Warteschlange; Stand (`ocrStatus`) und Text (`ocrText`)
+  stehen am Dokument, die Seite lädt nach, bis der Text da ist. `GET /documents/by-project/:id?q=` sucht
+  in Dateiname und erkanntem Text; die Liste liefert nur einen Ausschnitt um den Treffer. Beim Löschen
+  bleibt die Datei, wenn ein weiteres Dokument auf sie verweist (`storagePath` ist über `POST /documents`
+  frei eintragbar, Pfade werden dabei vereinheitlicht); die OCR-Aufträge zum Dokument werden samt
+  erkanntem Text mitgelöscht. Nach einem Neustart gilt eine
+  unterbrochene Texterkennung als fehlgeschlagen.
+
+- **Nachtrag – Betrieb in Containern** (`BETRIEB.md`): `backend/Dockerfile` (mehrstufig, Laufzeit nur mit
+  Produktionsabhängigkeiten, unprivilegierter Nutzer, Migrationen beim Start, Healthcheck),
+  `frontend/Dockerfile` (nginx, `/api` → Backend, gleiche Adresse), `docker-compose.prod.yml` mit Volumes für
+  Datenbank und Dokumente. Ersteinrichtung ohne Demo-Daten: `node dist/cli/setup-company.js` (Firma, Rollen,
+  erster Administrator, alles in einer Transaktion). Die OCR-Sprachdaten (Deutsch, Englisch) kommen jetzt als
+  npm-Pakete mit statt zur Laufzeit vom CDN – Texterkennung funktioniert ohne Internet; ein Test prüft die
+  echte Erkennung. Das Prisma-CLI ist Laufzeitabhängigkeit (für `migrate deploy`). `ops/smoke-test.sh` startet
+  den ganzen Stack und prüft ihn von außen; in der CI als eigener Workflow.
+
+- **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
+  (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt
+  (`vatTreatment: "reverse_charge"`). Die Rechnung übernimmt die Behandlung vom Angebot, das Storno vom
+  Original. PDF mit Pflichthinweis; E-Rechnung mit Kategorie E bzw. AE und Befreiungsgrund, bei § 13b mit
+  der USt-IdNr. des Kunden (neues Feld am Kunden). 0 % ohne Grund bleibt als E-Rechnung gesperrt.
+
+- **Nachtrag – Audit-Log**: Statuswechsel von Angeboten, Aufträgen und Projekten, Nutzeränderungen
+  (Sperren, Namen), Passwort-Reset (ohne das Passwort) sowie Rollenrechte und Rollenzuweisungen werden mit
+  handelndem Nutzer, altem und neuem Wert in derselben Transaktion protokolliert. Gleichzeitige
+  Statuswechsel: nur einer gelingt und nur dieser steht im Protokoll (Integrationstest). Einsehbar unter Einstellungen → Protokoll (`GET /audit-log`, filterbar, seitenweise; Recht `audit.read`, das die Migration allen Rollen mit `system.settings.write` gibt).
+
 ---
 
 ## 6. Optimierungsdurchgang (dieser Arbeitsschritt)
@@ -199,10 +347,11 @@ Auf ausdrücklichen Wunsch wurde der gesamte bisherige Code systematisch auf Lü
 
 ## 7. Offene Punkte
 
-- Dokumente: echter Datei-Upload/-Download funktioniert (lokales Dateisystem). OCR-Ergebnis wird nicht automatisch als Document gespeichert (zwei getrennte Schritte: OCR ansehen, dann ggf. hochladen). Bei gescannten PDFs werden maximal die ersten 10 Seiten per Bild-OCR gelesen (Deckel gegen sehr lange Scans).
+- Dokumente: Upload/Download auf dem lokalen Dateisystem; am Projekt mit optionaler Texterkennung (siehe Nachtrag). Bei gescannten PDFs werden maximal die ersten 10 Seiten per Bild-OCR gelesen (Deckel gegen sehr lange Scans).
 - KI-Gateway ohne aktiven Anbieter (bewusst zurückgestellt).
-- E2E-Tests (Playwright) und CI/CD-Workflows (GitHub Actions) sind geschrieben, aber nie tatsächlich ausgeführt worden – auf deiner Maschine bzw. in einem echten GitHub-Repo müssen sie sich erstmalig bewähren.
-- Mobile App (React Native/Expo), Schnittstellen (DATEV/GAEB/DATANORM), Admin-Auslagerung: noch nicht begonnen.
+- E2E-Tests (Playwright) und CI-Workflows (GitHub Actions) laufen bei jedem Push, dazu ein Rauchtest der Produktions-Container (siehe `BETRIEB.md`). Ein automatisches Ausrollen auf einen Server fehlt noch – das hängt vom Zielserver ab.
+- Mobile App (React Native/Expo), DATANORM, Admin-Auslagerung: noch nicht begonnen.
+- GAEB-Import (X83 → Angebot mit freien Positionen): vorgemerkt. Echte GAEB-Beispieldateien kommen später vom Auftraggeber; ohne sie wird nicht gebaut, damit gegen echte Ausschreibungen getestet werden kann. DATEV: Buchungsstapel der Ausgangsrechnungen fertig (siehe Nachtrag).
 - Es existieren separate, umfassendere Projekt-Planungsdokumente (README.md, STATUS.md, DEVELOPMENT_GUIDE.md, TESTING_GUIDE.md, SECURITY_CHECKLIST.md, CICD_GUIDE.md, SKILLS_REFERENCE.md im Projekt-Root), die teils einen größeren, teamartigen Rahmen beschreiben (Mobile-Team, DevOps-Rolle, Security-Officer). Diese hier vorliegende STATUS.md beschreibt ausschließlich den tatsächlichen Code-Stand.
 
 ---

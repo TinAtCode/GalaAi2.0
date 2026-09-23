@@ -1,9 +1,20 @@
-import { ArrayMinSize, IsArray, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 // Eine Zeile aus einer (bereits geparsten) Preisliste – woher die Zeilen
 // kommen (CSV-Upload, OCR-Ergebnis, Lieferanten-API) ist für den
 // Datenwächter irrelevant; er arbeitet nur auf diesen normalisierten Daten.
+// Obergrenzen entsprechen den Datenbankspalten (Decimal(10,2)): größere Werte
+// ergäben sonst einen Datenbankfehler (500) statt einer klaren 400-Meldung.
 export class PriceListRowDto {
   @IsString()
   articleNumber!: string;
@@ -16,10 +27,12 @@ export class PriceListRowDto {
 
   @IsNumber()
   @Min(0)
+  @Max(99_999_999.99)
   purchasePrice!: number;
 
   @IsNumber()
   @Min(0)
+  @Max(99_999_999.99)
   salePrice!: number;
 }
 

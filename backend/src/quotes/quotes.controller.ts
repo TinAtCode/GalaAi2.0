@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, StreamableFile, UseGuards } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -6,12 +7,14 @@ import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { QuotesService } from './quotes.service';
-import { CreateQuoteDto, SetQuoteOutcomeDto } from './dto/quote.dto';
+import { CreateQuoteDto, SetQuoteOutcomeDto, UpdateQuoteDto } from './dto/quote.dto';
 
 // Gleiches Prinzip wie bei Kalkulationen: Kosten (costPerUnit) brauchen
 // price.purchase.read, Verkaufspreis (unitPrice/totalNet) braucht
 // price.sale.read, Marge zusätzlich price.margin.read.
-function maskQuote(quote: any, permissions: string[]) {
+type QuoteWithLines = Prisma.QuoteGetPayload<{ include: { lineItems: true } }>;
+
+function maskQuote(quote: QuoteWithLines, permissions: string[]) {
   const canPurchase = permissions.includes(PERMISSIONS.PRICE_PURCHASE_READ);
   const canSale = permissions.includes(PERMISSIONS.PRICE_SALE_READ);
   const canMargin = permissions.includes(PERMISSIONS.PRICE_MARGIN_READ);
@@ -19,11 +22,18 @@ function maskQuote(quote: any, permissions: string[]) {
   return {
     id: quote.id,
     projectId: quote.projectId,
+    number: quote.number,
     status: quote.status,
     createdAt: quote.createdAt,
+    vatRate: quote.vatRate,
+    vatTreatment: quote.vatTreatment,
     totalNet: canSale ? quote.totalNet : undefined,
-    lineItems: quote.lineItems.map((li: any) => ({
+    totalVat: canSale ? quote.totalVat : undefined,
+    totalGross: canSale ? quote.totalGross : undefined,
+    lineItems: quote.lineItems.map((li) => ({
       id: li.id,
+      position: li.position,
+      serviceId: li.serviceId,
       description: li.description,
       unit: li.unit,
       quantity: li.quantity,
@@ -44,7 +54,18 @@ export class QuotesController {
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
   async findAllForProject(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
     const quotes = await this.quotesService.findAllForProject(user.companyId, projectId);
-    return quotes.map((q: any) => maskQuote(q, user.permissions));
+    return quotes.map((q) => maskQuote(q, user.permissions));
+  }
+
+  // Das PDF enthält Verkaufspreise -> zusätzlich price.sale.read nötig.
+  @Get(':id/pdf')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_READ, PERMISSIONS.PRICE_SALE_READ)
+  async pdf(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const { buffer, fileName } = await this.quotesService.renderPdf(user.companyId, id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `inline; filename="${fileName}"`,
+    });
   }
 
   @Get(':id')
@@ -61,17 +82,25 @@ export class QuotesController {
     return maskQuote(quote, user.permissions);
   }
 
+  // Nur im Entwurf; Positionen werden ersetzt und neu berechnet
+  @Put(':id')
+  @RequirePermissions(PERMISSIONS.QUOTE_CREATE)
+  async update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateQuoteDto) {
+    const quote = await this.quotesService.update(user.companyId, id, dto);
+    return maskQuote(quote, user.permissions);
+  }
+
   @Post(':id/approve')
   @RequirePermissions(PERMISSIONS.QUOTE_APPROVE)
   async approve(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    const quote = await this.quotesService.approve(user.companyId, id);
+    const quote = await this.quotesService.approve(user.companyId, user.userId, id);
     return maskQuote(quote, user.permissions);
   }
 
   @Post(':id/send')
   @RequirePermissions(PERMISSIONS.QUOTE_CREATE)
   async send(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    const quote = await this.quotesService.send(user.companyId, id);
+    const quote = await this.quotesService.send(user.companyId, user.userId, id);
     return maskQuote(quote, user.permissions);
   }
 
@@ -82,7 +111,7 @@ export class QuotesController {
     @Param('id') id: string,
     @Body() dto: SetQuoteOutcomeDto,
   ) {
-    const quote = await this.quotesService.setOutcome(user.companyId, id, dto.status);
+    const quote = await this.quotesService.setOutcome(user.companyId, user.userId, id, dto.status);
     return maskQuote(quote, user.permissions);
   }
 }

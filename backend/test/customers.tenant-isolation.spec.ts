@@ -9,7 +9,9 @@ function createPrismaMock() {
   ];
 
   return {
+    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     customer: {
+      count: jest.fn(() => Promise.resolve(0)),
       findMany: jest.fn(({ where }: any) =>
         Promise.resolve(customers.filter((c) => c.companyId === where.companyId)),
       ),
@@ -26,7 +28,7 @@ describe('CustomersService – Mandantentrennung', () => {
     const prisma = createPrismaMock();
     const service = new CustomersService(prisma as any);
 
-    const result = await service.findAll('company-a');
+    const { items: result } = await service.findAll('company-a');
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('cust-a');

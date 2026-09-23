@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, ApiError } from '../api/client';
+import { usePagedList } from '../api/usePagedList';
+import { LoadMore } from '../layout/LoadMore';
 
 interface Project {
   id: string;
@@ -22,17 +22,14 @@ const STATUS_LABELS: Record<Project['status'], string> = {
 };
 
 export function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api
-      .get<Project[]>('/projects')
-      .then(setProjects)
-      .catch((err) =>
-        setError(err instanceof ApiError ? err.message : 'Projekte konnten nicht geladen werden.'),
-      );
-  }, []);
+  const {
+    items: projects,
+    total,
+    error,
+    hasMore,
+    loadMore,
+    loadingMore,
+  } = usePagedList<Project>('/projects', 'Projekte konnten nicht geladen werden.');
 
   return (
     <div>
@@ -46,7 +43,7 @@ export function ProjectsPage() {
       {projects?.length === 0 && (
         <div className="empty-state">
           <strong>Noch keine Projekte angelegt.</strong>
-          Neue Projekte werden im Büro erfasst.
+          Projekte legst du beim jeweiligen Kunden an (Kunden → Objekt → Projekt).
         </div>
       )}
 
@@ -68,6 +65,10 @@ export function ProjectsPage() {
           <span className={`status-badge status-${project.status}`}>{STATUS_LABELS[project.status]}</span>
         </Link>
       ))}
+
+      {hasMore && projects && (
+        <LoadMore shown={projects.length} total={total} onLoadMore={loadMore} loading={loadingMore} />
+      )}
     </div>
   );
 }

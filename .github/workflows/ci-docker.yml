@@ -1,0 +1,23 @@
+name: CI - Docker (Betrieb)
+
+# Baut die Produktions-Images (backend, frontend) und startet den Stack aus
+# docker-compose.prod.yml; ops/smoke-test.sh prüft ihn von außen.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Compose-Datei prüfen
+        run: POSTGRES_PASSWORD=x JWT_SECRET=x docker compose -f docker-compose.prod.yml config --quiet
+      - name: Rauchtest
+        run: bash ops/smoke-test.sh

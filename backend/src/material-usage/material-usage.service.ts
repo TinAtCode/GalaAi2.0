@@ -8,13 +8,13 @@ export class MaterialUsageService {
 
   async findAllForProject(companyId: string, projectId: string) {
     const project = await this.prisma.project.findFirst({
-      where: { id: projectId, property: { customer: { companyId } } },
+      where: { id: projectId, companyId },
     });
     if (!project) {
       throw new NotFoundException('Projekt nicht gefunden.');
     }
     return this.prisma.projectMaterialUsage.findMany({
-      where: { projectId },
+      where: { projectId, companyId },
       include: { article: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -22,7 +22,7 @@ export class MaterialUsageService {
 
   async record(companyId: string, userId: string, dto: RecordMaterialUsageDto) {
     const project = await this.prisma.project.findFirst({
-      where: { id: dto.projectId, property: { customer: { companyId } } },
+      where: { id: dto.projectId, companyId },
     });
     if (!project) {
       throw new NotFoundException('Projekt nicht gefunden.');
@@ -37,6 +37,7 @@ export class MaterialUsageService {
 
     return this.prisma.projectMaterialUsage.create({
       data: {
+        companyId,
         projectId: dto.projectId,
         articleId: dto.articleId,
         quantity: dto.quantity,

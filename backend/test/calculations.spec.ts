@@ -46,11 +46,58 @@ describe('calculateServiceCost', () => {
     // Kein exaktes Erwartungsergebnis nötig – nur sicherstellen, dass
     // niemals mehr als 2 Nachkommastellen entstehen (mit Tolueranz für
     // Floating-Point-Rundungsfehler wie 434.99999999994).
-    for (const value of Object.values(result)) {
+    // materialCostPerUnitPrecise ist bewusst genauer (interner Soll-Snapshot).
+    const { materialCostPerUnitPrecise, ...outputs } = result;
+    expect(materialCostPerUnitPrecise).toBeCloseTo(3.333, 6);
+    for (const value of Object.values(outputs)) {
       if (typeof value === 'number') {
         const scaled = value * 100;
         expect(Math.abs(scaled - Math.round(scaled))).toBeLessThan(1e-6);
       }
     }
+  });
+
+  it('rundet Zwischenwerte nicht (kein Aufsummieren von Rundungsfehlern über die Menge)', () => {
+    // 0,3333 × 1,99 € = 0,663267 € Material je m². Früher wurde das zuerst auf
+    // 0,66 € gerundet, dann Gemeinkosten und Aufschlag darauf gerechnet:
+    // Verkaufspreis 0,91 €/m² statt richtig 0,92 €/m² – bei 1.000 m² 10 € zu wenig.
+    const components = [{ quantityPer: 0.3333, laborMinutes: null, articlePurchasePrice: 1.99 }];
+    const result = calculateServiceCost(components, 1000, 45, 15, 20);
+
+    expect(result.costPerUnit).toBe(0.76); // exakt 0,76275705
+    expect(result.salePricePerUnit).toBe(0.92); // exakt 0,91530846
+    expect(result.salePriceTotal).toBe(920); // = gerundeter Einzelpreis × Menge (nachrechenbar)
+    expect(result.costTotal).toBe(762.76); // früher 760 (0,76 × 1000)
+    expect(result.marginTotal).toBe(157.24);
+  });
+
+  it('rundet kaufmännisch und ohne Floating-Point-Fehler', () => {
+    // 1,005 € ist als JavaScript-Zahl 1,00499999… und würde mit Math.round auf 1,00 fallen.
+    const components = [{ quantityPer: 1, laborMinutes: null, articlePurchasePrice: 1.005 }];
+    const result = calculateServiceCost(components, 1, 0, 0, 0);
+
+    expect(result.costPerUnit).toBe(1.01);
+    expect(result.salePricePerUnit).toBe(1.01);
+  });
+
+  it('rechnet Maschinenkosten mit dem Stundensatz der Maschine ein (vor Gemeinkosten)', () => {
+    // 1 m² Pflaster: 6 Min. Rüttelplatte à 30 €/h = 3 €, 12 Min. Arbeit à 50 €/h = 10 €
+    const components = [
+      { quantityPer: 0, laborMinutes: 12, articlePurchasePrice: null },
+      {
+        quantityPer: 0,
+        laborMinutes: null,
+        articlePurchasePrice: null,
+        machineMinutes: 6,
+        machineHourlyRate: 30,
+      },
+    ];
+    const result = calculateServiceCost(components, 100, 50, 10, 0);
+
+    expect(result.machineCostPerUnit).toBe(3);
+    expect(result.laborCostPerUnit).toBe(10);
+    expect(result.overheadPerUnit).toBe(1.3); // 10 % auf 13 €
+    expect(result.costPerUnit).toBe(14.3);
+    expect(result.machineCostTotal).toBe(300);
   });
 });

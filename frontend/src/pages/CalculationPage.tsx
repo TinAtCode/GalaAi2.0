@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { formatEuro } from '../format';
 
 interface Service {
   id: string;
@@ -10,6 +11,7 @@ interface Service {
 interface CalculationResult {
   materialCostPerUnit?: number;
   laborCostPerUnit?: number;
+  machineCostPerUnit?: number;
   overheadPerUnit?: number;
   costPerUnit?: number;
   salePricePerUnit?: number;
@@ -17,15 +19,11 @@ interface CalculationResult {
   quantity: number;
   materialCostTotal?: number;
   laborCostTotal?: number;
+  machineCostTotal?: number;
   overheadTotal?: number;
   costTotal?: number;
   salePriceTotal?: number;
   marginTotal?: number;
-}
-
-function formatEuro(value?: number): string {
-  if (value === undefined) return '–';
-  return value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 }
 
 export function CalculationPage() {
@@ -130,6 +128,12 @@ export function CalculationPage() {
                 <tr>
                   <td>Arbeitszeit</td>
                   <td>{formatEuro(result.laborCostTotal)}</td>
+                </tr>
+              )}
+              {!!result.machineCostTotal && (
+                <tr>
+                  <td>Maschinen</td>
+                  <td>{formatEuro(result.machineCostTotal)}</td>
                 </tr>
               )}
               {result.overheadTotal !== undefined && (

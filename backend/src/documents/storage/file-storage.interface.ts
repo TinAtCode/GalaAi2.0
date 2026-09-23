@@ -14,6 +14,8 @@ export interface FileStorage {
   // storagePath stammt aus der DB und kann über POST /documents vom Client
   // gesetzt worden sein, darf also nie ungeprüft verwendet werden.
   read(companyId: string, storagePath: string): Promise<Buffer>;
+  // Löschen; eine bereits fehlende Datei ist kein Fehler
+  remove(companyId: string, storagePath: string): Promise<void>;
 }
 
 export const FILE_STORAGE = Symbol('FILE_STORAGE');

@@ -13,7 +13,7 @@ function createPrismaMock() {
   ];
   const rolePermissions: any[] = [];
 
-  return {
+  const mock: any = {
     permission: {
       findMany: jest.fn(({ where }: any) =>
         Promise.resolve(permissions.filter((p) => where.key.in.includes(p.key))),
@@ -43,8 +43,10 @@ function createPrismaMock() {
     userRole: {
       upsert: jest.fn(({ create }: any) => Promise.resolve(create)),
     },
-    $transaction: jest.fn((ops: Promise<any>[]) => Promise.all(ops)),
+    auditLog: { create: jest.fn(() => Promise.resolve({})) },
+    $transaction: jest.fn((arg: any) => (typeof arg === 'function' ? arg(mock) : Promise.all(arg))),
   };
+  return mock;
 }
 
 describe('RolesService', () => {
@@ -72,7 +74,7 @@ describe('RolesService', () => {
     const prisma = createPrismaMock();
     const service = new RolesService(prisma as any);
 
-    await expect(service.assignToUser('company-a', 'role-a', 'user-b')).rejects.toBeInstanceOf(
+    await expect(service.assignToUser('company-a', 'admin-a', 'role-a', 'user-b')).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });
@@ -81,7 +83,7 @@ describe('RolesService', () => {
     const prisma = createPrismaMock();
     const service = new RolesService(prisma as any);
 
-    const result = await service.assignToUser('company-a', 'role-a', 'user-a');
+    const result = await service.assignToUser('company-a', 'admin-a', 'role-a', 'user-a');
     expect(result).toEqual({ userId: 'user-a', roleId: 'role-a' });
   });
 });

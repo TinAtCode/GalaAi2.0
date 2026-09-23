@@ -8,6 +8,7 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { DataGuardianService } from './data-guardian.service';
 import { AnalyzePriceListDto, ApplyPriceListDto } from './dto/price-list-import.dto';
+import { requiredFile } from '../common/required-file';
 
 @Controller('data-guardian/price-list')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -22,8 +23,11 @@ export class DataGuardianController {
   // geschickt werden, um die Änderungen tatsächlich zu übernehmen.
   @Post('upload')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
-  async upload(@CurrentUser() user: AuthenticatedUser, @UploadedFile() file: Express.Multer.File) {
-    const rows = this.dataGuardianService.parsePriceListFile(file);
+  async upload(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile(requiredFile()) file: Express.Multer.File,
+  ) {
+    const rows = await this.dataGuardianService.parsePriceListFile(file);
     const diff = await this.dataGuardianService.analyzePriceList(user.companyId, rows);
     // "rows" unverändert an /apply schicken, um die Änderungen zu übernehmen.
     return { rows, diff };

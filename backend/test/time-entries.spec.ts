@@ -5,7 +5,7 @@ function createPrismaMock() {
   const projects = [{ id: 'proj-a', property: { customer: { companyId: 'company-a' } } }];
   const timeEntries: any[] = [];
 
-  return {
+  const mock: any = {
     project: {
       findFirst: jest.fn(({ where }: any) =>
         where.id === 'proj-a' ? Promise.resolve(projects[0]) : Promise.resolve(null),
@@ -44,6 +44,20 @@ function createPrismaMock() {
         Object.assign(entry, data);
         return Promise.resolve(entry);
       }),
+      updateMany: jest.fn(({ where, data }: any) => {
+        const entry = timeEntries.find(
+          (t) =>
+            t.id === where.id &&
+            (typeof where.status === 'string'
+              ? t.status === where.status
+              : where.status.in.includes(t.status)),
+        );
+        if (entry) Object.assign(entry, data);
+        return Promise.resolve({ count: entry ? 1 : 0 });
+      }),
+      findUniqueOrThrow: jest.fn(({ where }: any) =>
+        Promise.resolve(timeEntries.find((t) => t.id === where.id)),
+      ),
       findMany: jest.fn(({ where }: any) =>
         Promise.resolve(
           timeEntries.filter((t) => {
@@ -57,10 +71,19 @@ function createPrismaMock() {
         ),
       ),
     },
+    auditLog: {
+      create: jest.fn(({ data }: any) => Promise.resolve(data)),
+    },
     company: {
-      findUniqueOrThrow: jest.fn(() => Promise.resolve({ id: 'company-a', regularDailyHours: 8 })),
+      findUniqueOrThrow: jest.fn(() =>
+        Promise.resolve({ id: 'company-a', regularDailyHours: 8, timeZone: 'Europe/Berlin' }),
+      ),
     },
   };
+  // Interaktive Transaktion: der Callback bekommt denselben Mock als tx.
+  mock.$transaction = jest.fn((arg: any) => (typeof arg === 'function' ? arg(mock) : Promise.all(arg)));
+  mock.$executeRaw = jest.fn(() => Promise.resolve(0));
+  return mock;
 }
 
 function createEmployeesServiceMock(employeeId: string | null) {
@@ -103,11 +126,27 @@ describe('TimeEntriesService', () => {
     const employees = createEmployeesServiceMock('emp-1');
     const service = new TimeEntriesService(prisma as any, employees as any);
 
-    await service.start('company-a', 'user-a', { projectId: 'proj-a', activity: 'Terrasse pflastern' });
+    const started = await service.start('company-a', 'user-a', {
+      projectId: 'proj-a',
+      activity: 'Terrasse pflastern',
+    });
+    started.startTime = new Date(Date.now() - 4 * 60 * 60 * 1000); // vor 4 Stunden begonnen
     const stopped = await service.stop('company-a', 'user-a', { breakMinutes: 30 });
 
     expect(stopped.status).toBe('completed');
     expect(stopped.breakMinutes).toBe(30);
+  });
+
+  it('stop lehnt eine Pause ab, die länger ist als die erfasste Zeit', async () => {
+    const prisma = createPrismaMock();
+    const employees = createEmployeesServiceMock('emp-1');
+    const service = new TimeEntriesService(prisma as any, employees as any);
+
+    const started = await service.start('company-a', 'user-a', { projectId: 'proj-a' });
+    started.startTime = new Date(Date.now() - 20 * 60 * 1000); // vor 20 Minuten begonnen
+    await expect(service.stop('company-a', 'user-a', { breakMinutes: 30 })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('approve funktioniert nur aus dem Status "completed"', async () => {
@@ -116,10 +155,12 @@ describe('TimeEntriesService', () => {
     const service = new TimeEntriesService(prisma as any, employees as any);
 
     const started = await service.start('company-a', 'user-a', {});
-    await expect(service.approve('company-a', started.id)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.approve('company-a', 'user-boss', started.id)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
 
     await service.stop('company-a', 'user-a', {});
-    const approved = await service.approve('company-a', started.id);
+    const approved = await service.approve('company-a', 'user-boss', started.id);
     expect(approved.status).toBe('approved');
   });
 
@@ -128,7 +169,9 @@ describe('TimeEntriesService', () => {
     const employees = createEmployeesServiceMock('emp-1');
     const service = new TimeEntriesService(prisma as any, employees as any);
 
-    await expect(service.approve('company-a', 'does-not-exist')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.approve('company-a', 'user-boss', 'does-not-exist')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });
 

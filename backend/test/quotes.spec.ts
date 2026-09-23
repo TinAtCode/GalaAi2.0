@@ -6,7 +6,7 @@ function createPrismaMock() {
   const services = [{ id: 'service-1', companyId: 'company-a', name: 'Terrasse', unit: 'm2' }];
   const quotes: any[] = [];
 
-  return {
+  const mock: any = {
     project: {
       findFirst: jest.fn(({ where }: any) => {
         if (where.id !== 'proj-a') return Promise.resolve(null);
@@ -32,7 +32,7 @@ function createPrismaMock() {
       findFirst: jest.fn(({ where }: any) => {
         const quote = quotes.find((q) => q.id === where.id);
         if (!quote) return Promise.resolve(null);
-        const requiredCompanyId = where.project?.property?.customer?.companyId;
+        const requiredCompanyId = where.companyId;
         if (requiredCompanyId && requiredCompanyId !== 'company-a') return Promise.resolve(null);
         return Promise.resolve(quote);
       }),
@@ -41,8 +41,27 @@ function createPrismaMock() {
         Object.assign(quote, data);
         return Promise.resolve(quote);
       }),
+      updateMany: jest.fn(({ where, data }: any) => {
+        const quote = quotes.find(
+          (q) => q.id === where.id && where.companyId === 'company-a' && where.status.in.includes(q.status),
+        );
+        if (quote) Object.assign(quote, data);
+        return Promise.resolve({ count: quote ? 1 : 0 });
+      }),
     },
   };
+  // Interaktive Transaktion: der Callback bekommt denselben Mock als tx.
+  mock.$transaction = jest.fn((arg: any) => (typeof arg === 'function' ? arg(mock) : Promise.all(arg)));
+  mock.$executeRaw = jest.fn(() => Promise.resolve(0));
+  mock.auditLog = { create: jest.fn(() => Promise.resolve({})) };
+  let sequence = 0;
+  mock.$queryRaw = jest.fn(() => Promise.resolve([{ lastValue: ++sequence }]));
+  mock.company = {
+    findUniqueOrThrow: jest.fn(() =>
+      Promise.resolve({ id: 'company-a', timeZone: 'Europe/Berlin', defaultVatRate: 19 }),
+    ),
+  };
+  return mock;
 }
 
 // Simuliert CalculationsService, ohne die echte DB-Logik neu zu bauen –
@@ -83,14 +102,14 @@ describe('QuotesService – Preis-Snapshot', () => {
     });
 
     expect(quote.lineItems[0].unitPrice).toBe(20);
-    expect(quote.totalNet).toBe(200);
+    expect(Number(quote.totalNet)).toBe(200);
 
     // Jetzt "ändert sich der Artikelpreis" – simuliert durch eine neue
     // CalculationsService-Instanz, die 35€/Einheit liefern würde.
     // Das bereits erstellte Angebot darf davon NICHT betroffen sein.
     const storedQuote = await service.findOne('company-a', quote.id);
     expect(storedQuote.lineItems[0].unitPrice).toBe(20);
-    expect(storedQuote.totalNet).toBe(200);
+    expect(Number(storedQuote.totalNet)).toBe(200);
   });
 });
 
@@ -108,37 +127,39 @@ describe('QuotesService – Statuswechsel', () => {
 
   it('approve funktioniert nur aus dem Status draft', async () => {
     const { service, quote } = await createDraftQuote();
-    const approved = await service.approve('company-a', quote.id);
+    const approved = await service.approve('company-a', 'user-a', quote.id);
     expect(approved.status).toBe('approved');
 
-    await expect(service.approve('company-a', quote.id)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.approve('company-a', 'user-a', quote.id)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('send funktioniert nur aus dem Status approved', async () => {
     const { service, quote } = await createDraftQuote();
 
-    await expect(service.send('company-a', quote.id)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.send('company-a', 'user-a', quote.id)).rejects.toBeInstanceOf(BadRequestException);
 
-    await service.approve('company-a', quote.id);
-    const sent = await service.send('company-a', quote.id);
+    await service.approve('company-a', 'user-a', quote.id);
+    const sent = await service.send('company-a', 'user-a', quote.id);
     expect(sent.status).toBe('sent');
   });
 
   it('setOutcome funktioniert nur aus dem Status sent', async () => {
     const { service, quote } = await createDraftQuote();
 
-    await expect(service.setOutcome('company-a', quote.id, 'accepted')).rejects.toBeInstanceOf(
+    await expect(service.setOutcome('company-a', 'user-a', quote.id, 'accepted')).rejects.toBeInstanceOf(
       BadRequestException,
     );
 
-    await service.approve('company-a', quote.id);
-    await service.send('company-a', quote.id);
-    const accepted = await service.setOutcome('company-a', quote.id, 'accepted');
+    await service.approve('company-a', 'user-a', quote.id);
+    await service.send('company-a', 'user-a', quote.id);
+    const accepted = await service.setOutcome('company-a', 'user-a', quote.id, 'accepted');
     expect(accepted.status).toBe('accepted');
   });
 
   it('Angebot einer fremden Firma ist nicht erreichbar', async () => {
     const { service, quote } = await createDraftQuote();
-    await expect(service.approve('company-b', quote.id)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.approve('company-b', 'user-a', quote.id)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

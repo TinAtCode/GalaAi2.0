@@ -9,15 +9,17 @@ function createPrismaMock() {
   ];
 
   return {
+    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     project: {
       findFirst: jest.fn(({ where }: any) => {
         if (where.id !== 'proj-a') return Promise.resolve(null);
-        const requiredCompanyId = where.property?.customer?.companyId;
+        const requiredCompanyId = where.companyId;
         if (requiredCompanyId && requiredCompanyId !== 'company-a') return Promise.resolve(null);
         return Promise.resolve(projects[0]);
       }),
     },
     document: {
+      count: jest.fn(() => Promise.resolve(0)),
       findFirst: jest.fn(({ where }: any) =>
         Promise.resolve(documents.find((d) => d.id === where.id && d.companyId === where.companyId) ?? null),
       ),
@@ -42,23 +44,23 @@ const storageMock = {
 describe('DocumentsService – Mandantentrennung', () => {
   it('findOne wirft NotFoundException bei fremder Firma', async () => {
     const prisma = createPrismaMock();
-    const service = new DocumentsService(prisma as any, storageMock as any);
+    const service = new DocumentsService(prisma as any, storageMock as any, {} as any);
 
     await expect(service.findOne('company-a', 'doc-b')).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('findAllForCompany liefert nur eigene Dokumente', async () => {
     const prisma = createPrismaMock();
-    const service = new DocumentsService(prisma as any, storageMock as any);
+    const service = new DocumentsService(prisma as any, storageMock as any, {} as any);
 
-    const result = await service.findAllForCompany('company-a');
+    const { items: result } = await service.findAllForCompany('company-a');
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('doc-a');
   });
 
   it('create lehnt eine fremde projectId ab', async () => {
     const prisma = createPrismaMock();
-    const service = new DocumentsService(prisma as any, storageMock as any);
+    const service = new DocumentsService(prisma as any, storageMock as any, {} as any);
 
     await expect(
       service.create('company-b', 'user-x', {
@@ -71,7 +73,7 @@ describe('DocumentsService – Mandantentrennung', () => {
 
   it('create funktioniert innerhalb derselben Firma', async () => {
     const prisma = createPrismaMock();
-    const service = new DocumentsService(prisma as any, storageMock as any);
+    const service = new DocumentsService(prisma as any, storageMock as any, {} as any);
 
     const doc = await service.create('company-a', 'user-x', {
       fileName: 'aufmass.pdf',
@@ -86,12 +88,12 @@ describe('DocumentsService – Mandantentrennung', () => {
 describe('DocumentsService – Upload/Download', () => {
   it('upload speichert die Datei im Storage UND registriert die Metadaten', async () => {
     const prisma = createPrismaMock();
-    const service = new DocumentsService(prisma as any, storageMock as any);
+    const service = new DocumentsService(prisma as any, storageMock as any, {} as any);
 
     const doc = await service.upload(
       'company-a',
       'user-x',
-      { originalname: 'lieferschein.pdf', buffer: Buffer.from('Inhalt') },
+      { originalname: 'lieferschein.pdf', buffer: Buffer.from('Inhalt'), mimetype: 'application/pdf' },
       'proj-a',
       'delivery_note',
     );
@@ -104,17 +106,22 @@ describe('DocumentsService – Upload/Download', () => {
   it('upload lehnt eine fremde projectId ab, BEVOR etwas gespeichert wird', async () => {
     const prisma = createPrismaMock();
     storageMock.save.mockClear();
-    const service = new DocumentsService(prisma as any, storageMock as any);
+    const service = new DocumentsService(prisma as any, storageMock as any, {} as any);
 
     await expect(
-      service.upload('company-b', 'user-x', { originalname: 'x.pdf', buffer: Buffer.from('x') }, 'proj-a'),
+      service.upload(
+        'company-b',
+        'user-x',
+        { originalname: 'x.pdf', buffer: Buffer.from('x'), mimetype: 'application/pdf' },
+        'proj-a',
+      ),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(storageMock.save).not.toHaveBeenCalled();
   });
 
   it('getFileContent liefert Dateiinhalt und Dateiname aus Metadaten + Storage zusammen', async () => {
     const prisma = createPrismaMock();
-    const service = new DocumentsService(prisma as any, storageMock as any);
+    const service = new DocumentsService(prisma as any, storageMock as any, {} as any);
 
     const result = await service.getFileContent('company-a', 'doc-a');
     expect(result.fileName).toBe('rechnung.pdf');
@@ -123,7 +130,7 @@ describe('DocumentsService – Upload/Download', () => {
 
   it('getFileContent lehnt ein Dokument einer fremden Firma ab', async () => {
     const prisma = createPrismaMock();
-    const service = new DocumentsService(prisma as any, storageMock as any);
+    const service = new DocumentsService(prisma as any, storageMock as any, {} as any);
 
     await expect(service.getFileContent('company-a', 'doc-b')).rejects.toBeInstanceOf(NotFoundException);
   });

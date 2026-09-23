@@ -45,20 +45,25 @@ export class OcrService {
 
   constructor(@Inject(IMAGE_OCR_ENGINE) private ocrEngine: ImageOcrEngine) {}
 
+  private isPdf(file: { originalname: string; mimetype: string }) {
+    return file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
+  }
+
+  // Vor dem Einreihen prüfen, damit ein falscher Dateityp sofort 400 ergibt.
+  assertSupported(file: { originalname: string; mimetype: string }) {
+    if (!this.isPdf(file) && !file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Nur PDF- oder Bilddateien (JPG/PNG) werden unterstützt.');
+    }
+  }
+
   async extractFromFile(file: {
     originalname: string;
     buffer: Buffer;
     mimetype: string;
   }): Promise<OcrResult> {
-    const isPdf = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
-
-    if (isPdf) {
+    this.assertSupported(file);
+    if (this.isPdf(file)) {
       return this.extractFromPdf(file.buffer);
-    }
-
-    const isImage = file.mimetype.startsWith('image/');
-    if (!isImage) {
-      throw new BadRequestException('Nur PDF- oder Bilddateien (JPG/PNG) werden unterstützt.');
     }
     const text = await this.runImageOcr(file.buffer);
     return { text, method: 'image-ocr', guessedDocumentType: classifyDocumentType(text) };

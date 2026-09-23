@@ -106,9 +106,11 @@ async function main() {
     update: {},
     create: {
       id: 'demo-property-id',
+      companyId: company.id,
       customerId: 'demo-customer-id',
       label: 'Hauptwohnsitz',
       street: 'Gartenweg 1',
+      postalCode: '12345',
       city: 'Musterstadt',
     },
   });
@@ -118,6 +120,7 @@ async function main() {
     update: {},
     create: {
       id: 'demo-project-id',
+      companyId: company.id,
       propertyId: property.id,
       title: 'Terrassenbau Familie Müller',
     },
@@ -177,6 +180,7 @@ async function main() {
     update: {},
     create: {
       id: 'demo-appointment-id',
+      companyId: company.id,
       projectId: 'demo-project-id',
       title: 'Aufmaß nehmen',
       startTime: today,
@@ -191,6 +195,7 @@ async function main() {
     update: {},
     create: {
       id: 'demo-material-usage-id',
+      companyId: company.id,
       projectId: 'demo-project-id',
       articleId: schotter.id,
       quantity: 18,

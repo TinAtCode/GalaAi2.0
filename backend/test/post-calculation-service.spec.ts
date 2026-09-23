@@ -6,7 +6,7 @@ function createPrismaMock() {
   const order = {
     projectId: 'proj-a',
     quote: {
-      lineItems: [{ serviceId: 'service-1', quantity: 10 }],
+      lineItems: [{ id: 'li-1', serviceId: 'service-1', quantity: 10 }],
     },
   };
   const articles = { 'art-1': { id: 'art-1', purchasePrice: 5 } };
@@ -51,7 +51,7 @@ function createPrismaMock() {
     project: {
       findFirst: jest.fn(({ where }: any) => {
         if (where.id !== 'proj-a') return Promise.resolve(null);
-        const requiredCompanyId = where.property?.customer?.companyId;
+        const requiredCompanyId = where.companyId;
         if (requiredCompanyId && requiredCompanyId !== 'company-a') return Promise.resolve(null);
         return Promise.resolve(projects[0]);
       }),
@@ -62,7 +62,7 @@ function createPrismaMock() {
       ),
     },
     service: {
-      findUnique: jest.fn(({ where }: any) =>
+      findFirst: jest.fn(({ where }: any) =>
         Promise.resolve(services.find((s) => s.id === where.id) ?? null),
       ),
     },

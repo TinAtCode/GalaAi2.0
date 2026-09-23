@@ -1,4 +1,5 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
 
 export class CreateMachineDto {
   @IsString()
@@ -7,9 +8,12 @@ export class CreateMachineDto {
 
   @IsNumber()
   @Min(0)
+  @Max(99_999_999.99)
   hourlyRate!: number;
 
   @IsOptional()
   @IsBoolean()
   active?: boolean;
 }
+
+export class UpdateMachineDto extends PartialType(CreateMachineDto) {}

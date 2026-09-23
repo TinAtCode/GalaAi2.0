@@ -1,6 +1,5 @@
-import { IsIn, IsString } from 'class-validator';
-
-export const ORDER_STATUSES = ['open', 'in_progress', 'done', 'cancelled'] as const;
+import { IsEnum, IsString } from 'class-validator';
+import { OrderStatus } from '@prisma/client';
 
 export class CreateOrderDto {
   @IsString()
@@ -8,6 +7,6 @@ export class CreateOrderDto {
 }
 
 export class UpdateOrderStatusDto {
-  @IsIn(ORDER_STATUSES)
-  status!: (typeof ORDER_STATUSES)[number];
+  @IsEnum(OrderStatus)
+  status!: OrderStatus;
 }

@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext';
 import { ApiError } from '../api/client';
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, sessionExpired } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,6 +30,11 @@ export function LoginPage() {
       <div className="login-card">
         <h1>GartenAI</h1>
         <p className="login-subtitle">Melde dich mit deinem Firmenzugang an.</p>
+        {sessionExpired && (
+          <p className="field-error" data-testid="login-session-expired">
+            Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit} className="login-form">
           <label className="field">

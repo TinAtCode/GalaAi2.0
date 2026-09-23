@@ -33,8 +33,16 @@ export function applyPriceVisibility<T extends ArticleLikePrices>(
 }
 
 export interface CalculationResult {
+  // Arbeitszeit laut Rezeptur (Minuten je Einheit) – keine Preisinformation.
+  laborMinutesPerUnit: number;
   materialCostPerUnit: number;
+  // Materialkosten je Einheit auf 6 Nachkommastellen – nur intern für den
+  // Soll-Snapshot im Angebot (die Nachkalkulation multipliziert mit der
+  // Menge, eine Cent-Rundung je Einheit würde sich dort aufsummieren).
+  // Wird von maskCalculationResult nie ausgegeben.
+  materialCostPerUnitPrecise: number;
   laborCostPerUnit: number;
+  machineCostPerUnit: number;
   overheadPerUnit: number;
   costPerUnit: number;
   salePricePerUnit: number;
@@ -42,6 +50,7 @@ export interface CalculationResult {
   quantity: number;
   materialCostTotal: number;
   laborCostTotal: number;
+  machineCostTotal: number;
   overheadTotal: number;
   costTotal: number;
   salePriceTotal: number;
@@ -61,15 +70,20 @@ export function maskCalculationResult(
   const canSeeSale = userPermissions.includes(PERMISSIONS.PRICE_SALE_READ);
   const canSeeMargin = userPermissions.includes(PERMISSIONS.PRICE_MARGIN_READ);
 
-  const masked: Partial<CalculationResult> = { quantity: result.quantity };
+  const masked: Partial<CalculationResult> = {
+    quantity: result.quantity,
+    laborMinutesPerUnit: result.laborMinutesPerUnit,
+  };
 
   if (canSeePurchase) {
     masked.materialCostPerUnit = result.materialCostPerUnit;
     masked.laborCostPerUnit = result.laborCostPerUnit;
+    masked.machineCostPerUnit = result.machineCostPerUnit;
     masked.overheadPerUnit = result.overheadPerUnit;
     masked.costPerUnit = result.costPerUnit;
     masked.materialCostTotal = result.materialCostTotal;
     masked.laborCostTotal = result.laborCostTotal;
+    masked.machineCostTotal = result.machineCostTotal;
     masked.overheadTotal = result.overheadTotal;
     masked.costTotal = result.costTotal;
   }

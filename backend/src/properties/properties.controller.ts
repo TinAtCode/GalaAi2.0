@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -6,7 +6,7 @@ import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { PropertiesService } from './properties.service';
-import { CreatePropertyDto } from './dto/create-property.dto';
+import { CreatePropertyDto, UpdatePropertyDto } from './dto/create-property.dto';
 
 @Controller('properties')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -29,5 +29,11 @@ export class PropertiesController {
   @RequirePermissions(PERMISSIONS.CUSTOMER_WRITE)
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreatePropertyDto) {
     return this.propertiesService.create(user.companyId, dto);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_WRITE)
+  update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdatePropertyDto) {
+    return this.propertiesService.update(user.companyId, id, dto);
   }
 }

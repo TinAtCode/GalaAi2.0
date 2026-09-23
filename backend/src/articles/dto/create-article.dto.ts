@@ -1,4 +1,5 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
 
 export class CreateArticleDto {
   @IsString()
@@ -14,13 +15,17 @@ export class CreateArticleDto {
 
   @IsNumber()
   @Min(0)
+  @Max(99_999_999.99)
   purchasePrice!: number;
 
   @IsNumber()
   @Min(0)
+  @Max(99_999_999.99)
   salePrice!: number;
 
   @IsOptional()
   @IsBoolean()
   active?: boolean;
 }
+
+export class UpdateArticleDto extends PartialType(CreateArticleDto) {}

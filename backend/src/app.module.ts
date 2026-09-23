@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { requestRateLimit, UserThrottlerGuard } from './common/user-throttler.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
@@ -26,13 +27,25 @@ import { AiGatewayModule } from './ai-gateway/ai-gateway.module';
 import { MaterialUsageModule } from './material-usage/material-usage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
+import { MetricsModule } from './metrics/metrics.module';
+import { DatevModule } from './datev/datev.module';
+import { BankModule } from './bank/bank.module';
+import { UsersModule } from './users/users.module';
+import { InvoicesModule } from './invoices/invoices.module';
+import { AuditLogModule } from './audit-log/audit-log.module';
+import { MailModule } from './mail/mail.module';
+import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
 
 @Module({
   imports: [
-    // Globales Rate-Limiting (Punkt 38: "sichere API"). 100 Anfragen/Minute
-    // pro IP als vernünftiger Standard; der Login-Endpunkt bekommt zusätzlich
-    // ein engeres eigenes Limit (siehe AuthController) gegen Brute-Force.
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    // Globales Rate-Limiting (Punkt 38: "sichere API"): 300 Anfragen/Minute je
+    // angemeldetem Nutzer bzw. je IP für Anonyme (common/user-throttler.guard.ts);
+    // der Login bekommt zusätzlich eigene, engere Grenzen gegen Brute-Force
+    // (siehe auth/login-throttle.ts).
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60000, limit: requestRateLimit },
+      LOGIN_ACCOUNT_THROTTLER,
+    ]),
     PrismaModule,
     AuthModule,
     CustomersModule,
@@ -58,7 +71,14 @@ import { HealthModule } from './health/health.module';
     MaterialUsageModule,
     OcrModule,
     HealthModule,
+    MetricsModule,
+    DatevModule,
+    BankModule,
+    UsersModule,
+    InvoicesModule,
+    AuditLogModule,
+    MailModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [{ provide: APP_GUARD, useClass: UserThrottlerGuard }],
 })
 export class AppModule {}
