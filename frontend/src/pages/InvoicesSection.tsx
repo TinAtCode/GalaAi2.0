@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { formatEuro } from '../format';
 
@@ -11,7 +11,45 @@ interface Invoice {
   issueDate: string | null;
   totalNet: string;
   totalGross: string;
+  payments?: Payment[];
 }
+
+interface Payment {
+  id: string;
+  amount: string;
+  paidOn: string;
+  method: 'bank' | 'cash' | 'other';
+  note: string | null;
+}
+
+const METHOD_LABELS: Record<Payment['method'], string> = {
+  bank: 'Überweisung',
+  cash: 'bar',
+  other: 'sonstige',
+};
+
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// Bezahlt und offen einer ausgestellten Rechnung (in Cent gerechnet)
+function paymentState(invoice: Invoice) {
+  const cents = (v: string) => Math.round(Number(v) * 100);
+  const paid = (invoice.payments ?? []).reduce((sum, p) => sum + cents(p.amount), 0);
+  return { paid: paid / 100, open: (cents(invoice.totalGross) - paid) / 100 };
+}
+
+// "3.570,50", "3570,50" und "1.500" (Tausenderpunkt) -> deutsche Schreibweise;
+// "3570.50" (Punkt als Dezimaltrenner) bleibt 3570.5
+const parseAmount = (input: string) => {
+  const value = input.trim();
+  const germanThousands = /^\d{1,3}(\.\d{3})+$/.test(value);
+  return Number(value.includes(',') || germanThousands ? value.replace(/\./g, '').replace(',', '.') : value);
+};
+
+const payable = (invoice: Invoice) =>
+  invoice.status === 'issued' && invoice.kind !== 'cancellation' && Number(invoice.totalGross) > 0;
 
 const KIND_LABELS: Record<Invoice['kind'], string> = {
   partial: 'Abschlagsrechnung',
@@ -33,6 +71,9 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Zahlungsformular: für welche Rechnung, mit welchen Eingaben
+  const [paymentFor, setPaymentFor] = useState<string | null>(null);
+  const [payment, setPayment] = useState({ amount: '', paidOn: todayIso(), method: 'bank' });
 
   const load = useCallback(
     () =>
@@ -60,6 +101,27 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
     } finally {
       setBusy(false);
     }
+  };
+
+  const openPaymentForm = (invoice: Invoice) => {
+    setPaymentFor(invoice.id);
+    setPayment({
+      amount: paymentState(invoice).open.toFixed(2).replace('.', ','),
+      paidOn: todayIso(),
+      method: 'bank',
+    });
+  };
+
+  const recordPayment = (event: FormEvent, invoice: Invoice) => {
+    event.preventDefault();
+    run(async () => {
+      await api.post(`/invoices/${invoice.id}/payments`, {
+        amount: parseAmount(payment.amount),
+        paidOn: payment.paidOn,
+        method: payment.method,
+      });
+      setPaymentFor(null);
+    });
   };
 
   const createPartial = (orderId: string) => {
@@ -132,7 +194,84 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
             <div className="list-item-meta">
               {formatEuro(invoice.totalGross)} brutto
               {invoice.issueDate ? ` · vom ${new Date(invoice.issueDate).toLocaleDateString('de-DE')}` : ''}
+              {payable(invoice) && (
+                <span data-testid="invoice-open">
+                  {paymentState(invoice).open <= 0
+                    ? ' · bezahlt'
+                    : ` · offen ${formatEuro(paymentState(invoice).open)}`}
+                </span>
+              )}
             </div>
+            {(invoice.payments ?? []).map((p) => (
+              <div key={p.id} className="list-item-meta" data-testid="invoice-payment-entry">
+                Zahlung {formatEuro(p.amount)} am {new Date(p.paidOn).toLocaleDateString('de-DE')} (
+                {METHOD_LABELS[p.method]}){' '}
+                <button
+                  className="btn"
+                  style={{ padding: '0 6px', fontSize: '0.8rem' }}
+                  disabled={busy}
+                  onClick={() => {
+                    if (window.confirm('Diese Zahlung löschen (Korrektur)?')) {
+                      run(() => api.delete(`/invoices/${invoice.id}/payments/${p.id}`));
+                    }
+                  }}
+                  data-testid="invoice-payment-delete"
+                >
+                  Löschen
+                </button>
+              </div>
+            ))}
+            {paymentFor === invoice.id && (
+              <form
+                onSubmit={(e) => recordPayment(e, invoice)}
+                style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 8 }}
+                data-testid="payment-form"
+              >
+                <label className="field" style={{ maxWidth: 140 }}>
+                  <span>Betrag (€)</span>
+                  <input
+                    value={payment.amount}
+                    onChange={(e) => setPayment({ ...payment, amount: e.target.value })}
+                    inputMode="decimal"
+                    required
+                    data-testid="payment-amount"
+                  />
+                </label>
+                <label className="field">
+                  <span>Eingang am</span>
+                  <input
+                    type="date"
+                    value={payment.paidOn}
+                    onChange={(e) => setPayment({ ...payment, paidOn: e.target.value })}
+                    required
+                    data-testid="payment-date"
+                  />
+                </label>
+                <label className="field">
+                  <span>Art</span>
+                  <select
+                    value={payment.method}
+                    onChange={(e) => setPayment({ ...payment, method: e.target.value })}
+                    data-testid="payment-method"
+                  >
+                    <option value="bank">Überweisung</option>
+                    <option value="cash">bar</option>
+                    <option value="other">sonstige</option>
+                  </select>
+                </label>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={busy}
+                  data-testid="payment-submit"
+                >
+                  Buchen
+                </button>
+                <button type="button" className="btn" onClick={() => setPaymentFor(null)}>
+                  Abbrechen
+                </button>
+              </form>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span
@@ -189,6 +328,16 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
                 data-testid="invoice-send"
               >
                 Per E-Mail
+              </button>
+            )}
+            {payable(invoice) && paymentState(invoice).open > 0 && paymentFor !== invoice.id && (
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => openPaymentForm(invoice)}
+                data-testid="invoice-payment"
+              >
+                Zahlung
               </button>
             )}
             {invoice.status === 'issued' && invoice.kind !== 'cancellation' && (

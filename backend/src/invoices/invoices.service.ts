@@ -38,7 +38,10 @@ export class InvoicesService {
   findAllForProject(companyId: string, projectId: string) {
     return this.prisma.invoice.findMany({
       where: { companyId, projectId },
-      include: { lineItems: { orderBy: { position: 'asc' } } },
+      include: {
+        lineItems: { orderBy: { position: 'asc' } },
+        payments: { orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }] },
+      },
       orderBy: { createdAt: 'asc' },
     });
   }

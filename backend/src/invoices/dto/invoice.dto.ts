@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -67,4 +68,25 @@ export class SendInvoiceDto {
   @IsOptional()
   @IsBoolean()
   withXRechnung?: boolean;
+}
+
+// Zahlungseingang zu einer ausgestellten Rechnung
+export class RecordPaymentDto {
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(99_999_999.99)
+  amount!: number;
+
+  // Tag des Zahlungseingangs, z.B. 2026-09-23
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'paidOn als Datum angeben, z.B. 2026-09-23.' })
+  paidOn!: string;
+
+  @IsOptional()
+  @IsIn(['bank', 'cash', 'other'])
+  method?: 'bank' | 'cash' | 'other';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }

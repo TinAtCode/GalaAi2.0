@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { writeAudit } from '../common/audit';
-import { dayRangeInZone, parseDayParam } from '../common/time-zone';
+import { addCalendarDays, dayRangeInZone, localDayString, parseDayParam } from '../common/time-zone';
 import { allocateDebtorNumber } from '../customers/debtor-number';
 import { buildBuchungsstapel, ExtfBooking } from './extf-writer';
 import { revenueAccountFor, revenueAccounts } from './revenue-accounts';
@@ -102,7 +102,10 @@ export class DatevService {
         const seller = (invoice.sellerSnapshot ?? {}) as { paymentTermDays?: number };
         const issueDate = invoice.issueDate!;
         const termDays = seller.paymentTermDays ?? company.paymentTermDays;
-        const due = new Date(issueDate.getTime() + termDays * 24 * 3600 * 1000);
+        // Fälligkeit in Kalendertagen (TTMMJJJJ)
+        const [dueYear, dueMonth, dueDay] = addCalendarDays(localDayString(issueDate, tz), termDays).split(
+          '-',
+        );
         bookings.push({
           amount: invoice.totalGross.abs(),
           side: invoice.totalGross.isNegative() ? 'H' : 'S',
@@ -112,7 +115,7 @@ export class DatevService {
           documentNumber: invoice.number!,
           text: `${KIND_LABELS[invoice.kind]} ${buyer.name ?? customer.name}`,
           serviceDate: ddmmyyyy(invoice.servicePeriodEnd ?? issueDate, tz),
-          ...(invoice.kind !== 'cancellation' ? { dueDate: ddmmyyyy(due, tz) } : {}),
+          ...(invoice.kind !== 'cancellation' ? { dueDate: `${dueDay}${dueMonth}${dueYear}` } : {}),
         });
       }
 

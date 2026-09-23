@@ -105,6 +105,6 @@ Bereits behoben (Commits auf dem Branch):
 | **2. Benutzbarkeit** ✅ | Benutzerverwaltung mit Passwort-Reset · Bearbeiten und Archivieren für alle Stammdaten · Korrektur von Zeiteinträgen mit Audit-Log · seitenweises Laden · 401-Behandlung im Frontend. **Stand:** erledigt, inklusive der Bearbeiten-Masken im Frontend |
 | **3. Kernablauf schließen** ✅ | Angebotsnummer · Umsatzsteuer · Angebots-PDF · **Rechnungen** (Abschlag und Schluss) mit Blick auf die E-Rechnung. **Stand:** erledigt, inklusive PDF und E-Rechnung (XRechnung) |
 | **4. Kalkulation vervollständigen** ✅ | Maschinen · Rundung pro Gesamtposition · Nachkalkulation auf Basis des eingefrorenen Angebots |
-| **5. Erst danach ausbauen** | Mobile App mit Offline-Sync · KI · Schnittstellen (DATEV, GAEB, DATANORM). **Stand:** DATEV-Export der Ausgangsrechnungen (Buchungsstapel EXTF) umgesetzt; offen sind Mobile App, GAEB und DATANORM |
+| **5. Erst danach ausbauen** | Mobile App mit Offline-Sync · KI · Schnittstellen (DATEV, GAEB, DATANORM). **Stand:** DATEV-Export der Ausgangsrechnungen (Buchungsstapel EXTF), Zahlungseingänge und offene Posten, freie Angebotspositionen und Bearbeiten von Entwürfen umgesetzt; offen sind Mobile App, GAEB, DATANORM und Mahnwesen |
 
 Den Bereich OCR, KI und Datenwächter würde ich einfrieren, bis Schritt 3 steht. Er ist gut gebaut, bringt einem Betrieb aber nichts, solange er keine Rechnung schreiben kann.

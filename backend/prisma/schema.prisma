@@ -81,6 +81,7 @@ model Company {
   numberSequences NumberSequence[]
   invoices        Invoice[]
   ocrJobs         OcrJob[]
+  invoicePayments InvoicePayment[]
 }
 
 // ─────────────────────────────────────────────
@@ -651,6 +652,7 @@ model Invoice {
   createdAt DateTime @default(now())
 
   lineItems InvoiceLineItem[]
+  payments  InvoicePayment[]
 
   @@unique([companyId, number])
   @@index([companyId])
@@ -670,4 +672,30 @@ model InvoiceLineItem {
   lineTotal   Decimal @db.Decimal(12, 2)
 
   @@index([invoiceId])
+}
+
+// Zahlungseingang zu einer ausgestellten Rechnung. Die Rechnung selbst bleibt
+// unverändert (GoBD); offen ist Bruttobetrag minus Summe der Zahlungen.
+// Korrekturen durch Löschen der Zahlung (im Audit-Log festgehalten).
+model InvoicePayment {
+  id              String        @id @default(uuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+  invoiceId       String
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id])
+  amount          Decimal       @db.Decimal(12, 2)
+  paidOn          DateTime      @db.Date
+  method          PaymentMethod @default(bank)
+  note            String?
+  createdByUserId String?
+  createdAt       DateTime      @default(now())
+
+  @@index([companyId])
+  @@index([invoiceId])
+}
+
+enum PaymentMethod {
+  bank
+  cash
+  other
 }

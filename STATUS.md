@@ -240,6 +240,15 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   prüft mit veraPDF (PDF/A-3b) und dem Mustang-Validator (ZUGFeRD samt XML gegen EN 16931 und XRechnung);
   die CI prüft damit alle in den Tests erzeugten PDFs.
 
+- **Nachtrag – Zahlungen und offene Posten**: Zahlungseingänge werden an der ausgestellten Rechnung
+  erfasst (`POST /invoices/:id/payments`: Betrag, Eingangstag, Art Überweisung/bar/sonstige, Notiz;
+  Korrektur per `DELETE`), eigene Tabelle `InvoicePayment` – die Rechnung selbst bleibt unverändert.
+  Keine Überzahlung, keine Zahlungen auf Entwürfe, Stornos und stornierte Rechnungen; gleichzeitige
+  Zahlungen und ein gleichzeitiges Storno werden über Sperren serialisiert. `GET /open-items` bzw. die Seite
+  „Offene Posten“ zeigt alle Rechnungen mit Restbetrag, Fälligkeit (Rechnungsdatum + Zahlungsziel in
+  Kalendertagen der Firmen-Zeitzone) und Tagen im Verzug. Jede Zahlung und Korrektur steht im Audit-Log.
+  Noch nicht: Mahnungen, Zahlungsbuchungen im DATEV-Export, Bankabgleich.
+
 - **Nachtrag – Freie Angebotspositionen**: Neben Leistungen aus dem Katalog kann ein Angebot freie
   Positionen enthalten (Text, Einheit, Menge, Preis je Einheit, optional Kosten je Einheit für die
   Marge) – z.B. Pauschalen oder Einzelleistungen. Beides gemischt in einer Position lehnt die API ab.

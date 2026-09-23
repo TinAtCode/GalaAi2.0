@@ -78,3 +78,31 @@ export function parseDayParam(value?: string): Date {
   }
   return parsed;
 }
+
+// Kalendertag (JJJJ-MM-TT) eines Zeitpunkts in der Zeitzone der Firma
+export function localDayString(instant: Date, timeZone: string): string {
+  const { year, month, day } = calendarDateInZone(instant, timeZone);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+// Kalendertag plus n Tage – in Kalendertagen, nicht in 24-Stunden-Blöcken
+// (sonst verschiebt eine Zeitumstellung das Ergebnis um einen Tag).
+export function addCalendarDays(day: string, days: number): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+// Abstand zweier Kalendertage in Tagen (b - a)
+export function calendarDaysBetween(a: string, b: string): number {
+  const toUtc = (day: string) => {
+    const [y, m, d] = day.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((toUtc(b) - toUtc(a)) / 86_400_000);
+}
+
+// Echtes Kalenderdatum im Format JJJJ-MM-TT (kein 30. Februar)?
+export function isValidDay(day: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  return addCalendarDays(day, 0) === day;
+}

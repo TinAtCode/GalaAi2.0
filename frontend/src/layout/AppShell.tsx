@@ -7,6 +7,14 @@ const NAV_ITEMS = [
   { to: '/kunden', label: 'Kunden', icon: '👤', testId: 'nav-customers' },
   { to: '/kalkulation', label: 'Kalkulation', icon: '🧮', testId: 'nav-calculation' },
   { to: '/stammdaten', label: 'Stammdaten', icon: '📦', testId: 'nav-masterdata' },
+  // Rechnungen und Zahlungen: nur mit invoice.create
+  {
+    to: '/offene-posten',
+    label: 'Offene Posten',
+    icon: '€',
+    permission: 'invoice.create',
+    testId: 'nav-open-items',
+  },
   // Nur sichtbar mit employee.data.read (Vorgesetzte/Büro) – dieselbe
   // Berechtigung, die das Backend für diese Daten verlangt.
   { to: '/team', label: 'Team', icon: '🧑‍🤝‍🧑', permission: 'employee.data.read', testId: 'nav-team' },

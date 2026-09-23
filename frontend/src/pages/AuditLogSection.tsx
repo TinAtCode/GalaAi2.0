@@ -34,6 +34,8 @@ const ACTION_LABELS: Record<string, string> = {
   role_permissions: 'Rechte einer Rolle geändert',
   ai_completion: 'KI-Anfrage',
   datev_export: 'DATEV-Export',
+  invoice_payment: 'Zahlung erfasst',
+  invoice_payment_delete: 'Zahlung gelöscht',
 };
 
 const FILTERS: { value: string; label: string }[] = [
@@ -73,6 +75,9 @@ const FIELD_LABELS: Record<string, string> = {
   to: 'An',
   attachments: 'Anhänge',
   from: 'Von',
+  amount: 'Betrag',
+  paidOn: 'Eingang am',
+  method: 'Art',
 };
 
 const VALUE_LABELS: Record<string, string> = {
@@ -87,6 +92,9 @@ const VALUE_LABELS: Record<string, string> = {
   done: 'Fertig',
   cancelled: 'Storniert',
   completed: 'Abgeschlossen',
+  bank: 'Überweisung',
+  cash: 'bar',
+  other: 'sonstige',
 };
 
 // Interne Schlüssel (roleId, prompt …) werden nicht angezeigt.
