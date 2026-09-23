@@ -24,6 +24,7 @@ export const TENANT_MODELS = new Set([
   'AuditLog',
   'NumberSequence',
   'Invoice',
+  'OcrJob',
 ]);
 
 const GUARDED_ACTIONS = new Set([

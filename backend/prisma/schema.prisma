@@ -72,6 +72,7 @@ model Company {
   materialUsages  ProjectMaterialUsage[]
   numberSequences NumberSequence[]
   invoices        Invoice[]
+  ocrJobs         OcrJob[]
 }
 
 // ─────────────────────────────────────────────
@@ -553,6 +554,29 @@ model NumberSequence {
 // ─────────────────────────────────────────────
 
 // Umsatzsteuerliche Behandlung eines Angebots bzw. einer Rechnung
+// Texterkennung im Hintergrund (siehe ocr/ocr-queue.ts)
+enum OcrJobStatus {
+  queued
+  running
+  done
+  failed
+}
+
+model OcrJob {
+  id         String       @id @default(uuid())
+  companyId  String
+  company    Company      @relation(fields: [companyId], references: [id])
+  userId     String?
+  fileName   String
+  status     OcrJobStatus @default(queued)
+  result     Json?
+  error      String?
+  createdAt  DateTime     @default(now())
+  finishedAt DateTime?
+
+  @@index([companyId, createdAt])
+}
+
 enum VatTreatment {
   standard // mit Umsatzsteuer
   small_business // Kleinunternehmer, § 19 UStG: keine Umsatzsteuer

@@ -87,7 +87,7 @@ Diese Punkte sind im Code gefunden, aber nicht einzeln durch Tests bestätigt.
   - ✅ War: das Token lag im `localStorage` (bei einer XSS-Lücke auslesbar). Jetzt steckt die Browser-Sitzung in einem httpOnly-Cookie (`SameSite=Lax`, in Produktion `Secure`), dazu CSRF-Schutz über `X-Requested-With` und CORS nur für die eigenen Frontends. API-Clients nutzen weiter den Bearer-Header.
   - ✅ Nebenbei gefunden: das allgemeine Anfrage-Limit (100/Minute) galt je IP – ein ganzes Büro hinter einem Router teilte sich ein Kontingent. Jetzt 300/Minute je angemeldetem Nutzer, anonym je IP.
 - ✅ **Kein Logging:** Es gab kein strukturiertes Logging und kein Monitoring. **Stand:** mit `LOG_FORMAT=json` eine JSON-Zeile pro Ereignis; je Anfrage Methode, Pfad (ohne Query), Status, Dauer, Nutzer und Request-ID (`X-Request-Id`, auch in der Antwort); unerwartete Fehler mit Stacktrace. Nie Bodies, Cookies oder Tokens. Offen: Metriken/Alarmierung (z.B. Prometheus) – das hängt vom Betrieb ab. (Echte Migrationen sind inzwischen angelegt ✅.)
-- **OCR im Server-Prozess:** Die Texterkennung läuft direkt im API-Prozess. Einige große Scans gleichzeitig blockieren dann den ganzen Server. Das gehört in eine Hintergrund-Warteschlange.
+- ✅ **OCR im Server-Prozess:** Die Texterkennung lief direkt im API-Prozess; einige große Scans gleichzeitig blockierten den ganzen Server. **Stand:** Warteschlange mit begrenzter Parallelität (`OCR_CONCURRENCY`, Standard 2) für alle OCR-Aufrufe; `POST /ocr/jobs` nimmt die Datei sofort an (202), das Ergebnis kommt über `GET /ocr/jobs/:id`. Offen: bei mehreren Server-Instanzen eine gemeinsame Warteschlange (z.B. Redis/BullMQ) und Ablage der Dateien im Objektspeicher.
 
 Bereits behoben (Commits auf dem Branch):
 
