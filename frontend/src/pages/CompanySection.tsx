@@ -14,6 +14,7 @@ interface CompanySettings {
   iban: string | null;
   bic: string | null;
   paymentTermDays: number;
+  dunningDeadlineDays: number;
   smallBusiness: boolean;
   defaultVatRate: string | number;
 }
@@ -54,6 +55,7 @@ export function CompanySection() {
             ...Object.fromEntries(FIELDS.map((f) => [f.key, String(settings[f.key] ?? '')])),
             defaultVatRate: String(Number(settings.defaultVatRate)),
             paymentTermDays: String(settings.paymentTermDays),
+            dunningDeadlineDays: String(settings.dunningDeadlineDays),
           };
         });
       })
@@ -71,6 +73,7 @@ export function CompanySection() {
       }
       body.defaultVatRate = Number((form?.defaultVatRate ?? '19').replace(',', '.'));
       body.paymentTermDays = Number(form?.paymentTermDays ?? '14');
+      body.dunningDeadlineDays = Number(form?.dunningDeadlineDays ?? '7');
       body.smallBusiness = smallBusiness;
       await api.patch('/company/settings', body);
       setMessage({ ok: true, text: 'Firmendaten gespeichert.' });
@@ -118,6 +121,15 @@ export function CompanySection() {
               onChange={(e) => setForm({ ...form, paymentTermDays: e.target.value })}
               inputMode="numeric"
               data-testid="company-paymentTermDays"
+            />
+          </label>
+          <label className="field">
+            <span>Frist in Mahnungen (Tage)</span>
+            <input
+              value={form.dunningDeadlineDays ?? ''}
+              onChange={(e) => setForm({ ...form, dunningDeadlineDays: e.target.value })}
+              inputMode="numeric"
+              data-testid="company-dunningDeadlineDays"
             />
           </label>
           <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

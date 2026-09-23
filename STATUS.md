@@ -247,7 +247,16 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Zahlungen und ein gleichzeitiges Storno werden über Sperren serialisiert. `GET /open-items` bzw. die Seite
   „Offene Posten“ zeigt alle Rechnungen mit Restbetrag, Fälligkeit (Rechnungsdatum + Zahlungsziel in
   Kalendertagen der Firmen-Zeitzone) und Tagen im Verzug. Jede Zahlung und Korrektur steht im Audit-Log.
-  Noch nicht: Mahnungen, Zahlungsbuchungen im DATEV-Export, Bankabgleich.
+  Noch nicht: Zahlungsbuchungen im DATEV-Export, Bankabgleich.
+
+- **Nachtrag – Mahnwesen**: Aus den offenen Posten heraus Zahlungserinnerung, 1. und 2. Mahnung
+  (`POST /invoices/:id/dunning`, Tabelle `DunningNotice`). Nur für überfällige, offene Rechnungen; die
+  nächste Stufe erst nach Ablauf der Frist der vorigen; neue Frist = Mahndatum + Einstellung „Frist in
+  Mahnungen“ (Standard 7 Tage). Offener Betrag und Frist werden beim Erstellen festgehalten. PDF/A im
+  Layout der Rechnung (`GET …/dunning/:id/pdf`) mit Tabelle Betrag/bezahlt/offen und Bankverbindung;
+  Versand per E-Mail (`POST …/dunning/:id/send`) nur für die neueste, noch gültige Mahnung – nicht nach
+  einer Zahlung, nach Ablauf der Frist oder bei stornierter Rechnung. Erstellen und Versand im Audit-Log.
+  Bewusst noch nicht: Mahngebühren und Verzugszinsen (eigene Forderung neben der Rechnung).
 
 - **Nachtrag – Freie Angebotspositionen**: Neben Leistungen aus dem Katalog kann ein Angebot freie
   Positionen enthalten (Text, Einheit, Menge, Preis je Einheit, optional Kosten je Einheit für die

@@ -90,3 +90,15 @@ export class RecordPaymentDto {
   @MaxLength(500)
   note?: string;
 }
+
+// Mahnung per E-Mail; ohne Angabe an die E-Mail-Adresse des Kunden
+export class SendDunningDto {
+  @IsOptional()
+  @IsEmail()
+  to?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  message?: string;
+}

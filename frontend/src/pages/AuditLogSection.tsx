@@ -36,6 +36,8 @@ const ACTION_LABELS: Record<string, string> = {
   datev_export: 'DATEV-Export',
   invoice_payment: 'Zahlung erfasst',
   invoice_payment_delete: 'Zahlung gelöscht',
+  dunning_create: 'Mahnung erstellt',
+  dunning_send: 'Mahnung per E-Mail versendet',
 };
 
 const FILTERS: { value: string; label: string }[] = [
@@ -77,6 +79,10 @@ const FIELD_LABELS: Record<string, string> = {
   from: 'Von',
   amount: 'Betrag',
   paidOn: 'Eingang am',
+  level: 'Mahnstufe',
+  deadline: 'Frist',
+  openAmount: 'Offener Betrag',
+  title: 'Schreiben',
   method: 'Art',
 };
 

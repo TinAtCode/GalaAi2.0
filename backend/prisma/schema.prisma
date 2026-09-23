@@ -59,6 +59,9 @@ model Company {
   // "smallBusiness": 8195, "reverseCharge": 8337}; fehlende Einträge = Standard
   datevRevenueAccounts  Json?
 
+  // Mahnwesen: neue Zahlungsfrist in Tagen ab dem Mahndatum
+  dunningDeadlineDays Int @default(7)
+
   users     User[]
   roles     Role[]
   customers Customer[]
@@ -82,6 +85,7 @@ model Company {
   invoices        Invoice[]
   ocrJobs         OcrJob[]
   invoicePayments InvoicePayment[]
+  dunningNotices  DunningNotice[]
 }
 
 // ─────────────────────────────────────────────
@@ -651,8 +655,9 @@ model Invoice {
 
   createdAt DateTime @default(now())
 
-  lineItems InvoiceLineItem[]
-  payments  InvoicePayment[]
+  lineItems      InvoiceLineItem[]
+  payments       InvoicePayment[]
+  dunningNotices DunningNotice[]
 
   @@unique([companyId, number])
   @@index([companyId])
@@ -692,6 +697,28 @@ model InvoicePayment {
 
   @@index([companyId])
   @@index([invoiceId])
+}
+
+// Mahnung zu einer überfälligen Rechnung: Stufe 1 = Zahlungserinnerung,
+// 2 = 1. Mahnung, 3 = 2. Mahnung. Offener Betrag und Frist werden beim
+// Erstellen festgehalten (das PDF zeigt immer den Stand von damals).
+model DunningNotice {
+  id              String    @id @default(uuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  invoiceId       String
+  invoice         Invoice   @relation(fields: [invoiceId], references: [id])
+  level           Int
+  issuedOn        DateTime  @db.Date
+  deadline        DateTime  @db.Date
+  openAmount      Decimal   @db.Decimal(12, 2)
+  createdByUserId String?
+  sentAt          DateTime?
+  sentTo          String?
+  createdAt       DateTime  @default(now())
+
+  @@unique([invoiceId, level])
+  @@index([companyId])
 }
 
 enum PaymentMethod {

@@ -1,7 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { formatEuro } from '../format';
+
+interface DunningNotice {
+  id: string;
+  level: number;
+  issuedOn: string; // JJJJ-MM-TT
+  deadline: string;
+  sentAt: string | null;
+}
 
 interface OpenItem {
   invoiceId: string;
@@ -14,6 +22,10 @@ interface OpenItem {
   open: string;
   project: { id: string; title: string };
   customer: { id: string; name: string };
+  dunning: DunningNotice[];
+  // nächste mögliche Mahnstufe; null = derzeit keine (nicht überfällig,
+  // Frist der letzten Mahnung läuft noch oder letzte Stufe erreicht)
+  nextDunningLevel: number | null;
 }
 
 const KIND_LABELS: Record<OpenItem['kind'], string> = {
@@ -21,22 +33,69 @@ const KIND_LABELS: Record<OpenItem['kind'], string> = {
   final: 'Rechnung',
 };
 
-const day = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('de-DE');
+const DUNNING_TITLES: Record<number, string> = {
+  1: 'Zahlungserinnerung',
+  2: '1. Mahnung',
+  3: '2. Mahnung',
+};
+
+// JJJJ-MM-TT -> TT.MM.JJJJ (wie in den PDFs, unabhängig vom Browser)
+const day = (iso: string) => iso.slice(0, 10).split('-').reverse().join('.');
 
 // Offene Posten: ausgestellte Rechnungen, die noch nicht (vollständig)
 // bezahlt sind – älteste Fälligkeit zuerst, Überfälliges hervorgehoben.
+// Von hier aus wird gemahnt: Zahlungserinnerung, 1. und 2. Mahnung.
 export function OpenItemsPage() {
   const [items, setItems] = useState<OpenItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(
+    () =>
+      api
+        .get<OpenItem[]>('/open-items')
+        .then(setItems)
+        .catch((err) =>
+          setError(err instanceof ApiError ? err.message : 'Offene Posten konnten nicht geladen werden.'),
+        ),
+    [],
+  );
 
   useEffect(() => {
-    api
-      .get<OpenItem[]>('/open-items')
-      .then(setItems)
-      .catch((err) =>
-        setError(err instanceof ApiError ? err.message : 'Offene Posten konnten nicht geladen werden.'),
+    load();
+  }, [load]);
+
+  const run = async (action: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await action();
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Aktion fehlgeschlagen.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Mahnung per E-Mail; ohne Eingabe an die E-Mail-Adresse des Kunden
+  const sendDunning = (item: OpenItem, dunning: DunningNotice) => {
+    const title = DUNNING_TITLES[dunning.level];
+    const to = window.prompt(
+      `${title} zu ${item.number} per E-Mail senden an (leer = E-Mail des Kunden):`,
+      '',
+    );
+    if (to === null) return;
+    run(async () => {
+      const result = await api.post<{ to: string }>(
+        `/invoices/${item.invoiceId}/dunning/${dunning.id}/send`,
+        to.trim() ? { to: to.trim() } : {},
       );
-  }, []);
+      setNotice(`${title} zu ${item.number} an ${result.to} gesendet.`);
+    });
+  };
 
   const sum = (list: OpenItem[]) => list.reduce((total, item) => total + Number(item.open), 0);
   const overdue = items?.filter((i) => i.daysOverdue > 0) ?? [];
@@ -47,6 +106,11 @@ export function OpenItemsPage() {
         <h2>Offene Posten</h2>
       </header>
       {error && <p className="field-error">{error}</p>}
+      {notice && (
+        <p className="list-item-meta" data-testid="open-items-notice">
+          {notice}
+        </p>
+      )}
       {items === null && !error && <p>Lädt …</p>}
       {items && (
         <p className="list-item-meta" data-testid="open-items-summary">
@@ -77,6 +141,33 @@ export function OpenItemsPage() {
               {Number(item.paid) > 0 &&
                 ` · bezahlt ${formatEuro(item.paid)} von ${formatEuro(item.totalGross)}`}
             </div>
+            {item.dunning.map((d, index) => (
+              <div key={d.id} className="list-item-meta" data-testid="dunning-entry">
+                {DUNNING_TITLES[d.level]} vom {day(d.issuedOn)} · Frist {day(d.deadline)}
+                {d.sentAt ? ' · per E-Mail versendet' : ''}{' '}
+                <button
+                  className="btn"
+                  style={{ padding: '0 6px', fontSize: '0.8rem' }}
+                  disabled={busy}
+                  onClick={() => run(() => api.openFile(`/invoices/${item.invoiceId}/dunning/${d.id}/pdf`))}
+                  data-testid="dunning-pdf"
+                >
+                  PDF
+                </button>{' '}
+                {/* versendet wird nur die neueste Mahnung */}
+                {index === item.dunning.length - 1 && (
+                  <button
+                    className="btn"
+                    style={{ padding: '0 6px', fontSize: '0.8rem' }}
+                    disabled={busy}
+                    onClick={() => sendDunning(item, d)}
+                    data-testid="dunning-send"
+                  >
+                    Per E-Mail
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <strong data-testid="open-item-amount">{formatEuro(item.open)}</strong>
@@ -84,6 +175,16 @@ export function OpenItemsPage() {
               <span className="status-badge status-cancelled" data-testid="open-item-overdue">
                 {item.daysOverdue} Tag{item.daysOverdue === 1 ? '' : 'e'} überfällig
               </span>
+            )}
+            {item.nextDunningLevel && (
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() => run(() => api.post(`/invoices/${item.invoiceId}/dunning`))}
+                data-testid="dunning-create"
+              >
+                {DUNNING_TITLES[item.nextDunningLevel]} erstellen
+              </button>
             )}
           </div>
         </div>

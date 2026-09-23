@@ -138,6 +138,12 @@ ausgestellten Rechnungen wählen und „Buchungsstapel herunterladen“. Die CSV
 in DATEV Rechnungswesen über Stapelverarbeitung → ASCII-Import einlesen. Die Debitorennummer eines
 Kunden steht auf der Kundenseite und kann dort geändert werden.
 
+**Zahlungen und Mahnungen testen:** Am Projekt an einer ausgestellten Rechnung „Zahlung“ wählen und einen
+Teilbetrag buchen; unter „Offene Posten“ erscheint der Rest mit Fälligkeit. Mahnen lässt sich erst eine
+überfällige Rechnung (Rechnungsdatum + Zahlungsziel überschritten) – zum Ausprobieren das Zahlungsziel in
+den Firmendaten auf 0 Tage setzen und eine Rechnung vom Vortag nehmen. Dann „Zahlungserinnerung erstellen“,
+PDF öffnen, per E-Mail senden; die nächste Stufe gibt es nach Ablauf der Frist.
+
 **PDF/A und ZUGFeRD prüfen:** `backend/scripts/validate-pdfa.sh <Ordner>` prüft alle PDFs eines Ordners
 mit veraPDF auf PDF/A-3b und PDFs mit eingebetteter `factur-x.xml` zusätzlich mit dem Mustang-Validator
 als ZUGFeRD-Rechnung (braucht Java und Maven; lädt beide Validatoren beim ersten Aufruf). Beispieldateien

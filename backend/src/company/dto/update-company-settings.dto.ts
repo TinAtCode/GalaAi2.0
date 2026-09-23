@@ -170,6 +170,13 @@ export class UpdateCompanySettingsDto {
   @Max(99_999)
   datevClientNumber?: number;
 
+  // Mahnwesen: neue Zahlungsfrist in Tagen ab dem Mahndatum
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  dunningDeadlineDays?: number;
+
   @IsOptional()
   @IsIn(['SKR03', 'SKR04'])
   datevChartOfAccounts?: 'SKR03' | 'SKR04';

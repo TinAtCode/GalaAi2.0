@@ -26,6 +26,7 @@ export const TENANT_MODELS = new Set([
   'Invoice',
   'OcrJob',
   'InvoicePayment',
+  'DunningNotice',
 ]);
 
 const GUARDED_ACTIONS = new Set([

@@ -6,6 +6,25 @@ import { writeAudit } from '../common/audit';
 import { addCalendarDays, calendarDaysBetween, isValidDay, localDayString } from '../common/time-zone';
 import { RecordPaymentDto } from './dto/invoice.dto';
 
+// Summe der Zahlungen einer Rechnung
+export const paidAmount = (payments: { amount: Prisma.Decimal }[]) =>
+  payments.reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
+
+// Fälligkeit (JJJJ-MM-TT): Rechnungsdatum + Zahlungsziel in Kalendertagen der
+// Firmen-Zeitzone. Das Zahlungsziel stammt aus dem Stand beim Ausstellen.
+export function invoiceDueDay(
+  invoice: { issueDate: Date | null; sellerSnapshot: Prisma.JsonValue | null },
+  company: { timeZone: string; paymentTermDays: number },
+) {
+  const termDays =
+    (invoice.sellerSnapshot as { paymentTermDays?: number } | null)?.paymentTermDays ??
+    company.paymentTermDays;
+  return addCalendarDays(localDayString(invoice.issueDate!, company.timeZone), termDays);
+}
+
+// Höchste Mahnstufe: 1 Zahlungserinnerung, 2 1. Mahnung, 3 2. Mahnung
+export const MAX_DUNNING_LEVEL = 3;
+
 // Zahlungseingänge und offene Posten. Die Rechnung bleibt unverändert;
 // offen ist der Bruttobetrag abzüglich aller Zahlungen.
 @Injectable()
@@ -99,6 +118,7 @@ export class PaymentsService {
       where: { companyId, status: 'issued', kind: { not: 'cancellation' }, totalGross: { gt: 0 } },
       include: {
         payments: true,
+        dunningNotices: { orderBy: { level: 'asc' } },
         project: {
           select: {
             id: true,
@@ -111,19 +131,33 @@ export class PaymentsService {
     const today = localDayString(new Date(), tz);
     return invoices
       .map((invoice) => {
-        const paid = invoice.payments.reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
+        const paid = paidAmount(invoice.payments);
         const open = invoice.totalGross.minus(paid);
-        const termDays =
-          (invoice.sellerSnapshot as { paymentTermDays?: number } | null)?.paymentTermDays ??
-          company.paymentTermDays;
-        const dueDay = addCalendarDays(localDayString(invoice.issueDate!, tz), termDays);
+        const dueDay = invoiceDueDay(invoice, company);
+        const daysOverdue = Math.max(0, calendarDaysBetween(dueDay, today));
+        const last = invoice.dunningNotices.at(-1);
+        const lastDeadline = last ? last.deadline.toISOString().slice(0, 10) : null;
+        // Nächste Mahnstufe möglich: überfällig, Höchststufe nicht erreicht,
+        // Frist der letzten Mahnung abgelaufen
+        const canDun =
+          daysOverdue > 0 &&
+          (last?.level ?? 0) < MAX_DUNNING_LEVEL &&
+          (lastDeadline === null || lastDeadline < today);
         return {
           invoiceId: invoice.id,
           number: invoice.number,
           kind: invoice.kind,
           issueDate: invoice.issueDate,
           dueDate: dueDay,
-          daysOverdue: Math.max(0, calendarDaysBetween(dueDay, today)),
+          daysOverdue,
+          dunning: invoice.dunningNotices.map((n) => ({
+            id: n.id,
+            level: n.level,
+            issuedOn: n.issuedOn.toISOString().slice(0, 10),
+            deadline: n.deadline.toISOString().slice(0, 10),
+            sentAt: n.sentAt,
+          })),
+          nextDunningLevel: canDun ? (last?.level ?? 0) + 1 : null,
           totalGross: invoice.totalGross,
           paid,
           open,

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, StreamableFile, UseGuards } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
+import { DunningService } from './dunning.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -12,6 +13,7 @@ import {
   CreateInvoiceFromOrderDto,
   IssueInvoiceDto,
   RecordPaymentDto,
+  SendDunningDto,
   SendInvoiceDto,
 } from './dto/invoice.dto';
 
@@ -22,6 +24,7 @@ export class InvoicesController {
   constructor(
     private invoicesService: InvoicesService,
     private paymentsService: PaymentsService,
+    private dunningService: DunningService,
   ) {}
 
   @Get('by-project/:projectId')
@@ -94,6 +97,35 @@ export class InvoicesController {
     @Param('paymentId') paymentId: string,
   ) {
     return this.paymentsService.remove(user.companyId, user.userId, id, paymentId);
+  }
+
+  // Mahnwesen: nächste Mahnstufe anlegen, als PDF abrufen, per E-Mail senden
+  @Post(':id/dunning')
+  createDunning(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.dunningService.create(user.companyId, user.userId, id);
+  }
+
+  @Get(':id/dunning/:noticeId/pdf')
+  async dunningPdf(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('noticeId') noticeId: string,
+  ) {
+    const { buffer, fileName } = await this.dunningService.renderPdf(user.companyId, id, noticeId);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `inline; filename="${fileName}"`,
+    });
+  }
+
+  @Post(':id/dunning/:noticeId/send')
+  sendDunning(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('noticeId') noticeId: string,
+    @Body() dto: SendDunningDto,
+  ) {
+    return this.dunningService.send(user.companyId, user.userId, id, noticeId, dto);
   }
 }
 
