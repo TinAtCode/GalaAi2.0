@@ -22,7 +22,9 @@ const FIELDS: { key: keyof CompanySettings; label: string }[] = [
 
 // Firmendaten, die auf jeder Rechnung stehen müssen (§ 14 UStG).
 export function CompanySection() {
-  const [form, setForm] = useState<Record<string, string>>({});
+  // null = noch nicht geladen. Die Maske erscheint erst danach – sonst würde
+  // das Nachladen bereits getippte Eingaben überschreiben.
+  const [form, setForm] = useState<Record<string, string> | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -45,9 +47,9 @@ export function CompanySection() {
     try {
       const body: Record<string, string | number> = {};
       for (const field of FIELDS) {
-        if (form[field.key]?.trim()) body[field.key] = form[field.key].trim();
+        if (form?.[field.key]?.trim()) body[field.key] = form[field.key].trim();
       }
-      body.defaultVatRate = Number(form.defaultVatRate.replace(',', '.'));
+      body.defaultVatRate = Number((form?.defaultVatRate ?? '19').replace(',', '.'));
       await api.patch('/company/settings', body);
       setMessage({ ok: true, text: 'Firmendaten gespeichert.' });
     } catch (err) {
@@ -64,35 +66,38 @@ export function CompanySection() {
         Diese Angaben erscheinen auf jeder Rechnung. Ohne Anschrift und Steuernummer (oder USt-IdNr.) lässt
         sich keine Rechnung ausstellen.
       </p>
-      <form onSubmit={handleSubmit} className="login-form">
-        {FIELDS.map((field) => (
-          <label key={field.key} className="field">
-            <span>{field.label}</span>
+      {form === null && !message && <p>Lädt …</p>}
+      {form !== null && (
+        <form onSubmit={handleSubmit} className="login-form">
+          {FIELDS.map((field) => (
+            <label key={field.key} className="field">
+              <span>{field.label}</span>
+              <input
+                value={form[field.key] ?? ''}
+                onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+                data-testid={`company-${field.key}`}
+              />
+            </label>
+          ))}
+          <label className="field">
+            <span>Standard-Umsatzsteuersatz (%)</span>
             <input
-              value={form[field.key] ?? ''}
-              onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
-              data-testid={`company-${field.key}`}
+              value={form.defaultVatRate ?? ''}
+              onChange={(e) => setForm({ ...form, defaultVatRate: e.target.value })}
+              inputMode="decimal"
+              data-testid="company-defaultVatRate"
             />
           </label>
-        ))}
-        <label className="field">
-          <span>Standard-Umsatzsteuersatz (%)</span>
-          <input
-            value={form.defaultVatRate ?? ''}
-            onChange={(e) => setForm({ ...form, defaultVatRate: e.target.value })}
-            inputMode="decimal"
-            data-testid="company-defaultVatRate"
-          />
-        </label>
-        {message && (
-          <p className={message.ok ? 'list-item-meta' : 'field-error'} data-testid="company-message">
-            {message.text}
-          </p>
-        )}
-        <button type="submit" className="btn btn-primary" disabled={busy} data-testid="company-submit">
-          Speichern
-        </button>
-      </form>
+          {message && (
+            <p className={message.ok ? 'list-item-meta' : 'field-error'} data-testid="company-message">
+              {message.text}
+            </p>
+          )}
+          <button type="submit" className="btn btn-primary" disabled={busy} data-testid="company-submit">
+            Speichern
+          </button>
+        </form>
+      )}
     </section>
   );
 }

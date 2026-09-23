@@ -50,7 +50,7 @@ test.describe('Rechnungen', () => {
       page.context().waitForEvent('page'),
       card.getByTestId('invoice-pdf').click(),
     ]);
-    expect(pdfTab.url()).toMatch(/^blob:/);
+    await pdfTab.waitForURL(/^blob:/);
     await pdfTab.close();
 
     page.once('dialog', (dialog) => dialog.accept('Falsche Menge'));
