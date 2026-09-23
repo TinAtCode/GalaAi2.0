@@ -9,6 +9,31 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CalculationsService } from '../calculations/calculations.service';
 import { CreateQuoteDto, QuoteStatus } from './dto/quote.dto';
 
+// Freie Position: Preis und Kosten wie eingegeben, Summe auf Cent gerundet.
+// Ohne Rezeptur gibt es keine Soll-Werte für die Nachkalkulation.
+function freeLineItem(item: {
+  description?: string;
+  unit?: string;
+  quantity: number;
+  unitPrice?: number;
+  costPerUnit?: number;
+}) {
+  const unitPrice = new Prisma.Decimal(item.unitPrice!);
+  const costPerUnit = new Prisma.Decimal(item.costPerUnit ?? 0);
+  return {
+    serviceId: null,
+    description: item.description!.trim(),
+    unit: item.unit!.trim(),
+    quantity: item.quantity,
+    costPerUnit,
+    unitPrice,
+    marginPerUnit: unitPrice.minus(costPerUnit),
+    lineTotal: unitPrice.times(item.quantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
+    plannedLaborMinutesPerUnit: null,
+    plannedMaterialCostPerUnit: null,
+  };
+}
+
 @Injectable()
 export class QuotesService {
   constructor(
@@ -29,7 +54,7 @@ export class QuotesService {
   private async assertQuoteBelongsToCompany(companyId: string, quoteId: string) {
     const quote = await this.prisma.quote.findFirst({
       where: { id: quoteId, companyId },
-      include: { lineItems: true },
+      include: { lineItems: { orderBy: { position: 'asc' } } },
     });
     if (!quote) {
       throw new NotFoundException('Angebot nicht gefunden.');
@@ -41,7 +66,7 @@ export class QuotesService {
     return this.assertProjectBelongsToCompany(companyId, projectId).then(() =>
       this.prisma.quote.findMany({
         where: { projectId, companyId },
-        include: { lineItems: true },
+        include: { lineItems: { orderBy: { position: 'asc' } } },
         orderBy: { createdAt: 'desc' },
       }),
     );
@@ -63,6 +88,16 @@ export class QuotesService {
     // Position sonst auf den DB-Roundtrip der vorherigen wartet).
     const lineItemsData = await Promise.all(
       dto.lineItems.map(async (item) => {
+        if (!item.serviceId) return freeLineItem(item);
+        if (
+          item.description !== undefined ||
+          item.unitPrice !== undefined ||
+          item.costPerUnit !== undefined
+        ) {
+          throw new BadRequestException(
+            'Eine Position mit Leistung aus dem Katalog hat keinen eigenen Text oder Preis – dafür eine freie Position anlegen.',
+          );
+        }
         const service = await this.prisma.service.findFirst({
           where: { id: item.serviceId, companyId },
         });
@@ -119,9 +154,9 @@ export class QuotesService {
           vatTreatment,
           totalVat,
           totalGross: totalNet.plus(totalVat),
-          lineItems: { create: lineItemsData },
+          lineItems: { create: lineItemsData.map((line, index) => ({ ...line, position: index + 1 })) },
         },
-        include: { lineItems: true },
+        include: { lineItems: { orderBy: { position: 'asc' } } },
       });
     });
   }
@@ -138,7 +173,10 @@ export class QuotesService {
     to: QuoteStatus,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const quote = await tx.quote.findFirst({ where: { id, companyId }, include: { lineItems: true } });
+      const quote = await tx.quote.findFirst({
+        where: { id, companyId },
+        include: { lineItems: { orderBy: { position: 'asc' } } },
+      });
       if (!quote) {
         throw new NotFoundException('Angebot nicht gefunden.');
       }

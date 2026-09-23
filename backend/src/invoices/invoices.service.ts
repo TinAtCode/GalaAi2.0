@@ -68,7 +68,7 @@ export class InvoicesService {
       await lockFor(tx, 'invoice-order', dto.orderId);
       const order = await tx.order.findUniqueOrThrow({
         where: { id: dto.orderId },
-        include: { quote: { include: { lineItems: true } }, invoices: true },
+        include: { quote: { include: { lineItems: { orderBy: { position: 'asc' } } } }, invoices: true },
       });
       if (order.status === 'cancelled') {
         throw new BadRequestException('Ein stornierter Auftrag kann nicht abgerechnet werden.');

@@ -32,6 +32,8 @@ function maskQuote(quote: QuoteWithLines, permissions: string[]) {
     totalGross: canSale ? quote.totalGross : undefined,
     lineItems: quote.lineItems.map((li) => ({
       id: li.id,
+      position: li.position,
+      serviceId: li.serviceId,
       description: li.description,
       unit: li.unit,
       quantity: li.quantity,

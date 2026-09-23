@@ -250,7 +250,10 @@ model QuoteLineItem {
   id          String  @id @default(uuid())
   quoteId     String
   quote       Quote   @relation(fields: [quoteId], references: [id])
-  serviceId   String? // nur Referenz/Nachvollziehbarkeit, keine Live-Daten
+  // Reihenfolge im Angebot (1, 2, 3 …) – ohne sie liefert die Datenbank die
+  // Positionen in beliebiger Reihenfolge
+  position    Int     @default(0)
+  serviceId   String? // nur Referenz/Nachvollziehbarkeit, keine Live-Daten; null = freie Position
   description String // Snapshot des Leistungsnamens zum Zeitpunkt der Erstellung
   unit        String
   quantity    Decimal @db.Decimal(10, 2)

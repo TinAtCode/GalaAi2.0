@@ -240,6 +240,13 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   prüft mit veraPDF (PDF/A-3b) und dem Mustang-Validator (ZUGFeRD samt XML gegen EN 16931 und XRechnung);
   die CI prüft damit alle in den Tests erzeugten PDFs.
 
+- **Nachtrag – Freie Angebotspositionen**: Neben Leistungen aus dem Katalog kann ein Angebot freie
+  Positionen enthalten (Text, Einheit, Menge, Preis je Einheit, optional Kosten je Einheit für die
+  Marge) – z.B. Pauschalen oder Einzelleistungen. Beides gemischt in einer Position lehnt die API ab.
+  Freie Positionen haben keine Soll-Werte für die Nachkalkulation. Positionen tragen jetzt eine feste
+  Reihenfolge (`position`); vorher lieferte die Datenbank sie ohne ORDER BY in beliebiger Reihenfolge,
+  was auf PDF und Rechnung durchschlagen konnte. Mengen höchstens mit 2 Nachkommastellen.
+
 - **Nachtrag – DATEV-Export**: `GET /datev/bookings?from=JJJJ-MM-TT&to=JJJJ-MM-TT` (Recht `data.export`,
   Einstellungen → DATEV-Export) liefert die Ausgangsrechnungen als DATEV-Buchungsstapel (EXTF, Version
   700, Formatversion 12, 124 Spalten, Windows-1252, CRLF). Je ausgestellter Rechnung eine Buchung vom
