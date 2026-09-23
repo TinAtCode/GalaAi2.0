@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { formatEuro } from '../format';
+import { formatEuro, parseAmount } from '../format';
 
 interface Invoice {
   id: string;
@@ -39,14 +39,6 @@ function paymentState(invoice: Invoice) {
   const paid = (invoice.payments ?? []).reduce((sum, p) => sum + cents(p.amount), 0);
   return { paid: paid / 100, open: (cents(invoice.totalGross) - paid) / 100 };
 }
-
-// "3.570,50", "3570,50" und "1.500" (Tausenderpunkt) -> deutsche Schreibweise;
-// "3570.50" (Punkt als Dezimaltrenner) bleibt 3570.5
-const parseAmount = (input: string) => {
-  const value = input.trim();
-  const germanThousands = /^\d{1,3}(\.\d{3})+$/.test(value);
-  return Number(value.includes(',') || germanThousands ? value.replace(/\./g, '').replace(',', '.') : value);
-};
 
 const payable = (invoice: Invoice) =>
   invoice.status === 'issued' && invoice.kind !== 'cancellation' && Number(invoice.totalGross) > 0;

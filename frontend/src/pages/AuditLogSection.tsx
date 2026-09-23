@@ -34,6 +34,7 @@ const ACTION_LABELS: Record<string, string> = {
   role_permissions: 'Rechte einer Rolle geändert',
   ai_completion: 'KI-Anfrage',
   datev_export: 'DATEV-Export',
+  bank_import: 'Kontoauszug eingelesen',
   invoice_payment: 'Zahlung erfasst',
   invoice_payment_delete: 'Zahlung gelöscht',
   dunning_create: 'Mahnung erstellt',

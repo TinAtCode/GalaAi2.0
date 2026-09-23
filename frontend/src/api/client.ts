@@ -48,7 +48,12 @@ async function requestWithHeaders<T>(
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...DEFAULTS,
     ...options,
-    headers: { 'Content-Type': 'application/json', ...CSRF_HEADER, ...options.headers },
+    // Bei FormData (Datei-Upload) setzt der Browser Content-Type samt Boundary
+    headers: {
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...CSRF_HEADER,
+      ...options.headers,
+    },
   });
 
   // Ein falsches Passwort beim Login ist keine abgelaufene Sitzung.
@@ -97,6 +102,12 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  // Datei hochladen (multipart, Feld "file")
+  upload: <T>(path: string, file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return request<T>(path, { method: 'POST', body });
+  },
   // PDF in einem neuen Tab öffnen
   openFile: async (path: string) => {
     const url = URL.createObjectURL(await fetchFile(path));

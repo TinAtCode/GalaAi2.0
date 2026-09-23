@@ -15,6 +15,13 @@ const NAV_ITEMS = [
     permission: 'invoice.create',
     testId: 'nav-open-items',
   },
+  {
+    to: '/bankabgleich',
+    label: 'Bankabgleich',
+    icon: '🏦',
+    permission: 'invoice.create',
+    testId: 'nav-bank',
+  },
   // Nur sichtbar mit employee.data.read (Vorgesetzte/Büro) – dieselbe
   // Berechtigung, die das Backend für diese Daten verlangt.
   { to: '/team', label: 'Team', icon: '🧑‍🤝‍🧑', permission: 'employee.data.read', testId: 'nav-team' },

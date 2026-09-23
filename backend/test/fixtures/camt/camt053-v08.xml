@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+  <BkToCstmrStmt>
+    <GrpHdr>
+      <MsgId>STMT-2026-09-23-001</MsgId>
+      <CreDtTm>2026-09-23T06:00:00+02:00</CreDtTm>
+    </GrpHdr>
+    <Stmt>
+      <Id>2026-09-23-001</Id>
+      <ElctrncSeqNb>185</ElctrncSeqNb>
+      <CreDtTm>2026-09-23T06:00:00+02:00</CreDtTm>
+      <Acct>
+        <Id><IBAN>DE89370400440532013000</IBAN></Id>
+        <Ccy>EUR</Ccy>
+      </Acct>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="EUR">15230.45</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt><Dt>2026-09-22</Dt></Dt>
+      </Bal>
+      <!-- Zahlung mit Rechnungsnummer im Verwendungszweck -->
+      <Ntry>
+        <Amt Ccy="EUR">__AMOUNT1__</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-09-22</Dt></BookgDt>
+        <ValDt><Dt>2026-09-22</Dt></ValDt>
+        <AcctSvcrRef>REF-0001</AcctSvcrRef>
+        <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>RCDT</Cd><SubFmlyCd>ESCT</SubFmlyCd></Fmly></Domn></BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs><EndToEndId>NOTPROVIDED</EndToEndId></Refs>
+            <RltdPties>
+              <Dbtr><Pty><Nm>Familie Birke</Nm></Pty></Dbtr>
+              <DbtrAcct><Id><IBAN>DE02120300000000202051</IBAN></Id></DbtrAcct>
+            </RltdPties>
+            <RmtInf><Ustrd>Rechnung __NUMBER1__ vielen Dank</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Nummer ohne Bindestriche, Teilbetrag -->
+      <Ntry>
+        <Amt Ccy="EUR">__AMOUNT2__</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-09-22</Dt></BookgDt>
+        <ValDt><Dt>2026-09-22</Dt></ValDt>
+        <AcctSvcrRef>REF-0002</AcctSvcrRef>
+        <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>RCDT</Cd><SubFmlyCd>ESCT</SubFmlyCd></Fmly></Domn></BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties>
+              <Dbtr><Pty><Nm>Hausverwaltung Ahorn</Nm></Pty></Dbtr>
+            </RltdPties>
+            <RmtInf><Ustrd>__NUMBER2_COMPACT__ Abschlag</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- Lastschrift (Soll) – kein Zahlungseingang -->
+      <Ntry>
+        <Amt Ccy="EUR">49.90</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-09-22</Dt></BookgDt>
+        <ValDt><Dt>2026-09-22</Dt></ValDt>
+        <AcctSvcrRef>REF-0003</AcctSvcrRef>
+        <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>IDDT</Cd><SubFmlyCd>ESDD</SubFmlyCd></Fmly></Domn></BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Cdtr><Pty><Nm>Mobilfunk AG</Nm></Pty></Cdtr></RltdPties>
+            <RmtInf><Ustrd>Rechnung September</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <!-- vorgemerkt, noch nicht gebucht -->
+      <Ntry>
+        <Amt Ccy="EUR">300.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>PDNG</Cd></Sts>
+        <BookgDt><Dt>2026-09-23</Dt></BookgDt>
+        <ValDt><Dt>2026-09-23</Dt></ValDt>
+        <AcctSvcrRef>REF-0004</AcctSvcrRef>
+        <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>RCDT</Cd><SubFmlyCd>ESCT</SubFmlyCd></Fmly></Domn></BkTxCd>
+      </Ntry>
+      <!-- Eingang ohne erkennbare Rechnungsnummer -->
+      <Ntry>
+        <Amt Ccy="EUR">75.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-09-22</Dt></BookgDt>
+        <ValDt><Dt>2026-09-22</Dt></ValDt>
+        <AcctSvcrRef>REF-0005</AcctSvcrRef>
+        <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>RCDT</Cd><SubFmlyCd>ESCT</SubFmlyCd></Fmly></Domn></BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <RltdPties><Dbtr><Pty><Nm>M. Mustermann</Nm></Pty></Dbtr></RltdPties>
+            <RmtInf><Ustrd>Gartenpflege Juli</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

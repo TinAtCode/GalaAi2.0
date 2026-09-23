@@ -12,6 +12,7 @@ import { MasterDataPage } from './pages/MasterDataPage';
 import { TeamPage } from './pages/TeamPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { OpenItemsPage } from './pages/OpenItemsPage';
+import { BankPage } from './pages/BankPage';
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -41,6 +42,7 @@ export function App() {
         <Route path="stammdaten" element={<MasterDataPage />} />
         <Route path="team" element={<TeamPage />} />
         <Route path="offene-posten" element={<OpenItemsPage />} />
+        <Route path="bankabgleich" element={<BankPage />} />
         <Route path="einstellungen" element={<SettingsPage />} />
       </Route>
     </Routes>

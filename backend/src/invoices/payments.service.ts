@@ -35,7 +35,23 @@ export class PaymentsService {
     if (!isValidDay(dto.paidOn)) {
       throw new BadRequestException('Ungültiges Zahlungsdatum – erwartet z.B. 2026-09-23.');
     }
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction((tx) => this.recordIn(tx, companyId, userId, invoiceId, dto));
+  }
+
+  // Wie record(), aber in einer bestehenden Transaktion (z.B. Bankabgleich:
+  // Zahlung buchen und Bankumsatz als gebucht markieren – beides oder nichts).
+  async recordIn(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    userId: string,
+    invoiceId: string,
+    dto: RecordPaymentDto,
+    bankTransactionId?: string,
+  ) {
+    if (!isValidDay(dto.paidOn)) {
+      throw new BadRequestException('Ungültiges Zahlungsdatum – erwartet z.B. 2026-09-23.');
+    }
+    {
       // Sperre je Rechnung: zwei gleichzeitige Zahlungen dürfen zusammen den
       // offenen Betrag nicht überschreiten. Dazu die Zeile der Rechnung selbst
       // sperren: ein gleichzeitiges Storno wartet, und eine Zahlung nach dem
@@ -72,6 +88,7 @@ export class PaymentsService {
           paidOn: new Date(`${dto.paidOn}T00:00:00Z`),
           method: dto.method ?? 'bank',
           note: dto.note?.trim() || null,
+          bankTransactionId: bankTransactionId ?? null,
           createdByUserId: userId,
         },
       });
@@ -84,14 +101,31 @@ export class PaymentsService {
         newData: { amount: amount.toNumber(), paidOn: dto.paidOn, method: payment.method },
       });
       return payment;
-    });
+    }
   }
 
   async remove(companyId: string, userId: string, invoiceId: string, paymentId: string) {
     return this.prisma.$transaction(async (tx) => {
+      // Kam die Zahlung aus dem Bankabgleich, zuerst den Bankumsatz sperren –
+      // dieselbe Reihenfolge wie beim Buchen (Umsatz, dann Rechnung)
+      const bankRef = await tx.invoicePayment.findFirst({
+        where: { id: paymentId, invoiceId, companyId },
+        select: { bankTransactionId: true },
+      });
+      if (bankRef?.bankTransactionId) {
+        await tx.$queryRaw`SELECT id FROM "BankTransaction" WHERE id = ${bankRef.bankTransactionId} AND "companyId" = ${companyId} FOR UPDATE`;
+      }
       await lockFor(tx, 'invoice-payment', invoiceId);
       const payment = await tx.invoicePayment.findFirst({ where: { id: paymentId, invoiceId, companyId } });
       if (!payment) throw new NotFoundException('Zahlung nicht gefunden.');
+      // Der Bankumsatz ist wieder (teilweise) offen – auch wenn der Rest
+      // ignoriert war, denn nun ist mehr als dieser Rest unverteilt
+      if (payment.bankTransactionId) {
+        await tx.bankTransaction.updateMany({
+          where: { id: payment.bankTransactionId, companyId },
+          data: { status: 'open' },
+        });
+      }
       await tx.invoicePayment.delete({ where: { id: payment.id } });
       await writeAudit(tx, {
         companyId,

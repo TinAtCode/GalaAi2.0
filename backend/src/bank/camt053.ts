@@ -1,0 +1,175 @@
+import { BadRequestException } from '@nestjs/common';
+import { createHash } from 'crypto';
+import { XMLParser } from 'fast-xml-parser';
+
+// Ein Zahlungseingang aus dem Kontoauszug
+export interface CamtCredit {
+  dedupeKey: string; // eindeutig je Umsatz (Bankreferenz), gegen doppeltes Einlesen
+  accountIban: string | null;
+  bookingDate: string; // JJJJ-MM-TT
+  amount: string; // "123.45"
+  debtorName: string | null;
+  debtorIban: string | null;
+  remittance: string | null; // Verwendungszweck
+}
+
+export interface CamtStatement {
+  credits: CamtCredit[];
+  // übersprungen: Lastschriften/Abgänge, nicht gebuchte und Fremdwährungs-Umsätze
+  skipped: { debits: number; notBooked: number; foreignCurrency: number };
+}
+
+type Node = Record<string, unknown>;
+const asArray = <T>(value: T | T[] | undefined): T[] =>
+  value === undefined ? [] : Array.isArray(value) ? value : [value];
+const text = (value: unknown): string | null => {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'object') {
+    const inner = (value as Node)['#text'];
+    return inner === undefined ? null : String(inner).trim();
+  }
+  return String(value).trim();
+};
+const path = (node: unknown, ...keys: string[]): unknown =>
+  keys.reduce<unknown>(
+    (current, key) => (current && typeof current === 'object' ? (current as Node)[key] : undefined),
+    node,
+  );
+
+const parser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@',
+  removeNSPrefix: true,
+  // keine Entity-Auflösung (Schutz gegen Entity-Expansion); DOCTYPE wird vorher abgelehnt
+  processEntities: false,
+  parseTagValue: false,
+  isArray: (name) => ['Stmt', 'Ntry', 'TxDtls', 'Ustrd'].includes(name),
+});
+
+// Kontoauszug im Format ISO 20022 camt.053 (Versionen 001.02 bis 001.13;
+// in Deutschland üblich: .02 bis Ende 2025, danach .08). Übernommen werden
+// nur gebuchte Gutschriften in EUR – alles andere ist kein Zahlungseingang.
+export function parseCamt053(xml: string): CamtStatement {
+  if (/<!DOCTYPE/i.test(xml)) {
+    throw new BadRequestException('Ungültiger Kontoauszug (DOCTYPE ist nicht erlaubt).');
+  }
+  let doc: Node;
+  try {
+    doc = parser.parse(xml) as Node;
+  } catch {
+    throw new BadRequestException('Die Datei ist kein gültiges XML.');
+  }
+  const root = doc.Document as Node | undefined;
+  // Der Parser entfernt Namespaces – daher aus dem Document-Tag selbst lesen;
+  // dort können weitere Namespaces stehen (z.B. xmlns:xsi), auch vor dem camt
+  const documentTag = /<(?:[\w-]+:)?Document\b[^>]*>/.exec(xml)?.[0] ?? '';
+  const namespaces = [...documentTag.matchAll(/\bxmlns(?::[\w-]+)?\s*=\s*(["'])(.*?)\1/g)].map((m) => m[2]);
+  const isCamt053 = namespaces.some((ns) => ns.startsWith('urn:iso:std:iso:20022:tech:xsd:camt.053.'));
+  const statements = asArray(path(root, 'BkToCstmrStmt', 'Stmt') as Node | Node[] | undefined);
+  if (!root || !isCamt053 || statements.length === 0) {
+    throw new BadRequestException('Die Datei ist kein Kontoauszug im Format CAMT.053.');
+  }
+
+  const credits: CamtCredit[] = [];
+  const skipped = { debits: 0, notBooked: 0, foreignCurrency: 0 };
+  for (const statement of statements) {
+    const accountIban = text(path(statement, 'Acct', 'Id', 'IBAN'));
+    // Kennung des Auszugs (von der Bank vergeben) für Umsätze ohne Bankreferenz
+    const statementId = text(statement.Id) ?? text(statement.ElctrncSeqNb) ?? '';
+    asArray(statement.Ntry as Node | Node[] | undefined).forEach((entry, entryIndex) => {
+      if (text(entry.CdtDbtInd) !== 'CRDT') {
+        skipped.debits++;
+        return;
+      }
+      // v02: <Sts>BOOK</Sts>, ab v08: <Sts><Cd>BOOK</Cd></Sts>
+      const status = text(path(entry, 'Sts', 'Cd')) ?? text(entry.Sts);
+      if (status !== 'BOOK') {
+        skipped.notBooked++;
+        return;
+      }
+      const bookingDate = (
+        text(path(entry, 'BookgDt', 'Dt')) ??
+        text(path(entry, 'BookgDt', 'DtTm')) ??
+        ''
+      ).slice(0, 10);
+      const entryRef = text(entry.AcctSvcrRef);
+      const details = asArray(path(entry, 'NtryDtls', 'TxDtls') as Node | Node[] | undefined);
+      // Sammelbuchung mit Einzelbeträgen: je Transaktion ein Zahlungseingang
+      const parts: { amount: unknown; tx: Node | undefined }[] =
+        details.length > 1 &&
+        details.every(
+          (tx) => path(tx, 'Amt') !== undefined || path(tx, 'AmtDtls', 'TxAmt', 'Amt') !== undefined,
+        )
+          ? details.map((tx) => ({ amount: path(tx, 'Amt') ?? path(tx, 'AmtDtls', 'TxAmt', 'Amt'), tx }))
+          : [{ amount: entry.Amt, tx: details[0] }];
+
+      parts.forEach(({ amount, tx }, index) => {
+        const currency = String((amount as Node | undefined)?.['@Ccy'] ?? 'EUR');
+        if (currency !== 'EUR') {
+          skipped.foreignCurrency++;
+          return;
+        }
+        const value = Number(text(amount));
+        if (!Number.isFinite(value) || value <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) return;
+        // v02: Dbtr/Nm, ab v08: Dbtr/Pty/Nm
+        const debtorName =
+          text(path(tx, 'RltdPties', 'Dbtr', 'Pty', 'Nm')) ?? text(path(tx, 'RltdPties', 'Dbtr', 'Nm'));
+        const debtorIban = text(path(tx, 'RltdPties', 'DbtrAcct', 'Id', 'IBAN'));
+        const remittance =
+          asArray(path(tx, 'RmtInf', 'Ustrd') as unknown[] | undefined)
+            .map(text)
+            .filter(Boolean)
+            .join(' ') || null;
+        // Dublettenschlüssel: Bankreferenz des Umsatzes (bei Sammelbuchungen
+        // mit laufender Nummer), sonst die Bankreferenz der Transaktion. Ohne
+        // beides: Auszugskennung + Position im Auszug + Merkmale – derselbe
+        // Auszug ergibt so dieselben Schlüssel, zwei gleiche Überweisungen
+        // am selben Tag bleiben aber zwei Umsätze. Die EndToEndId wählt der
+        // Zahler selbst (oft die Rechnungsnummer) und ist daher nicht eindeutig.
+        const txRef = text(path(tx, 'Refs', 'AcctSvcrRef'));
+        const key = entryRef
+          ? parts.length === 1
+            ? entryRef
+            : `${entryRef}/${index}`
+          : (txRef ??
+            createHash('sha256')
+              .update(
+                [
+                  statementId,
+                  entryIndex,
+                  index,
+                  bookingDate,
+                  value.toFixed(2),
+                  debtorName,
+                  debtorIban,
+                  remittance,
+                  text(path(tx, 'Refs', 'EndToEndId')),
+                ].join('|'),
+              )
+              .digest('hex'));
+        credits.push({
+          dedupeKey: `${accountIban ?? ''}|${key}`,
+          accountIban,
+          bookingDate,
+          amount: value.toFixed(2),
+          debtorName,
+          debtorIban,
+          remittance,
+        });
+      });
+    });
+  }
+  return { credits, skipped };
+}
+
+// Rechnungsnummern im Verwendungszweck: "R-2026-0001", auch "R 2026 0001",
+// "R20260001" oder "RE-2026-0001" -> normalisiert "R-2026-0001". Die laufende
+// Nummer hat mindestens vier Stellen (ab 10000 fünf, siehe numbering.ts).
+export function invoiceNumbersIn(remittance: string | null): string[] {
+  if (!remittance) return [];
+  const found = new Set<string>();
+  for (const match of remittance.matchAll(/\bRE?\s*[-/]?\s*(\d{4})\s*[-/]?\s*(\d{4,})\b/gi)) {
+    found.add(`R-${match[1]}-${match[2]}`);
+  }
+  return [...found];
+}

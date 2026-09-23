@@ -74,18 +74,19 @@ model Company {
   auditLogs AuditLog[]
 
   // direkte Mandanten-Zuordnung (statt Join-Kette Projekt -> Objekt -> Kunde)
-  properties      Property[]
-  projects        Project[]
-  quotes          Quote[]
-  orders          Order[]
-  appointments    Appointment[]
-  timeEntries     TimeEntry[]
-  materialUsages  ProjectMaterialUsage[]
-  numberSequences NumberSequence[]
-  invoices        Invoice[]
-  ocrJobs         OcrJob[]
-  invoicePayments InvoicePayment[]
-  dunningNotices  DunningNotice[]
+  properties       Property[]
+  projects         Project[]
+  quotes           Quote[]
+  orders           Order[]
+  appointments     Appointment[]
+  timeEntries      TimeEntry[]
+  materialUsages   ProjectMaterialUsage[]
+  numberSequences  NumberSequence[]
+  invoices         Invoice[]
+  ocrJobs          OcrJob[]
+  invoicePayments  InvoicePayment[]
+  dunningNotices   DunningNotice[]
+  bankTransactions BankTransaction[]
 }
 
 // ─────────────────────────────────────────────
@@ -683,20 +684,24 @@ model InvoiceLineItem {
 // unverändert (GoBD); offen ist Bruttobetrag minus Summe der Zahlungen.
 // Korrekturen durch Löschen der Zahlung (im Audit-Log festgehalten).
 model InvoicePayment {
-  id              String        @id @default(uuid())
-  companyId       String
-  company         Company       @relation(fields: [companyId], references: [id])
-  invoiceId       String
-  invoice         Invoice       @relation(fields: [invoiceId], references: [id])
-  amount          Decimal       @db.Decimal(12, 2)
-  paidOn          DateTime      @db.Date
-  method          PaymentMethod @default(bank)
-  note            String?
-  createdByUserId String?
-  createdAt       DateTime      @default(now())
+  id                String           @id @default(uuid())
+  companyId         String
+  company           Company          @relation(fields: [companyId], references: [id])
+  invoiceId         String
+  invoice           Invoice          @relation(fields: [invoiceId], references: [id])
+  amount            Decimal          @db.Decimal(12, 2)
+  paidOn            DateTime         @db.Date
+  method            PaymentMethod    @default(bank)
+  note              String?
+  // gebucht aus dem Bankabgleich
+  bankTransactionId String?
+  bankTransaction   BankTransaction? @relation(fields: [bankTransactionId], references: [id])
+  createdByUserId   String?
+  createdAt         DateTime         @default(now())
 
   @@index([companyId])
   @@index([invoiceId])
+  @@index([bankTransactionId])
 }
 
 // Mahnung zu einer überfälligen Rechnung: Stufe 1 = Zahlungserinnerung,
@@ -719,6 +724,37 @@ model DunningNotice {
 
   @@unique([invoiceId, level])
   @@index([companyId])
+}
+
+// Zahlungseingang vom Kontoauszug (CAMT.053). Erst nach Bestätigung wird
+// daraus eine Zahlung zur Rechnung (paymentId). dedupeKey verhindert, dass
+// ein erneut eingelesener Auszug Umsätze doppelt anlegt.
+model BankTransaction {
+  id              String                @id @default(uuid())
+  companyId       String
+  company         Company               @relation(fields: [companyId], references: [id])
+  dedupeKey       String
+  accountIban     String?
+  bookingDate     DateTime              @db.Date
+  amount          Decimal               @db.Decimal(12, 2)
+  debtorName      String?
+  debtorIban      String?
+  remittance      String?
+  status          BankTransactionStatus @default(open)
+  createdByUserId String?
+  createdAt       DateTime              @default(now())
+  // Zahlungen aus diesem Umsatz (mehrere, wenn er mehrere Rechnungen begleicht);
+  // "booked", sobald der ganze Betrag verteilt ist
+  payments        InvoicePayment[]
+
+  @@unique([companyId, dedupeKey])
+  @@index([companyId, status])
+}
+
+enum BankTransactionStatus {
+  open
+  booked
+  ignored
 }
 
 enum PaymentMethod {

@@ -144,6 +144,12 @@ Teilbetrag buchen; unter „Offene Posten“ erscheint der Rest mit Fälligkeit.
 den Firmendaten auf 0 Tage setzen und eine Rechnung vom Vortag nehmen. Dann „Zahlungserinnerung erstellen“,
 PDF öffnen, per E-Mail senden; die nächste Stufe gibt es nach Ablauf der Frist.
 
+**Bankabgleich testen:** Im Online-Banking den Kontoauszug als CAMT.053 (XML) herunterladen – bei
+manchen Banken heißt der Export „ISO 20022“ oder „camt“. Unter „Bankabgleich“ einlesen: Zahlungen mit
+Rechnungsnummer im Verwendungszweck zeigen den Vorschlag, „Buchen“ erfasst die Zahlung an der Rechnung.
+Zum Ausprobieren ohne Bank eignet sich `backend/test/fixtures/camt/camt053-v08.xml` (Platzhalter
+`__NUMBER1__` durch eine eigene Rechnungsnummer und `__AMOUNT1__` durch einen Betrag ersetzen).
+
 **PDF/A und ZUGFeRD prüfen:** `backend/scripts/validate-pdfa.sh <Ordner>` prüft alle PDFs eines Ordners
 mit veraPDF auf PDF/A-3b und PDFs mit eingebetteter `factur-x.xml` zusätzlich mit dem Mustang-Validator
 als ZUGFeRD-Rechnung (braucht Java und Maven; lädt beide Validatoren beim ersten Aufruf). Beispieldateien

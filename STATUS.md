@@ -286,6 +286,22 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Bankkonto übernehmen – sonst wären sie doppelt gebucht. Noch nicht: Debitoren-Stammdaten (Namen und
   Anschriften) als eigener Export, Belegbilder.
 
+- **Nachtrag – Bankabgleich (CAMT.053)**: Kontoauszug im ISO-20022-Format CAMT.053 (XML, Versionen
+  001.02 bis 001.08, wie ihn das Online-Banking liefert) unter „Bankabgleich“ einlesen. Übernommen werden
+  nur gebuchte Gutschriften in EUR; Abbuchungen, vorgemerkte Umsätze und Fremdwährung werden gezählt und
+  übersprungen. Sammelgutschriften mit Einzelbeträgen werden in Einzelumsätze aufgeteilt. Jeder Umsatz
+  hat einen Schlüssel (IBAN + Bankreferenz), derselbe Auszug lässt sich daher gefahrlos mehrfach einlesen.
+  Zuordnung: zuerst die Rechnungsnummer im Verwendungszweck (auch „RE 2026 0001“ oder „R20260001“),
+  sonst – nur wenn eindeutig – eine offene Rechnung mit genau diesem Restbetrag; der Vorschlag wird bei
+  jedem Laden neu berechnet. Gebucht wird erst nach Bestätigung, als normale Zahlung (Bank) zur Rechnung
+  mit denselben Prüfungen (kein Überzahlen, kein Storno). Ein Umsatz kann mehrere Rechnungen begleichen:
+  er bleibt offen, bis sein ganzer Betrag verteilt ist; eine Zeilensperre auf dem Umsatz verhindert, dass
+  gleichzeitige Buchungen zusammen mehr verteilen. Wird eine Zahlung an der Rechnung gelöscht, ist der
+  Umsatz wieder offen. Umsätze ohne Rechnungsbezug (oder der Rest nach einer Überzahlung) lassen sich
+  ignorieren und wieder öffnen. Ohne Bankreferenz bildet sich der Dublettenschlüssel aus Auszugskennung,
+  Position und Merkmalen – nicht aus der vom Zahler gewählten EndToEndId. XML ohne DOCTYPE (Schutz vor
+  XXE), Datei höchstens 5 MB. Noch nicht: MT940 und CSV-Formate, automatische Abholung per EBICS/FinTS.
+
 - **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
   (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt
   (`vatTreatment: "reverse_charge"`). Die Rechnung übernimmt die Behandlung vom Angebot, das Storno vom
@@ -313,7 +329,8 @@ Auf ausdrücklichen Wunsch wurde der gesamte bisherige Code systematisch auf Lü
 - Dokumente: echter Datei-Upload/-Download funktioniert (lokales Dateisystem). OCR-Ergebnis wird nicht automatisch als Document gespeichert (zwei getrennte Schritte: OCR ansehen, dann ggf. hochladen). Bei gescannten PDFs werden maximal die ersten 10 Seiten per Bild-OCR gelesen (Deckel gegen sehr lange Scans).
 - KI-Gateway ohne aktiven Anbieter (bewusst zurückgestellt).
 - E2E-Tests (Playwright) und CI-Workflows (GitHub Actions) laufen bei jedem Push; ein Deployment-Workflow fehlt noch.
-- Mobile App (React Native/Expo), Schnittstellen GAEB/DATANORM, Admin-Auslagerung: noch nicht begonnen. DATEV: Buchungsstapel der Ausgangsrechnungen fertig (siehe Nachtrag).
+- Mobile App (React Native/Expo), DATANORM, Admin-Auslagerung: noch nicht begonnen.
+- GAEB-Import (X83 → Angebot mit freien Positionen): vorgemerkt. Echte GAEB-Beispieldateien kommen später vom Auftraggeber; ohne sie wird nicht gebaut, damit gegen echte Ausschreibungen getestet werden kann. DATEV: Buchungsstapel der Ausgangsrechnungen fertig (siehe Nachtrag).
 - Es existieren separate, umfassendere Projekt-Planungsdokumente (README.md, STATUS.md, DEVELOPMENT_GUIDE.md, TESTING_GUIDE.md, SECURITY_CHECKLIST.md, CICD_GUIDE.md, SKILLS_REFERENCE.md im Projekt-Root), die teils einen größeren, teamartigen Rahmen beschreiben (Mobile-Team, DevOps-Rolle, Security-Officer). Diese hier vorliegende STATUS.md beschreibt ausschließlich den tatsächlichen Code-Stand.
 
 ---

@@ -7,5 +7,6 @@ import { InvoicesService } from './invoices.service';
 @Module({
   controllers: [InvoicesController, OpenItemsController],
   providers: [InvoicesService, PaymentsService, DunningService],
+  exports: [PaymentsService],
 })
 export class InvoicesModule {}
