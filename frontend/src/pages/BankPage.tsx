@@ -34,7 +34,10 @@ interface OpenItem {
 interface ImportResult {
   imported: number;
   duplicates: number;
-  skipped: { debits: number; notBooked: number; foreignCurrency: number };
+  credits: number;
+  debits: number;
+  balances: number;
+  skipped: { notBooked: number; foreignCurrency: number };
 }
 
 const TABS: { status: Status; label: string }[] = [
@@ -108,9 +111,8 @@ export function BankPage() {
     const switchTab = status !== 'open';
     run(async () => {
       const result = await api.upload<ImportResult>('/bank/import', file);
-      const { debits, notBooked, foreignCurrency } = result.skipped;
+      const { notBooked, foreignCurrency } = result.skipped;
       const skipped = [
-        debits && `${debits} ${debits === 1 ? 'Abbuchung' : 'Abbuchungen'}`,
         notBooked && `${notBooked} vorgemerkt`,
         foreignCurrency && `${foreignCurrency} Fremdwährung`,
       ].filter(Boolean);
@@ -119,7 +121,10 @@ export function BankPage() {
         setStatus('open');
       }
       return (
-        `${result.imported} ${result.imported === 1 ? 'Zahlungseingang' : 'Zahlungseingänge'} eingelesen` +
+        `${result.credits} ${result.credits === 1 ? 'Zahlungseingang' : 'Zahlungseingänge'} eingelesen` +
+        (result.debits
+          ? `, dazu ${result.debits} ${result.debits === 1 ? 'Abbuchung' : 'Abbuchungen'} für die Finanzen`
+          : '') +
         (result.duplicates ? `, ${result.duplicates} schon vorhanden` : '') +
         (skipped.length ? ` – übersprungen: ${skipped.join(', ')}` : '') +
         '.'

@@ -13,6 +13,7 @@ import { TeamPage } from './pages/TeamPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { OpenItemsPage } from './pages/OpenItemsPage';
 import { BankPage } from './pages/BankPage';
+import { FinancePage } from './pages/FinancePage';
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -43,6 +44,7 @@ export function App() {
         <Route path="team" element={<TeamPage />} />
         <Route path="offene-posten" element={<OpenItemsPage />} />
         <Route path="bankabgleich" element={<BankPage />} />
+        <Route path="finanzen" element={<FinancePage />} />
         <Route path="einstellungen" element={<SettingsPage />} />
       </Route>
     </Routes>

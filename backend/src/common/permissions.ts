@@ -33,6 +33,21 @@ export const PERMISSIONS = {
   SYSTEM_SETTINGS_WRITE: 'system.settings.write',
 
   AUDIT_READ: 'audit.read',
+
+  FINANCE_READ: 'finance.read',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+// Standardrolle "Buchhaltung": Finanzen, Rechnungen und Zahlungen, DATEV-Export,
+// Kunden lesen, Dokumente sehen und hochladen (Belege; document.read umfasst
+// auch Upload und Texterkennung) – keine Einkaufspreise, keine Nutzer- oder
+// Systemverwaltung. Gleiche Liste in der Migration 20260924090000_finance.
+export const BOOKKEEPING_PERMISSIONS: PermissionKey[] = [
+  PERMISSIONS.FINANCE_READ,
+  PERMISSIONS.INVOICE_CREATE,
+  PERMISSIONS.DATA_EXPORT,
+  PERMISSIONS.CUSTOMER_READ,
+  PERMISSIONS.DOCUMENT_READ,
+  PERMISSIONS.PRICE_SALE_READ,
+];

@@ -474,3 +474,21 @@
   color: var(--color-ink);
   min-height: var(--touch-target-min);
 }
+
+/* Finanzen: Monatstabelle (Tabellenansicht der Grafik) */
+.finance-table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 720px;
+  font-size: 0.9rem;
+}
+.finance-table th,
+.finance-table td {
+  text-align: right;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+.finance-table th:first-child,
+.finance-table td:first-child {
+  text-align: left;
+}

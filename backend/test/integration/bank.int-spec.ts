@@ -98,16 +98,48 @@ describe('Bankabgleich (CAMT.053)', () => {
       AMOUNT2: '2380.00',
     });
     const res = await upload(xml).expect(201);
+    // 3 Zahlungseingänge + 1 Abbuchung, dazu der Schlusssaldo
     expect(res.body).toEqual({
-      imported: 3,
+      imported: 4,
+      credits: 3,
+      debits: 1,
       duplicates: 0,
-      skipped: { debits: 1, notBooked: 1, foreignCurrency: 0 },
+      balances: 1,
+      skipped: { notBooked: 1, foreignCurrency: 0 },
     });
     // derselbe Auszug noch einmal: nichts doppelt
-    expect((await upload(xml).expect(201)).body).toMatchObject({ imported: 0, duplicates: 3 });
+    expect((await upload(xml).expect(201)).body).toMatchObject({ imported: 0, duplicates: 4 });
 
+    // im Bankabgleich nur Zahlungseingänge, keine Abbuchungen
     const open = await list();
     expect(open).toHaveLength(3);
+    const debit = await prisma.bankTransaction.findFirstOrThrow({ where: { direction: 'debit' } });
+    expect(debit).toMatchObject({ counterpartyName: 'Mobilfunk AG' });
+    await api().post(`/bank/transactions/${debit.id}/ignore`).set(auth).expect(404);
+    await api()
+      .post(`/bank/transactions/${debit.id}/book`)
+      .set(auth)
+      .send({ invoiceId: first.id })
+      .expect(404);
+    // Rückbuchung (z.B. zurückgekommene eigene Überweisung) ist kein Zahlungseingang
+    const reversal = await prisma.bankTransaction.create({
+      data: {
+        companyId: company.companyId,
+        dedupeKey: 'reversal-1',
+        direction: 'credit',
+        reversal: true,
+        bookingDate: new Date('2026-09-22T00:00:00Z'),
+        amount: 49.9,
+        remittance: `Rückbuchung ${first.number}`,
+      },
+    });
+    expect((await list()).map((t) => t.id)).not.toContain(reversal.id);
+    await api()
+      .post(`/bank/transactions/${reversal.id}/book`)
+      .set(auth)
+      .send({ invoiceId: first.id })
+      .expect(404);
+    await prisma.bankTransaction.delete({ where: { id: reversal.id } });
     const byAmount = (amount: number) => open.find((t) => Number(t.amount) === amount)!;
     expect(byAmount(1000).suggestion).toMatchObject({ invoiceId: first.id, reason: 'reference' });
     expect(byAmount(2380).suggestion).toMatchObject({ invoiceId: second.id, reason: 'reference' });
@@ -257,7 +289,7 @@ describe('Bankabgleich (CAMT.053)', () => {
     await api().post(`/bank/transactions/${tx.id}/ignore`).set(otherAuth).expect(404);
     // derselbe Auszug bei der anderen Firma ist kein Duplikat, aber ohne Vorschlag
     const xml = camtFixture('08', { NUMBER1: first.number });
-    expect((await upload(xml, otherAuth).expect(201)).body.imported).toBe(3);
+    expect((await upload(xml, otherAuth).expect(201)).body.imported).toBe(4);
     const foreign = await list('open', otherAuth);
     expect(foreign.every((t) => t.suggestion === null)).toBe(true);
     // eigenen Umsatz auf eine Rechnung der anderen Firma buchen: nicht gefunden

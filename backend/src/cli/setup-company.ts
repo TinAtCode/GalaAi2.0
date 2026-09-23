@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { PERMISSIONS } from '../common/permissions';
+import { BOOKKEEPING_PERMISSIONS, PERMISSIONS } from '../common/permissions';
 import { hashPassword, normalizeEmail, PASSWORD_MIN_LENGTH } from '../auth/passwords';
 
 export interface SetupInput {
@@ -11,7 +11,7 @@ export interface SetupInput {
 }
 
 // Ersteinrichtung für den Betrieb: Rechte, eigene Firma, Rollen
-// "Geschäftsführung" (alle Rechte) und "Mitarbeiter", erster Administrator
+// "Geschäftsführung" (alle Rechte), "Buchhaltung" und "Mitarbeiter", erster Administrator
 // mit Mitarbeiterprofil. Anders als der Seed (prisma/seed.ts) ohne
 // Demo-Daten und ohne bekanntes Passwort. Alles in einer Transaktion.
 export async function setupCompany(prisma: PrismaClient, input: SetupInput) {
@@ -52,6 +52,18 @@ export async function setupCompany(prisma: PrismaClient, input: SetupInput) {
         permissions: {
           create: permissions
             .filter((p) => employeeKeys.includes(p.key))
+            .map((p) => ({ permissionId: p.id })),
+        },
+      },
+    });
+    await tx.role.create({
+      data: {
+        companyId: company.id,
+        name: 'Buchhaltung',
+        isSystem: true,
+        permissions: {
+          create: permissions
+            .filter((p) => (BOOKKEEPING_PERMISSIONS as string[]).includes(p.key))
             .map((p) => ({ permissionId: p.id })),
         },
       },

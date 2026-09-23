@@ -87,6 +87,7 @@ model Company {
   invoicePayments  InvoicePayment[]
   dunningNotices   DunningNotice[]
   bankTransactions BankTransaction[]
+  bankBalances     BankBalance[]
 }
 
 // ─────────────────────────────────────────────
@@ -739,25 +740,50 @@ model DunningNotice {
 // daraus eine Zahlung zur Rechnung (paymentId). dedupeKey verhindert, dass
 // ein erneut eingelesener Auszug Umsätze doppelt anlegt.
 model BankTransaction {
-  id              String                @id @default(uuid())
-  companyId       String
-  company         Company               @relation(fields: [companyId], references: [id])
-  dedupeKey       String
-  accountIban     String?
-  bookingDate     DateTime              @db.Date
-  amount          Decimal               @db.Decimal(12, 2)
-  debtorName      String?
-  debtorIban      String?
-  remittance      String?
-  status          BankTransactionStatus @default(open)
-  createdByUserId String?
-  createdAt       DateTime              @default(now())
+  id               String                @id @default(uuid())
+  companyId        String
+  company          Company               @relation(fields: [companyId], references: [id])
+  dedupeKey        String
+  accountIban      String?
+  bookingDate      DateTime              @db.Date
+  // immer positiv; Gutschrift (Zahlungseingang) oder Abbuchung
+  amount           Decimal               @db.Decimal(12, 2)
+  direction        BankDirection         @default(credit)
+  // Rückbuchung: nicht im Bankabgleich, im Finanzbereich gekennzeichnet
+  reversal         Boolean               @default(false)
+  // Zahler bei Gutschriften, Empfänger bei Abbuchungen
+  counterpartyName String?
+  counterpartyIban String?
+  remittance       String?
+  // Bankabgleich (Zuordnung zu Rechnungen) nur für Gutschriften
+  status           BankTransactionStatus @default(open)
+  createdByUserId  String?
+  createdAt        DateTime              @default(now())
   // Zahlungen aus diesem Umsatz (mehrere, wenn er mehrere Rechnungen begleicht);
   // "booked", sobald der ganze Betrag verteilt ist
-  payments        InvoicePayment[]
+  payments         InvoicePayment[]
 
   @@unique([companyId, dedupeKey])
   @@index([companyId, status])
+  @@index([companyId, bookingDate])
+}
+
+enum BankDirection {
+  credit
+  debit
+}
+
+// Gebuchter Kontostand (Schlusssaldo) je Konto und Tag, aus dem Kontoauszug
+model BankBalance {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  accountIban String
+  date        DateTime @db.Date
+  amount      Decimal  @db.Decimal(14, 2) // negativ bei Soll-Saldo
+  createdAt   DateTime @default(now())
+
+  @@unique([companyId, accountIban, date])
 }
 
 enum BankTransactionStatus {

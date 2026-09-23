@@ -1,6 +1,6 @@
 import { PrismaClient, Permission } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { PERMISSIONS } from '../src/common/permissions';
+import { BOOKKEEPING_PERMISSIONS, PERMISSIONS } from '../src/common/permissions';
 
 const prisma = new PrismaClient();
 
@@ -50,6 +50,23 @@ async function main() {
       isSystem: true,
       permissions: {
         create: employeePermissions.map((p: Permission) => ({ permissionId: p.id })),
+      },
+    },
+  });
+
+  // 4b. Rolle "Buchhaltung": Finanzen, Rechnungen, DATEV – ohne Einkaufspreise
+  const bookkeepingPermissions = allPermissions.filter((p: Permission) =>
+    (BOOKKEEPING_PERMISSIONS as string[]).includes(p.key),
+  );
+  await prisma.role.upsert({
+    where: { companyId_name: { companyId: company.id, name: 'Buchhaltung' } },
+    update: {},
+    create: {
+      companyId: company.id,
+      name: 'Buchhaltung',
+      isSystem: true,
+      permissions: {
+        create: bookkeepingPermissions.map((p: Permission) => ({ permissionId: p.id })),
       },
     },
   });

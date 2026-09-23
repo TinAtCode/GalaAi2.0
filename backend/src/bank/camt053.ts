@@ -2,21 +2,35 @@ import { BadRequestException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { XMLParser } from 'fast-xml-parser';
 
-// Ein Zahlungseingang aus dem Kontoauszug
-export interface CamtCredit {
+// Eine Kontobewegung aus dem Kontoauszug: Gutschrift (Zahlungseingang) oder
+// Abbuchung. Gegenpartei ist bei Gutschriften der Zahler, bei Abbuchungen der
+// Empfänger.
+export interface CamtEntry {
   dedupeKey: string; // eindeutig je Umsatz (Bankreferenz), gegen doppeltes Einlesen
+  direction: 'credit' | 'debit';
+  // Rückbuchung (RvslInd): z.B. zurückgegebene Lastschrift oder zurückgekommene
+  // Überweisung – kein neuer Zahlungseingang und keine neue Ausgabe
+  reversal: boolean;
   accountIban: string | null;
   bookingDate: string; // JJJJ-MM-TT
-  amount: string; // "123.45"
-  debtorName: string | null;
-  debtorIban: string | null;
+  amount: string; // "123.45", immer positiv – die Richtung steht in direction
+  counterpartyName: string | null;
+  counterpartyIban: string | null;
   remittance: string | null; // Verwendungszweck
 }
 
+// Gebuchter Schlusssaldo (CLBD) eines Kontos zu einem Tag
+export interface CamtBalance {
+  accountIban: string;
+  date: string; // JJJJ-MM-TT
+  amount: string; // "-123.45" bei Soll-Saldo
+}
+
 export interface CamtStatement {
-  credits: CamtCredit[];
-  // übersprungen: Lastschriften/Abgänge, nicht gebuchte und Fremdwährungs-Umsätze
-  skipped: { debits: number; notBooked: number; foreignCurrency: number };
+  entries: CamtEntry[];
+  balances: CamtBalance[];
+  // übersprungen: nicht gebuchte und Fremdwährungs-Umsätze
+  skipped: { notBooked: number; foreignCurrency: number };
 }
 
 type Node = Record<string, unknown>;
@@ -43,12 +57,13 @@ const parser = new XMLParser({
   // keine Entity-Auflösung (Schutz gegen Entity-Expansion); DOCTYPE wird vorher abgelehnt
   processEntities: false,
   parseTagValue: false,
-  isArray: (name) => ['Stmt', 'Ntry', 'TxDtls', 'Ustrd'].includes(name),
+  isArray: (name) => ['Stmt', 'Ntry', 'TxDtls', 'Ustrd', 'Bal'].includes(name),
 });
 
 // Kontoauszug im Format ISO 20022 camt.053 (Versionen 001.02 bis 001.13;
 // in Deutschland üblich: .02 bis Ende 2025, danach .08). Übernommen werden
-// nur gebuchte Gutschriften in EUR – alles andere ist kein Zahlungseingang.
+// gebuchte Umsätze in EUR (Gutschriften und Abbuchungen) und die gebuchten
+// Schlusssalden der Konten.
 export function parseCamt053(xml: string): CamtStatement {
   if (/<!DOCTYPE/i.test(xml)) {
     throw new BadRequestException('Ungültiger Kontoauszug (DOCTYPE ist nicht erlaubt).');
@@ -70,17 +85,37 @@ export function parseCamt053(xml: string): CamtStatement {
     throw new BadRequestException('Die Datei ist kein Kontoauszug im Format CAMT.053.');
   }
 
-  const credits: CamtCredit[] = [];
-  const skipped = { debits: 0, notBooked: 0, foreignCurrency: 0 };
+  const entries: CamtEntry[] = [];
+  const balances: CamtBalance[] = [];
+  const skipped = { notBooked: 0, foreignCurrency: 0 };
   for (const statement of statements) {
     const accountIban = text(path(statement, 'Acct', 'Id', 'IBAN'));
+    // Schlusssaldo (CLBD = closing booked); Soll-Saldo negativ
+    for (const balance of asArray(statement.Bal as Node | Node[] | undefined)) {
+      if (text(path(balance, 'Tp', 'CdOrPrtry', 'Cd')) !== 'CLBD' || !accountIban) continue;
+      const amt = balance.Amt as Node | undefined;
+      const value = Number(text(amt));
+      const date = (text(path(balance, 'Dt', 'Dt')) ?? text(path(balance, 'Dt', 'DtTm')) ?? '').slice(0, 10);
+      if (
+        String(amt?.['@Ccy'] ?? 'EUR') !== 'EUR' ||
+        !Number.isFinite(value) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(date)
+      )
+        continue;
+      const signed = text(balance.CdtDbtInd) === 'DBIT' ? -value : value;
+      balances.push({ accountIban, date, amount: signed.toFixed(2) });
+    }
     // Kennung des Auszugs (von der Bank vergeben) für Umsätze ohne Bankreferenz
     const statementId = text(statement.Id) ?? text(statement.ElctrncSeqNb) ?? '';
     asArray(statement.Ntry as Node | Node[] | undefined).forEach((entry, entryIndex) => {
-      if (text(entry.CdtDbtInd) !== 'CRDT') {
-        skipped.debits++;
-        return;
-      }
+      const indicator = text(entry.CdtDbtInd);
+      if (indicator !== 'CRDT' && indicator !== 'DBIT') return;
+      const direction = indicator === 'CRDT' ? 'credit' : 'debit';
+      const reversal = text(entry.RvslInd) === 'true';
+      // Gegenpartei: bei Gutschriften der Zahler (Dbtr), bei Abbuchungen der
+      // Empfänger (Cdtr). Bei einer Rückbuchung bleiben die Rollen der
+      // ursprünglichen Zahlung – die Gegenpartei steht dann in der anderen.
+      const party = (direction === 'credit') !== reversal ? 'Dbtr' : 'Cdtr';
       // v02: <Sts>BOOK</Sts>, ab v08: <Sts><Cd>BOOK</Cd></Sts>
       const status = text(path(entry, 'Sts', 'Cd')) ?? text(entry.Sts);
       if (status !== 'BOOK') {
@@ -111,10 +146,10 @@ export function parseCamt053(xml: string): CamtStatement {
         }
         const value = Number(text(amount));
         if (!Number.isFinite(value) || value <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) return;
-        // v02: Dbtr/Nm, ab v08: Dbtr/Pty/Nm
-        const debtorName =
-          text(path(tx, 'RltdPties', 'Dbtr', 'Pty', 'Nm')) ?? text(path(tx, 'RltdPties', 'Dbtr', 'Nm'));
-        const debtorIban = text(path(tx, 'RltdPties', 'DbtrAcct', 'Id', 'IBAN'));
+        // v02: Dbtr/Nm, ab v08: Dbtr/Pty/Nm (Cdtr entsprechend)
+        const counterpartyName =
+          text(path(tx, 'RltdPties', party, 'Pty', 'Nm')) ?? text(path(tx, 'RltdPties', party, 'Nm'));
+        const counterpartyIban = text(path(tx, 'RltdPties', `${party}Acct`, 'Id', 'IBAN'));
         const remittance =
           asArray(path(tx, 'RmtInf', 'Ustrd') as unknown[] | undefined)
             .map(text)
@@ -140,26 +175,28 @@ export function parseCamt053(xml: string): CamtStatement {
                   index,
                   bookingDate,
                   value.toFixed(2),
-                  debtorName,
-                  debtorIban,
+                  counterpartyName,
+                  counterpartyIban,
                   remittance,
                   text(path(tx, 'Refs', 'EndToEndId')),
                 ].join('|'),
               )
               .digest('hex'));
-        credits.push({
+        entries.push({
           dedupeKey: `${accountIban ?? ''}|${key}`,
+          direction,
+          reversal,
           accountIban,
           bookingDate,
           amount: value.toFixed(2),
-          debtorName,
-          debtorIban,
+          counterpartyName,
+          counterpartyIban,
           remittance,
         });
       });
     });
   }
-  return { credits, skipped };
+  return { entries, balances, skipped };
 }
 
 // Rechnungsnummern im Verwendungszweck: "R-2026-0001", auch "R 2026 0001",

@@ -323,6 +323,20 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   echte Erkennung. Das Prisma-CLI ist Laufzeitabhängigkeit (für `migrate deploy`). `ops/smoke-test.sh` startet
   den ganzen Stack und prüft ihn von außen; in der CI als eigener Workflow.
 
+- **Nachtrag – Finanzbereich** (Seite „Finanzen“, neues Recht `finance.read`): eine Übersicht für
+  Geschäftsführung und Buchhaltung, keine Buchführung (die bleibt bei DATEV). Der Kontoauszug-Import übernimmt
+  jetzt auch Abbuchungen (Gegenpartei = Empfänger; Spalten `counterpartyName`/`counterpartyIban` statt
+  `debtor…`) und den gebuchten Schlusssaldo (CLBD) je Konto und Tag (`BankBalance`). Der Bankabgleich zeigt
+  weiter nur Zahlungseingänge. `GET /finance/overview`: Kontostand je Konto mit Datum, offene Forderungen
+  (gesamt, überfällig, fällig in 30 Tagen), zwölf Monate mit Rechnungsbetrag (brutto, Stornos abgezogen,
+  Monat in der Zeitzone der Firma), Zahlungseingängen und Ausgaben. `GET /finance/transactions`: alle
+  Kontobewegungen mit Filter (Richtung, Zeitraum, Suche in Name, IBAN, Verwendungszweck), seitenweise.
+  Neue Rolle „Buchhaltung“ (per Migration für alle Firmen, auch bei Ersteinrichtung und Seed): Finanzen,
+  Rechnungen und Zahlungen, DATEV-Export, Kunden und Dokumente lesen, Verkaufspreise – keine Einkaufspreise,
+  keine Nutzer- oder Systemverwaltung. Die Geschäftsführung erhält `finance.read` automatisch.
+  Als Nächstes: Kategorien für Ausgaben (Regeln und Lernen aus Zuordnungen), wiederkehrende Zahlungen mit
+  Jahresüberblick, Eingangsrechnungen.
+
 - **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
   (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt
   (`vatTreatment: "reverse_charge"`). Die Rechnung übernimmt die Behandlung vom Angebot, das Storno vom
