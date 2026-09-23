@@ -13,6 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { OmitType } from '@nestjs/mapped-types';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
@@ -104,6 +105,9 @@ export class CreateQuoteDto {
   @Type(() => QuoteLineItemInputDto)
   lineItems!: QuoteLineItemInputDto[];
 }
+
+// Entwurf überarbeiten: dieselben Angaben wie beim Anlegen, ohne Projekt
+export class UpdateQuoteDto extends OmitType(CreateQuoteDto, ['projectId'] as const) {}
 
 // Kunden sagen "ja"/"nein" auf ein VERSENDETES Angebot – nur diese
 // Zielzustände sind über diesen Endpunkt erlaubt (draft/approved/sent

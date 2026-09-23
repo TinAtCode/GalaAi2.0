@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { SEED, loginViaUi } from './fixtures';
+import { SEED, apiLogin, createDraftQuote, loginViaUi } from './fixtures';
 
 // Angebot direkt in der Projektansicht anlegen: Leistung aus dem Katalog,
 // Menge eingeben – die Preise rechnet das Backend aus der Rezeptur.
@@ -62,6 +62,49 @@ test.describe('Angebot anlegen (Projekt-Detail)', () => {
 
     const card = page.locator(`[data-testid="quote-card"][data-quote-id="${quote.id}"]`);
     await expect(card).toContainText('Baustelleneinrichtung');
+  });
+
+  test('Entwurf bearbeiten: Menge ändern und freie Position ergänzen', async ({ page, request }) => {
+    const quoteId = await createDraftQuote(request, await apiLogin(request));
+    await loginViaUi(page);
+    await page.goto(`/projekte/${SEED.projectId}`);
+
+    const card = page.locator(`[data-testid="quote-card"][data-quote-id="${quoteId}"]`);
+    await card.getByTestId('quote-edit').click();
+    const form = card.getByTestId('quote-form');
+    await expect(form.getByTestId('quote-line-quantity').first()).toHaveValue('5');
+    await form.getByTestId('quote-line-quantity').first().fill('7');
+    await form.getByTestId('quote-free-add').click();
+    await form.getByTestId('quote-free-description').fill('Anfahrt');
+    await form.getByTestId('quote-free-unit').fill('psch');
+    await form.getByTestId('quote-free-price').fill('45');
+    await form.getByTestId('quote-free-cost').fill('30');
+    // Während der Bearbeitung kein Freigeben (sonst gingen die Eingaben verloren)
+    await expect(card.getByTestId('quote-approve')).toHaveCount(0);
+
+    const [response] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith(`/quotes/${quoteId}`) && r.request().method() === 'PUT'),
+      form.getByTestId('quote-submit').click(),
+    ]);
+    expect(response.status()).toBe(200);
+    const quote = await response.json();
+    expect(Number(quote.lineItems[0].quantity)).toBe(7);
+    expect(quote.lineItems[1]).toMatchObject({ description: 'Anfahrt', unit: 'psch' });
+    expect(Number(quote.lineItems[1].costPerUnit)).toBe(30);
+
+    await expect(card.getByTestId('quote-form')).toHaveCount(0);
+    await expect(card).toContainText('Anfahrt');
+    await expect(card.getByTestId('quote-status')).toHaveText('Entwurf');
+
+    // Erneut öffnen: die Kosten der freien Position stehen im Formular und
+    // bleiben beim Speichern erhalten
+    await card.getByTestId('quote-edit').click();
+    await expect(card.getByTestId('quote-free-cost')).toHaveValue('30');
+    const [again] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith(`/quotes/${quoteId}`) && r.request().method() === 'PUT'),
+      card.getByTestId('quote-submit').click(),
+    ]);
+    expect(Number((await again.json()).lineItems[1].costPerUnit)).toBe(30);
   });
 
   test('ohne gültige Menge wird nichts angelegt', async ({ page }) => {

@@ -246,6 +246,10 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Freie Positionen haben keine Soll-Werte für die Nachkalkulation. Positionen tragen jetzt eine feste
   Reihenfolge (`position`); vorher lieferte die Datenbank sie ohne ORDER BY in beliebiger Reihenfolge,
   was auf PDF und Rechnung durchschlagen konnte. Mengen höchstens mit 2 Nachkommastellen.
+  Entwürfe lassen sich bearbeiten (`PUT /quotes/:id`, Knopf „Bearbeiten“ an der Angebotskarte):
+  Positionen und Umsatzsteuer werden ersetzt, Katalog-Leistungen mit der aktuellen Rezeptur neu
+  berechnet; die Nummer bleibt. Ab der Freigabe ist das Angebot eingefroren (400). Bearbeiten in der
+  Oberfläche braucht Verkaufs- und Einkaufsrechte, damit keine verborgenen Kosten verloren gehen.
 
 - **Nachtrag – DATEV-Export**: `GET /datev/bookings?from=JJJJ-MM-TT&to=JJJJ-MM-TT` (Recht `data.export`,
   Einstellungen → DATEV-Export) liefert die Ausgangsrechnungen als DATEV-Buchungsstapel (EXTF, Version

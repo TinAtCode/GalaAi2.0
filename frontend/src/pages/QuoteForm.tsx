@@ -11,18 +11,70 @@ interface Service {
 // Position mit eigenem Text und Preis (z.B. Pauschalen).
 type Line =
   | { kind: 'service'; serviceId: string; quantity: string }
-  | { kind: 'free'; description: string; unit: string; quantity: string; unitPrice: string };
+  | {
+      kind: 'free';
+      description: string;
+      unit: string;
+      quantity: string;
+      unitPrice: string;
+      costPerUnit: string;
+    };
 
 const decimal = (value: string) => Number(value.replace(',', '.'));
+const text = (value: number | string | undefined) =>
+  value === undefined ? '' : String(Number(value)).replace('.', ',');
+
+// Ein bestehender Entwurf, der überarbeitet wird
+export interface EditableQuote {
+  id: string;
+  vatRate: number | string;
+  vatTreatment: 'standard' | 'small_business' | 'reverse_charge';
+  lineItems: {
+    serviceId?: string | null;
+    description: string;
+    unit: string;
+    quantity: number | string;
+    unitPrice?: number | string;
+    costPerUnit?: number | string;
+  }[];
+}
+
+const linesOf = (quote: EditableQuote): Line[] =>
+  quote.lineItems.map((li) =>
+    li.serviceId
+      ? { kind: 'service', serviceId: li.serviceId, quantity: text(li.quantity) }
+      : {
+          kind: 'free',
+          description: li.description,
+          unit: li.unit,
+          quantity: text(li.quantity),
+          unitPrice: text(li.unitPrice),
+          costPerUnit: text(li.costPerUnit),
+        },
+  );
 
 // Neues Angebot aus Leistungen des Katalogs und freien Positionen. Preise
 // der Katalog-Leistungen rechnet das Backend aus der Rezeptur (Kalkulation).
-export function QuoteForm({ projectId, onCreated }: { projectId: string; onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
+// Mit `quote` wird ein Entwurf überarbeitet (PUT), sonst neu angelegt.
+export function QuoteForm({
+  projectId,
+  onCreated,
+  quote,
+  onCancel,
+  showCost = false,
+}: {
+  projectId: string;
+  onCreated: () => void;
+  quote?: EditableQuote;
+  onCancel?: () => void;
+  // Kosten je Einheit bei freien Positionen (nur mit Einkaufsrechten)
+  showCost?: boolean;
+}) {
+  const [open, setOpen] = useState(!!quote);
   const [services, setServices] = useState<Service[] | null>(null);
-  const [lines, setLines] = useState<Line[]>([]);
-  const [reverseCharge, setReverseCharge] = useState(false);
-  const [vatRate, setVatRate] = useState('');
+  const [lines, setLines] = useState<Line[]>(() => (quote ? linesOf(quote) : []));
+  const [reverseCharge, setReverseCharge] = useState(quote?.vatTreatment === 'reverse_charge');
+  const [vatRate, setVatRate] = useState(quote?.vatTreatment === 'standard' ? text(quote.vatRate) : '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -35,17 +87,21 @@ export function QuoteForm({ projectId, onCreated }: { projectId: string; onCreat
       .get<Service[]>('/services')
       .then((list) => {
         setServices(list);
-        setLines(serviceLine(list));
+        if (!quote) setLines(serviceLine(list));
       })
       .catch((err) =>
         setError(err instanceof ApiError ? err.message : 'Leistungen konnten nicht geladen werden.'),
       );
-  }, [open, services]);
+  }, [open, services, quote]);
 
   const updateLine = (index: number, patch: Partial<Line>) =>
     setLines(lines.map((line, i) => (i === index ? ({ ...line, ...patch } as Line) : line)));
 
   const reset = () => {
+    if (quote) {
+      onCancel?.();
+      return;
+    }
     setOpen(false);
     setLines(serviceLine(services));
     setReverseCharge(false);
@@ -67,6 +123,7 @@ export function QuoteForm({ projectId, onCreated }: { projectId: string; onCreat
             unit: l.unit.trim(),
             quantity: decimal(l.quantity),
             unitPrice: decimal(l.unitPrice),
+            ...(l.costPerUnit.trim() ? { costPerUnit: decimal(l.costPerUnit) } : {}),
           },
     );
     const invalid = lineItems.some(
@@ -75,7 +132,11 @@ export function QuoteForm({ projectId, onCreated }: { projectId: string; onCreat
         l.quantity <= 0 ||
         ('serviceId' in l
           ? !l.serviceId
-          : !l.description || !l.unit || !Number.isFinite(l.unitPrice) || l.unitPrice < 0),
+          : !l.description ||
+            !l.unit ||
+            !Number.isFinite(l.unitPrice) ||
+            l.unitPrice < 0 ||
+            ('costPerUnit' in l && (!Number.isFinite(l.costPerUnit) || (l.costPerUnit ?? 0) < 0))),
     );
     if (invalid) {
       setError(
@@ -86,13 +147,17 @@ export function QuoteForm({ projectId, onCreated }: { projectId: string; onCreat
     setBusy(true);
     setError(null);
     try {
-      await api.post('/quotes', {
-        projectId,
+      const body = {
         lineItems,
         ...(reverseCharge ? { vatTreatment: 'reverse_charge' } : {}),
         ...(!reverseCharge && vatRate.trim() ? { vatRate: decimal(vatRate) } : {}),
-      });
-      reset();
+      };
+      if (quote) {
+        await api.put(`/quotes/${quote.id}`, body);
+      } else {
+        await api.post('/quotes', { projectId, ...body });
+        reset();
+      }
       onCreated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Angebot konnte nicht angelegt werden.');
@@ -132,7 +197,7 @@ export function QuoteForm({ projectId, onCreated }: { projectId: string; onCreat
       style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'stretch' }}
       data-testid="quote-form"
     >
-      <strong>Neues Angebot</strong>
+      <strong>{quote ? 'Angebot bearbeiten' : 'Neues Angebot'}</strong>
       {services?.length === 0 && (
         <p className="list-item-meta">
           Noch keine Leistungen im Katalog (Stammdaten → Leistungen) – freie Positionen sind möglich.
@@ -222,6 +287,17 @@ export function QuoteForm({ projectId, onCreated }: { projectId: string; onCreat
                     data-testid="quote-free-price"
                   />
                 </label>
+                {showCost && (
+                  <label className="field" style={{ flex: '1 1 110px' }}>
+                    <span>Kosten je Einheit (optional)</span>
+                    <input
+                      value={line.costPerUnit}
+                      onChange={(e) => updateLine(index, { costPerUnit: e.target.value })}
+                      inputMode="decimal"
+                      data-testid="quote-free-cost"
+                    />
+                  </label>
+                )}
                 {lines.length > 1 && removeButton(index)}
               </div>
             ),
@@ -243,7 +319,7 @@ export function QuoteForm({ projectId, onCreated }: { projectId: string; onCreat
               onClick={() =>
                 setLines([
                   ...lines,
-                  { kind: 'free', description: '', unit: '', quantity: '1', unitPrice: '' },
+                  { kind: 'free', description: '', unit: '', quantity: '1', unitPrice: '', costPerUnit: '' },
                 ])
               }
               data-testid="quote-free-add"
@@ -276,7 +352,7 @@ export function QuoteForm({ projectId, onCreated }: { projectId: string; onCreat
           disabled={busy || !services || lines.length === 0}
           data-testid="quote-submit"
         >
-          Angebot anlegen
+          {quote ? 'Änderungen speichern' : 'Angebot anlegen'}
         </button>
         <button type="button" className="btn" onClick={reset}>
           Abbrechen

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, StreamableFile, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, StreamableFile, UseGuards } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
@@ -7,7 +7,7 @@ import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { QuotesService } from './quotes.service';
-import { CreateQuoteDto, SetQuoteOutcomeDto } from './dto/quote.dto';
+import { CreateQuoteDto, SetQuoteOutcomeDto, UpdateQuoteDto } from './dto/quote.dto';
 
 // Gleiches Prinzip wie bei Kalkulationen: Kosten (costPerUnit) brauchen
 // price.purchase.read, Verkaufspreis (unitPrice/totalNet) braucht
@@ -79,6 +79,14 @@ export class QuotesController {
   @RequirePermissions(PERMISSIONS.QUOTE_CREATE)
   async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateQuoteDto) {
     const quote = await this.quotesService.create(user.companyId, dto);
+    return maskQuote(quote, user.permissions);
+  }
+
+  // Nur im Entwurf; Positionen werden ersetzt und neu berechnet
+  @Put(':id')
+  @RequirePermissions(PERMISSIONS.QUOTE_CREATE)
+  async update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateQuoteDto) {
+    const quote = await this.quotesService.update(user.companyId, id, dto);
     return maskQuote(quote, user.permissions);
   }
 

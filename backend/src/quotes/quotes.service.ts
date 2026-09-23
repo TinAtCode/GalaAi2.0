@@ -7,7 +7,7 @@ import { writeAudit } from '../common/audit';
 import { resolveVatTreatment, VAT_TREATMENT_NOTES } from '../common/vat-treatment';
 import { PrismaService } from '../prisma/prisma.service';
 import { CalculationsService } from '../calculations/calculations.service';
-import { CreateQuoteDto, QuoteStatus } from './dto/quote.dto';
+import { CreateQuoteDto, QuoteStatus, UpdateQuoteDto } from './dto/quote.dto';
 
 // Freie Position: Preis und Kosten wie eingegeben, Summe auf Cent gerundet.
 // Ohne Rezeptur gibt es keine Soll-Werte für die Nachkalkulation.
@@ -76,18 +76,15 @@ export class QuotesService {
     return this.assertQuoteBelongsToCompany(companyId, id);
   }
 
-  // Erzeugt für jede Position eine aktuelle Kalkulation und SPEICHERT das
-  // Ergebnis als Snapshot. Ab hier ist der Preis "eingefroren" – ändert sich
-  // später der Artikelpreis oder der Stundensatz der Firma, bleibt dieses
-  // Angebot unverändert (siehe Punkt 21 im Ursprungsdokument).
-  async create(companyId: string, dto: CreateQuoteDto) {
-    await this.assertProjectBelongsToCompany(companyId, dto.projectId);
-
+  // Positionen berechnen: Katalog-Leistungen aus der aktuellen Kalkulation,
+  // freie Positionen wie eingegeben. Ergebnis ist der Snapshot, der am
+  // Angebot gespeichert wird.
+  private async buildLineItems(companyId: string, items: CreateQuoteDto['lineItems']) {
     // Positionen sind voneinander unabhängig – parallel statt sequenziell
     // verarbeiten (bei vielen Positionen spart das spürbar Latenz, da jede
     // Position sonst auf den DB-Roundtrip der vorherigen wartet).
     const lineItemsData = await Promise.all(
-      dto.lineItems.map(async (item) => {
+      items.map(async (item) => {
         if (!item.serviceId) return freeLineItem(item);
         if (
           item.description !== undefined ||
@@ -128,16 +125,40 @@ export class QuotesService {
       }),
     );
 
+    return lineItemsData.map((line, index) => ({ ...line, position: index + 1 }));
+  }
+
+  // Summen und Umsatzsteuer eines Angebots
+  private async totals(
+    companyId: string,
+    lineItems: { lineTotal: Prisma.Decimal | number }[],
+    vat: Pick<CreateQuoteDto, 'vatRate' | 'vatTreatment'>,
+  ) {
     // Summe exakt als Dezimalwert bilden (Positionsbeträge sind bereits auf
     // Cent gerundet, die Summe ist es damit ebenfalls). Die Umsatzsteuer wird
     // einmal auf die Nettosumme gerechnet und kaufmännisch gerundet.
-    const totalNet = lineItemsData.reduce((sum, li) => sum.plus(li.lineTotal), new Prisma.Decimal(0));
+    const totalNet = lineItems.reduce((sum, li) => sum.plus(li.lineTotal), new Prisma.Decimal(0));
     const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
-    const vatTreatment = resolveVatTreatment(company.smallBusiness, dto.vatTreatment);
+    const vatTreatment = resolveVatTreatment(company.smallBusiness, vat.vatTreatment);
     const vatRate = new Prisma.Decimal(
-      vatTreatment === 'standard' ? (dto.vatRate ?? company.defaultVatRate) : 0,
+      vatTreatment === 'standard' ? (vat.vatRate ?? company.defaultVatRate) : 0,
     );
     const totalVat = totalNet.times(vatRate).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+
+    return {
+      company,
+      totals: { totalNet, vatRate, vatTreatment, totalVat, totalGross: totalNet.plus(totalVat) },
+    };
+  }
+
+  // Erzeugt für jede Position eine aktuelle Kalkulation und SPEICHERT das
+  // Ergebnis als Snapshot. Ab hier ist der Preis "eingefroren" – ändert sich
+  // später der Artikelpreis oder der Stundensatz der Firma, bleibt dieses
+  // Angebot unverändert (siehe Punkt 21 im Ursprungsdokument).
+  async create(companyId: string, dto: CreateQuoteDto) {
+    await this.assertProjectBelongsToCompany(companyId, dto.projectId);
+    const lineItems = await this.buildLineItems(companyId, dto.lineItems);
+    const { company, totals } = await this.totals(companyId, lineItems, dto);
 
     // Nummer und Angebot in einer Transaktion: scheitert das Anlegen, ist
     // auch die Nummer nicht verbraucht.
@@ -149,13 +170,35 @@ export class QuotesService {
           companyId,
           projectId: dto.projectId,
           number: formatDocumentNumber('A', year, value),
-          totalNet,
-          vatRate,
-          vatTreatment,
-          totalVat,
-          totalGross: totalNet.plus(totalVat),
-          lineItems: { create: lineItemsData.map((line, index) => ({ ...line, position: index + 1 })) },
+          ...totals,
+          lineItems: { create: lineItems },
         },
+        include: { lineItems: { orderBy: { position: 'asc' } } },
+      });
+    });
+  }
+
+  // Entwurf überarbeiten: Positionen und Umsatzsteuer werden ersetzt,
+  // Katalog-Leistungen mit der aktuellen Rezeptur neu berechnet. Ab der
+  // Freigabe ist das Angebot eingefroren. Das bedingte Update sperrt die
+  // Zeile – eine gleichzeitige Freigabe wartet und sieht danach die neuen
+  // Positionen.
+  async update(companyId: string, id: string, dto: UpdateQuoteDto) {
+    await this.assertQuoteBelongsToCompany(companyId, id);
+    const lineItems = await this.buildLineItems(companyId, dto.lineItems);
+    const { totals } = await this.totals(companyId, lineItems, dto);
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.quote.updateMany({
+        where: { id, companyId, status: 'draft' },
+        data: totals,
+      });
+      if (count === 0) {
+        throw new BadRequestException('Nur Angebote im Entwurf können bearbeitet werden.');
+      }
+      await tx.quoteLineItem.deleteMany({ where: { quoteId: id } });
+      await tx.quoteLineItem.createMany({ data: lineItems.map((line) => ({ ...line, quoteId: id })) });
+      return tx.quote.findUniqueOrThrow({
+        where: { id },
         include: { lineItems: { orderBy: { position: 'asc' } } },
       });
     });

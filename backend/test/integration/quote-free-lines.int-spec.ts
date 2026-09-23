@@ -145,4 +145,55 @@ describe('Angebote mit freien Positionen', () => {
     expect(res.body.lineItems[0].marginPerUnit).toBeUndefined();
     expect(Number(res.body.lineItems[0].unitPrice)).toBe(55);
   });
+
+  it('Entwurf bearbeiten: Positionen und Steuer ersetzen, Summen neu; nach der Freigabe nicht mehr', async () => {
+    const quote = await api()
+      .post('/quotes')
+      .set(auth)
+      .send({ projectId, lineItems: [{ serviceId, quantity: 10 }] })
+      .expect(201);
+    const edited = await api()
+      .put(`/quotes/${quote.body.id}`)
+      .set(auth)
+      .send({
+        vatRate: 7,
+        lineItems: [
+          { description: 'Erste Position', unit: 'psch', quantity: 1, unitPrice: 100 },
+          { serviceId, quantity: 20 },
+        ],
+      })
+      .expect(200);
+    expect(edited.body.number).toBe(quote.body.number);
+    expect(edited.body.lineItems.map((l: { description: string }) => l.description)).toEqual([
+      'Erste Position',
+      'Rasen mähen',
+    ]);
+    const catalogTotal = Number(edited.body.lineItems[1].lineTotal);
+    expect(Number(edited.body.totalNet)).toBeCloseTo(100 + catalogTotal, 2);
+    expect(Number(edited.body.vatRate)).toBe(7);
+    expect(Number(edited.body.totalVat)).toBeCloseTo(Math.round((100 + catalogTotal) * 7) / 100, 2);
+    expect(await prisma.quoteLineItem.count({ where: { quoteId: quote.body.id } })).toBe(2);
+
+    await api().post(`/quotes/${quote.body.id}/approve`).set(auth).expect(201);
+    const locked = await api()
+      .put(`/quotes/${quote.body.id}`)
+      .set(auth)
+      .send({ lineItems: [{ serviceId, quantity: 1 }] })
+      .expect(400);
+    expect(locked.body.message).toContain('Entwurf');
+    expect(await prisma.quoteLineItem.count({ where: { quoteId: quote.body.id } })).toBe(2);
+
+    // fremde Firma: 404, Projekt lässt sich nicht umhängen
+    const other = await createCompany(app, prisma, 'Fremd Angebot GmbH');
+    await api()
+      .put(`/quotes/${quote.body.id}`)
+      .set({ Authorization: `Bearer ${other.token}` })
+      .send({ lineItems: [{ description: 'Fremd', unit: 'psch', quantity: 1, unitPrice: 1 }] })
+      .expect(404);
+    await api()
+      .put(`/quotes/${quote.body.id}`)
+      .set(auth)
+      .send({ projectId, lineItems: [{ serviceId, quantity: 1 }] })
+      .expect(400);
+  });
 });

@@ -15,10 +15,12 @@ interface Appointment {
 
 interface QuoteLineItem {
   id: string;
+  serviceId?: string | null;
   description: string;
   unit: string;
   quantity: number;
   unitPrice?: number;
+  costPerUnit?: number;
   lineTotal?: number;
 }
 
@@ -80,6 +82,8 @@ const QUOTE_STATUS_LABELS: Record<Quote['status'], string> = {
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  // Angebot, dessen Entwurf gerade bearbeitet wird
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const { user, hasPermission } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
@@ -239,7 +243,9 @@ export function ProjectDetailPage() {
       </form>
 
       <h3 style={{ marginBottom: 8 }}>Angebote &amp; Aufträge</h3>
-      {projectId && hasPermission('quote.create') && <QuoteForm projectId={projectId} onCreated={load} />}
+      {projectId && hasPermission('quote.create') && (
+        <QuoteForm projectId={projectId} onCreated={load} showCost={hasPermission('price.purchase.read')} />
+      )}
       {!error && quotes === null && <p>Lädt …</p>}
 
       {quotes?.length === 0 && (
@@ -277,6 +283,18 @@ export function ProjectDetailPage() {
             )}
           </div>
 
+          {editingQuoteId === quote.id && quote.status === 'draft' && projectId && (
+            <QuoteForm
+              projectId={projectId}
+              quote={quote}
+              showCost={hasPermission('price.purchase.read')}
+              onCreated={() => {
+                setEditingQuoteId(null);
+                load();
+              }}
+              onCancel={() => setEditingQuoteId(null)}
+            />
+          )}
           <table className="calc-table">
             <tbody>
               {quote.lineItems.map((li) => (
@@ -300,7 +318,21 @@ export function ProjectDetailPage() {
                 PDF
               </button>
             )}
-            {quote.status === 'draft' && (
+            {quote.status === 'draft' &&
+              editingQuoteId !== quote.id &&
+              hasPermission('quote.create') &&
+              hasPermission('price.sale.read') &&
+              hasPermission('price.purchase.read') && (
+                <button
+                  className="btn"
+                  disabled={busyId !== null}
+                  onClick={() => setEditingQuoteId(quote.id)}
+                  data-testid="quote-edit"
+                >
+                  Bearbeiten
+                </button>
+              )}
+            {quote.status === 'draft' && editingQuoteId !== quote.id && (
               <button
                 className="btn btn-primary"
                 disabled={busyId !== null}
