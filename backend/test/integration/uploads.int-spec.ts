@@ -2,12 +2,12 @@ import { INestApplication } from '@nestjs/common';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, resetDatabase, TestCompany } from './helpers';
 
 describe('Datei-Uploads', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   let company: TestCompany;
   let auth: { Authorization: string };
   const api = () => request(app.getHttpServer());

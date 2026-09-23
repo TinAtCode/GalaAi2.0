@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, createProject, resetDatabase, TestCompany } from './helpers';
 
 // Der Kernablauf einmal komplett gegen die echte Datenbank: Stammdaten ->
@@ -9,7 +9,7 @@ import { createApp, createCompany, createProject, resetDatabase, TestCompany } f
 // "grün", obwohl die Relation ServiceComponent -> Article fehlte.
 describe('Angebots-Workflow gegen PostgreSQL', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   let company: TestCompany;
   let auth: { Authorization: string };
   let projectId: string;

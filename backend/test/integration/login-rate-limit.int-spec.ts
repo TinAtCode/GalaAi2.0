@@ -1,12 +1,12 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, resetDatabase } from './helpers';
 
 // Login-Grenzen mit niedrigen Testwerten: 3 Versuche je Konto, 6 je IP.
 describe('Login-Rate-Limit', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   const saved = { account: process.env.LOGIN_RATE_LIMIT, ip: process.env.LOGIN_IP_RATE_LIMIT };
 
   const login = (email: string) =>

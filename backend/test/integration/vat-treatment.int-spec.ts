@@ -2,14 +2,14 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, fetchPdfText, resetDatabase } from './helpers';
 
 // Belege ohne Umsatzsteuer: Kleinunternehmer (§ 19 UStG) und
 // Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG).
 describe('Umsatzsteuer: § 19 und § 13b', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   const api = () => request(app.getHttpServer());
 
   beforeAll(async () => {

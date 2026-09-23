@@ -38,11 +38,13 @@ Die technische Grundlage ist ordentlich. Als Geschäftssoftware für einen Garte
 
 Die bisherige Entwicklung hat in die Breite gebaut (OCR, KI-Gateway, Datenwächter), bevor ein einziger Ablauf vom Angebot bis zur Rechnung wirklich benutzbar war.
 
-### 2.2 Die Trennung der Firmen hängt an Joins über mehrere Tabellen
+### 2.2 Die Trennung der Firmen hängt an Joins über mehrere Tabellen ✅
 
 `Project`, `Quote`, `Order`, `Appointment` und `TimeEntry` haben keine eigene `companyId`. Jede Abfrage muss sich über Projekt → Objekt → Kunde → Firma hangeln. Das funktioniert, solange niemand es einmal vergisst. Ein einziger vergessener Join ist ein Datenleck zwischen Firmen, wie beim Dokument-Download, der fremde Dateien ausliefern konnte.
 
 **Empfehlung:** `companyId` direkt in diese Tabellen schreiben und die Prüfung zentral erzwingen, zum Beispiel per Prisma-Extension oder Postgres Row-Level-Security. Das hilft nebenbei auch der Geschwindigkeit, denn `Project.propertyId` hat derzeit nicht einmal einen Index.
+
+**Stand:** erledigt. `companyId` steht in allen Mandanten-Tabellen. Zentral erzwungen in zwei Schichten: Datenbank-Trigger (`tenant_guard`) lehnen jede Verknüpfung über Firmengrenzen ab, auch an den Services vorbei; ein Guard im Prisma-Client lässt Listen- und Massenabfragen auf Mandanten-Tabellen nur mit `companyId`-Filter zu. Statt Row-Level-Security, weil diese mit Prisma jede Abfrage in eine eigene Transaktion zwingen würde (Verbindungsbedarf, Deadlock-Gefahr bei verschachtelten Transaktionen).
 
 **Stand:** `companyId` und die fehlenden Indizes sind ergänzt, alle Services filtern direkt darüber. Die zentrale Erzwingung steht noch aus.
 
@@ -98,7 +100,7 @@ Bereits behoben (Commits auf dem Branch):
 
 | Schritt | Inhalt |
 |---|---|
-| **1. Fundament** ✅ | echte Migrationen · Integrationstests gegen PostgreSQL in der CI · `companyId` in allen Tabellen · Enums statt Status-Texte · exakte Dezimalrechnung · Zeitzone `Europe/Berlin` explizit. Noch offen: zentrale Erzwingung der Mandantentrennung (z.B. Row-Level-Security) |
+| **1. Fundament** ✅ | echte Migrationen · Integrationstests gegen PostgreSQL in der CI · `companyId` in allen Tabellen · Enums statt Status-Texte · exakte Dezimalrechnung · Zeitzone `Europe/Berlin` explizit · Mandantentrennung zentral erzwungen (Datenbank-Trigger und Prisma-Guard) |
 | **2. Benutzbarkeit** ✅ | Benutzerverwaltung mit Passwort-Reset · Bearbeiten und Archivieren für alle Stammdaten · Korrektur von Zeiteinträgen mit Audit-Log · seitenweises Laden · 401-Behandlung im Frontend. **Stand:** erledigt, inklusive der Bearbeiten-Masken im Frontend |
 | **3. Kernablauf schließen** ✅ | Angebotsnummer · Umsatzsteuer · Angebots-PDF · **Rechnungen** (Abschlag und Schluss) mit Blick auf die E-Rechnung. **Stand:** erledigt, inklusive PDF und E-Rechnung (XRechnung) |
 | **4. Kalkulation vervollständigen** ✅ | Maschinen · Rundung pro Gesamtposition · Nachkalkulation auf Basis des eingefrorenen Angebots |

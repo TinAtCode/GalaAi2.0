@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, createProject, resetDatabase, TestCompany } from './helpers';
 
 // Mehrere Anfragen gleichzeitig – wie ein Doppelklick oder zwei Geräte.
@@ -8,7 +8,7 @@ import { createApp, createCompany, createProject, resetDatabase, TestCompany } f
 // einem 500er scheitern.
 describe('Gleichzeitige Anfragen', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   let company: TestCompany;
   let auth: { Authorization: string };
   let projectId: string;

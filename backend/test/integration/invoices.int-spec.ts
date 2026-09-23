@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, fetchPdfText, resetDatabase, TestCompany } from './helpers';
 
 // Kompletter Rechnungsablauf gegen PostgreSQL: Abschlag -> Schlussrechnung
@@ -10,7 +10,7 @@ import { createApp, createCompany, fetchPdfText, resetDatabase, TestCompany } fr
 // Unveränderlichkeit (Datenbank-Trigger).
 describe('Rechnungen', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   let company: TestCompany;
   let auth: { Authorization: string };
   let projectId: string;

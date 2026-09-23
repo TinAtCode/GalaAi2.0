@@ -1,11 +1,11 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, createProject, fetchPdfText, resetDatabase, TestCompany } from './helpers';
 
 describe('Angebotsnummern und Umsatzsteuer', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   let a: TestCompany;
   let b: TestCompany;
   const setup: Record<string, { projectId: string; serviceId: string }> = {};

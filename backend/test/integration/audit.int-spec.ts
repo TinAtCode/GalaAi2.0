@@ -1,13 +1,13 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, createProject, resetDatabase, TestCompany } from './helpers';
 
 // Status-, Nutzer- und Rechteänderungen landen im Audit-Log: wer, wann, von
 // welchem Wert auf welchen.
 describe('Audit-Log für Status- und Rechteänderungen', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   let company: TestCompany;
   let auth: { Authorization: string };
   const api = () => request(app.getHttpServer());

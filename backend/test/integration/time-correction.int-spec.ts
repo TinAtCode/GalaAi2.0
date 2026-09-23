@@ -1,11 +1,11 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, resetDatabase, TestCompany } from './helpers';
 
 describe('Zeiteinträge korrigieren und freigeben', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   let boss: TestCompany;
   let other: TestCompany;
   const api = () => request(app.getHttpServer());

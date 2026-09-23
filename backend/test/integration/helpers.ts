@@ -5,18 +5,27 @@ import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/configure-app';
 import { PERMISSIONS } from '../../src/common/permissions';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 
-export async function createApp(): Promise<{ app: INestApplication; prisma: PrismaService }> {
+// Die App nutzt den PrismaService mit Mandanten-Guard (src/prisma/tenant-guard.ts).
+// Die Tests bekommen für Vorbereitung und Prüfungen einen eigenen Client ohne
+// Guard – sie fragen bewusst auch firmenübergreifend ab.
+export async function createApp(): Promise<{ app: INestApplication; prisma: PrismaClient }> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();
   configureApp(app);
   await app.init();
-  return { app, prisma: app.get(PrismaService) };
+  const prisma = new PrismaClient();
+  const close = app.close.bind(app);
+  app.close = async () => {
+    await close();
+    await prisma.$disconnect();
+  };
+  return { app, prisma };
 }
 
 // Leert alle Tabellen außer der Migrationshistorie.
-export async function resetDatabase(prisma: PrismaService) {
+export async function resetDatabase(prisma: PrismaClient) {
   const tables: { tablename: string }[] = await prisma.$queryRaw`
     SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
   const list = tables.map((t) => `"public"."${t.tablename}"`).join(', ');
@@ -38,7 +47,7 @@ export interface TestCompany {
 // meldet ihn über den echten Login-Endpunkt an.
 export async function createCompany(
   app: INestApplication,
-  prisma: PrismaService,
+  prisma: PrismaClient,
   name: string,
 ): Promise<TestCompany> {
   const company = await prisma.company.create({ data: { name } });

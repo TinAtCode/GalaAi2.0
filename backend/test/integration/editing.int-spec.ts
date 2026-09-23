@@ -1,11 +1,11 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, createProject, resetDatabase, TestCompany } from './helpers';
 
 describe('Bearbeiten von Kunden, Projekten und Stammdaten', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   let a: TestCompany;
   let b: TestCompany;
   let ids: { customerId: string; propertyId: string; projectId: string };

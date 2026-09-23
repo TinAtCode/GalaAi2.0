@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { createApp, createCompany, createProject, resetDatabase, TestCompany } from './helpers';
 
 // Firma B kennt die IDs von Firma A (z.B. aus einer geleakten URL) und
@@ -8,7 +8,7 @@ import { createApp, createCompany, createProject, resetDatabase, TestCompany } f
 // echtem Login und echter Datenbank.
 describe('Mandantentrennung über die API', () => {
   let app: INestApplication;
-  let prisma: PrismaService;
+  let prisma: PrismaClient;
   let a: TestCompany;
   let b: TestCompany;
   const ids: Record<string, string> = {};
