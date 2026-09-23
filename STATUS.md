@@ -340,6 +340,22 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Als Nächstes: Kategorien für Ausgaben (Regeln und Lernen aus Zuordnungen), wiederkehrende Zahlungen mit
   Jahresüberblick, Eingangsrechnungen.
 
+- **Nachtrag – Einheiten und Rundung** (Stammdaten → Einheiten): Einheitenkatalog in `common/units.ts`
+  (mm, cm, m, km, cm², m², ha, l, m³, g, kg, t, Stk, Sack, Palette, h, min, psch) mit Dimension,
+  Umrechnungsfaktor und E-Rechnungs-Code; Schreibweisen wie „qm“, „m2“, „Stück“ werden vereinheitlicht (auch
+  bestehende Leistungen und Artikel per Migration; Angebote und Rechnungen bleiben unverändert). Umrechnung
+  innerhalb einer Dimension (cm → m, t → kg) als Funktion für Aufmaß und Rezepturen vorbereitet. Mengen haben
+  jetzt bis zu 3 Nachkommastellen. Rundung der Mengen in vier Stufen – Position → Leistung (später auch Artikel) → Einheit
+  → Firma: die erste Stufe mit einer Genauigkeit (0–3 Nachkommastellen oder Schritt, z.B. 0,5) bestimmt
+  sie, die Rundungsart (kaufmännisch, aufrunden, abrunden) kommt von der ersten Stufe, die eine festlegt.
+  Katalog-Vorgaben: Stück, Sack, Palette ganzzahlig (Sack und Palette aufrunden). Am Angebot stehen die
+  gerundete Menge (Summe, PDF, Rechnung, E-Rechnung) und die genaue Menge (Nachkalkulation) samt Quelle der
+  Rundung. Geldbeträge bleiben centgenau. `GET/PUT/DELETE /units` für Anpassungen je Einheit und eigene
+  Einheiten (Ändern mit `masterdata.write`). Die Rundungsfelder am Artikel sind angelegt, werden aber erst
+  mit Aufmaß und Materiallisten genutzt (Angebotspositionen hängen an Leistungen); in der Oberfläche sind sie
+  deshalb noch nicht einstellbar. Bestehende Angebotspositionen behalten ihre Menge unverändert (eigene Regel
+  „3 Nachkommastellen“ per Migration), damit ein altes Angebot beim Speichern nicht neu gerundet wird.
+
 - **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
   (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt
   (`vatTreatment: "reverse_charge"`). Die Rechnung übernimmt die Behandlung vom Angebot, das Storno vom

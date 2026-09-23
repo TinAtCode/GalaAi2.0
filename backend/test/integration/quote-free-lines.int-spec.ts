@@ -112,8 +112,9 @@ describe('Angebote mit freien Positionen', () => {
     await send({ description: 'Ohne Preis', unit: 'Stk', quantity: 1 }).expect(400);
     await send({ description: 'Negativ', unit: 'Stk', quantity: 1, unitPrice: -5 }).expect(400);
     await send({ description: 'Zu genau', unit: 'Stk', quantity: 1, unitPrice: 1.234 }).expect(400);
-    await send({ description: 'Menge zu genau', unit: 'Stk', quantity: 1.005, unitPrice: 1000 }).expect(400);
-    await send({ serviceId, quantity: 1.005 }).expect(400);
+    // Mengen bis 3 Nachkommastellen (mm in m), genauer nicht
+    await send({ description: 'Menge zu genau', unit: 'Stk', quantity: 1.0005, unitPrice: 1000 }).expect(400);
+    await send({ serviceId, quantity: 1.0005 }).expect(400);
     await send({ description: '   ', unit: 'Stk', quantity: 1, unitPrice: 1 }).expect(400);
     await send({ description: 'Nur Leerzeichen als Einheit', unit: '   ', quantity: 1, unitPrice: 1 }).expect(
       400,

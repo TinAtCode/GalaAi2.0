@@ -163,7 +163,7 @@ async function main() {
       id: 'demo-service-id',
       companyId: company.id,
       name: '1 m² Terrasse verlegen',
-      unit: 'm2',
+      unit: 'm²',
     },
   });
 

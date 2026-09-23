@@ -86,7 +86,9 @@ export class PostCalculationService {
       const recipeByLineItem = new Map(legacyItems.map((li, index) => [li.id, legacyServices[index]]));
 
       for (const lineItem of lineItems) {
-        const quantity = Number(lineItem.quantity);
+        // Soll aus der genauen Menge – die gerundete (z.B. aufgerundetes
+        // Material) steht nur auf dem Angebot
+        const quantity = Number(lineItem.quantityExact ?? lineItem.quantity);
         if (lineItem.plannedLaborMinutesPerUnit != null && lineItem.plannedMaterialCostPerUnit != null) {
           plannedLaborItems.push({ quantity, laborMinutesPerUnit: lineItem.plannedLaborMinutesPerUnit });
           plannedMaterialItems.push({

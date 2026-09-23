@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { formatEuro } from '../format';
 import { InlineEdit } from '../layout/InlineEdit';
 import { ServicesTab } from './ServicesTab';
+import { UnitsTab } from './UnitsTab';
 
 interface Article {
   id: string;
@@ -25,7 +26,7 @@ interface Machine {
   hourlyRate?: number;
 }
 
-type Tab = 'articles' | 'services' | 'suppliers' | 'machines';
+type Tab = 'articles' | 'services' | 'suppliers' | 'machines' | 'units';
 
 export function MasterDataPage() {
   const { hasPermission } = useAuth();
@@ -67,12 +68,20 @@ export function MasterDataPage() {
         >
           Maschinen
         </button>
+        <button
+          className={tab === 'units' ? 'active' : ''}
+          onClick={() => setTab('units')}
+          data-testid="tab-units"
+        >
+          Einheiten
+        </button>
       </div>
 
       {tab === 'articles' && <ArticlesTab canWrite={canWrite} />}
       {tab === 'services' && <ServicesTab canWrite={canWrite} />}
       {tab === 'suppliers' && <SuppliersTab canWrite={canWrite} />}
       {tab === 'machines' && <MachinesTab canWrite={canWrite} />}
+      {tab === 'units' && <UnitsTab canWrite={canWrite} />}
     </div>
   );
 }

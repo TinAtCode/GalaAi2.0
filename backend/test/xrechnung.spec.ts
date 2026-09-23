@@ -216,6 +216,7 @@ describe('XRechnung (CII)', () => {
 
   it('bildet unbekannte Einheiten auf C62 ab', () => {
     expect(unitCode(' Stk ')).toBe('H87');
-    expect(unitCode('Sack')).toBe('C62');
+    expect(unitCode('Sack')).toBe('BG');
+    expect(unitCode('Rolle')).toBe('C62');
   });
 });

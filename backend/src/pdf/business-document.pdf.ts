@@ -81,6 +81,9 @@ const euro = (value: string | number) =>
   Number(value).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 const amount = (value: string | number) =>
   Number(value).toLocaleString('de-DE', { maximumFractionDigits: 2 });
+// Mengen mit bis zu 3 Nachkommastellen (z.B. 0,125 m³), ohne überflüssige Nullen
+const quantityText = (value: string | number) =>
+  Number(value).toLocaleString('de-DE', { maximumFractionDigits: 3 });
 const addressLines = (p: PdfParty) =>
   [p.name, p.street, [p.postalCode, p.city].filter(Boolean).join(' ')].filter((l): l is string => !!l);
 
@@ -224,7 +227,7 @@ export function renderBusinessDocumentPdf(doc: BusinessDocumentPdf): Promise<Buf
     row([
       String(line.position),
       line.description,
-      amount(line.quantity),
+      quantityText(line.quantity),
       line.unit,
       euro(line.unitPrice),
       euro(line.lineTotal),

@@ -30,6 +30,8 @@ const SETTINGS_SELECT = {
   datevChartOfAccounts: true,
   datevRevenueAccounts: true,
   dunningDeadlineDays: true,
+  quantityDecimals: true,
+  quantityRounding: true,
 } satisfies Prisma.CompanySelect;
 
 @Injectable()

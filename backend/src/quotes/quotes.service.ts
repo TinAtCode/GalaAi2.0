@@ -8,27 +8,32 @@ import { resolveVatTreatment, VAT_TREATMENT_NOTES } from '../common/vat-treatmen
 import { PrismaService } from '../prisma/prisma.service';
 import { CalculationsService } from '../calculations/calculations.service';
 import { CreateQuoteDto, QuoteStatus, UpdateQuoteDto } from './dto/quote.dto';
+import { UnitsService } from '../units/units.service';
+import { normalizeUnit } from '../common/units';
 
-// Freie Position: Preis und Kosten wie eingegeben, Summe auf Cent gerundet.
-// Ohne Rezeptur gibt es keine Soll-Werte für die Nachkalkulation.
-function freeLineItem(item: {
-  description?: string;
-  unit?: string;
-  quantity: number;
-  unitPrice?: number;
-  costPerUnit?: number;
-}) {
+// Freie Position: Preis und Kosten wie eingegeben, Summe aus der gerundeten
+// Menge auf Cent gerundet. Ohne Rezeptur gibt es keine Soll-Werte für die
+// Nachkalkulation.
+function freeLineItem(
+  item: {
+    description?: string;
+    unit?: string;
+    unitPrice?: number;
+    costPerUnit?: number;
+  },
+  quantity: Prisma.Decimal,
+) {
   const unitPrice = new Prisma.Decimal(item.unitPrice!);
   const costPerUnit = new Prisma.Decimal(item.costPerUnit ?? 0);
   return {
     serviceId: null,
     description: item.description!.trim(),
-    unit: item.unit!.trim(),
-    quantity: item.quantity,
+    unit: normalizeUnit(item.unit!),
+    quantity,
     costPerUnit,
     unitPrice,
     marginPerUnit: unitPrice.minus(costPerUnit),
-    lineTotal: unitPrice.times(item.quantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
+    lineTotal: unitPrice.times(quantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
     plannedLaborMinutesPerUnit: null,
     plannedMaterialCostPerUnit: null,
   };
@@ -39,6 +44,7 @@ export class QuotesService {
   constructor(
     private prisma: PrismaService,
     private calculationsService: CalculationsService,
+    private unitsService: UnitsService,
   ) {}
 
   private async assertProjectBelongsToCompany(companyId: string, projectId: string) {
@@ -83,9 +89,29 @@ export class QuotesService {
     // Positionen sind voneinander unabhängig – parallel statt sequenziell
     // verarbeiten (bei vielen Positionen spart das spürbar Latenz, da jede
     // Position sonst auf den DB-Roundtrip der vorherigen wartet).
+    const round = await this.unitsService.rounder(companyId);
     const lineItemsData = await Promise.all(
       items.map(async (item) => {
-        if (!item.serviceId) return freeLineItem(item);
+        // Rundung, die nur für diese Position gilt (gespeichert zum Nachvollziehen)
+        const override = {
+          roundingDecimals: item.roundingDecimals ?? null,
+          roundingMode: item.roundingMode ?? null,
+          roundingStep: item.roundingStep ?? null,
+        };
+        const position = {
+          decimals: override.roundingDecimals,
+          mode: override.roundingMode,
+          step: override.roundingStep,
+        };
+        if (!item.serviceId) {
+          const { quantity, rule } = round({ quantity: item.quantity, unit: item.unit ?? '', position });
+          return {
+            ...freeLineItem(item, quantity),
+            quantityExact: new Prisma.Decimal(item.quantity),
+            ...override,
+            roundingSource: rule.source,
+          };
+        }
         if (
           item.description !== undefined ||
           item.unitPrice !== undefined ||
@@ -102,9 +128,16 @@ export class QuotesService {
           throw new NotFoundException(`Dienstleistung ${item.serviceId} nicht gefunden.`);
         }
 
+        const { quantity, rule } = round({
+          quantity: item.quantity,
+          unit: service.unit,
+          master: service,
+          position,
+        });
+        // Preis aus der gerundeten Menge – die steht auf dem Angebot
         const calc = await this.calculationsService.calculateForService(companyId, {
           serviceId: item.serviceId,
-          quantity: item.quantity,
+          quantity: quantity.toNumber(),
           hourlyLaborRateOverride: item.hourlyLaborRateOverride,
           overheadPercentOverride: item.overheadPercentOverride,
           surchargePercentOverride: item.surchargePercentOverride,
@@ -113,8 +146,11 @@ export class QuotesService {
         return {
           serviceId: item.serviceId,
           description: service.name,
-          unit: service.unit,
-          quantity: item.quantity,
+          unit: normalizeUnit(service.unit),
+          quantity,
+          quantityExact: new Prisma.Decimal(item.quantity),
+          ...override,
+          roundingSource: rule.source,
           costPerUnit: calc.costPerUnit,
           unitPrice: calc.salePricePerUnit,
           marginPerUnit: calc.marginPerUnit,

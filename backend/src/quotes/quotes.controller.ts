@@ -37,6 +37,12 @@ function maskQuote(quote: QuoteWithLines, permissions: string[]) {
       description: li.description,
       unit: li.unit,
       quantity: li.quantity,
+      // genaue Menge und angewandte Rundung (keine Preisinformation)
+      quantityExact: li.quantityExact ?? li.quantity,
+      roundingDecimals: li.roundingDecimals,
+      roundingMode: li.roundingMode,
+      roundingStep: li.roundingStep,
+      roundingSource: li.roundingSource,
       costPerUnit: canPurchase ? li.costPerUnit : undefined,
       unitPrice: canSale ? li.unitPrice : undefined,
       marginPerUnit: canMargin && canPurchase && canSale ? li.marginPerUnit : undefined,

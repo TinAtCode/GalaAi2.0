@@ -29,6 +29,7 @@ export const TENANT_MODELS = new Set([
   'DunningNotice',
   'BankTransaction',
   'BankBalance',
+  'UnitSetting',
 ]);
 
 const GUARDED_ACTIONS = new Set([

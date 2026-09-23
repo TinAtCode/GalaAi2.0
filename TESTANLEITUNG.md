@@ -150,6 +150,11 @@ Rechnungsnummer im Verwendungszweck zeigen den Vorschlag, „Buchen“ erfasst d
 Zum Ausprobieren ohne Bank eignet sich `backend/test/fixtures/camt/camt053-v08.xml` (Platzhalter
 `__NUMBER1__` durch eine eigene Rechnungsnummer und `__AMOUNT1__` durch einen Betrag ersetzen).
 
+**Einheiten und Rundung testen:** Unter Stammdaten → Einheiten den Standard der Firma und einzelne
+Einheiten anpassen oder eine eigene Einheit anlegen. Bei einer Leistung „Rundung“ setzen
+(z.B. ganze, aufrunden). Im Angebot lässt sich die Rundung je Position ändern; am Projekt steht dann die
+gerundete Menge und, falls abweichend, die genaue („genau 12,31 m²“).
+
 **Finanzen testen:** Im Bankabgleich einen Kontoauszug (CAMT.053) einlesen – jetzt werden auch Abbuchungen
 und der Kontostand übernommen. Unter „Finanzen“ (Geschäftsführung und Rolle „Buchhaltung“) stehen Kontostand,
 offene Forderungen, die letzten zwölf Monate als Grafik oder Tabelle und alle Kontobewegungen mit Suche.

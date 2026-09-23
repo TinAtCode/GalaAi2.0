@@ -1,3 +1,4 @@
+import { unitCodeForInvoice } from '../common/units';
 import { Prisma } from '@prisma/client';
 
 // E-Rechnung im Format XRechnung 3.0 (Syntax UN/CEFACT CII D16B).
@@ -50,29 +51,10 @@ export interface XRechnungInput {
   notes: string[];
 }
 
-// Einheiten der Leistungsverzeichnisse -> UN/ECE Recommendation 20.
-const UNIT_CODES: Record<string, string> = {
-  m2: 'MTK',
-  'm²': 'MTK',
-  qm: 'MTK',
-  m: 'MTR',
-  lfm: 'MTR',
-  m3: 'MTQ',
-  'm³': 'MTQ',
-  cbm: 'MTQ',
-  stk: 'H87',
-  stück: 'H87',
-  kg: 'KGM',
-  t: 'TNE',
-  h: 'HUR',
-  std: 'HUR',
-  l: 'LTR',
-  pauschal: 'LS',
-  psch: 'LS',
-};
-
+// Einheiten der Leistungsverzeichnisse -> UN/ECE Recommendation 20
+// (Katalog in common/units.ts)
 export function unitCode(unit: string): string {
-  return UNIT_CODES[unit.trim().toLowerCase()] ?? 'C62'; // C62 = "Einheit"
+  return unitCodeForInvoice(unit);
 }
 
 const escapeXml = (value: string) =>
@@ -222,7 +204,11 @@ export function buildXRechnung(input: XRechnungInput): string {
       .close('ram:NetPriceProductTradePrice')
       .close('ram:SpecifiedLineTradeAgreement')
       .open('ram:SpecifiedLineTradeDelivery')
-      .leaf('ram:BilledQuantity', quantity.toFixed(2), ` unitCode="${unitCode(line.unit)}"`)
+      .leaf(
+        'ram:BilledQuantity',
+        quantity.toFixed(Math.max(2, Math.min(3, quantity.decimalPlaces()))),
+        ` unitCode="${unitCode(line.unit)}"`,
+      )
       .close('ram:SpecifiedLineTradeDelivery')
       .open('ram:SpecifiedLineTradeSettlement')
       .open('ram:ApplicableTradeTax')

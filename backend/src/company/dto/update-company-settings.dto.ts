@@ -196,6 +196,17 @@ export class UpdateCompanySettingsDto {
   @Max(60)
   dunningDeadlineDays?: number;
 
+  // Rundung der Mengen (Standard der Firma)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(3)
+  quantityDecimals?: number;
+
+  @IsOptional()
+  @IsIn(['half_up', 'up', 'down'])
+  quantityRounding?: 'half_up' | 'up' | 'down';
+
   @IsOptional()
   @IsIn(['SKR03', 'SKR04'])
   datevChartOfAccounts?: 'SKR03' | 'SKR04';

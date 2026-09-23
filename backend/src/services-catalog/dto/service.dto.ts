@@ -1,12 +1,15 @@
 import { IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateIf } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
+import { NormalizeUnit, QuantityRoundingFields } from '../../common/rounding.dto';
 
-export class CreateServiceDto {
+export class CreateServiceDto extends QuantityRoundingFields {
   @IsString()
   @MinLength(2)
   name!: string;
 
+  @NormalizeUnit()
   @IsString()
+  @MinLength(1)
   unit!: string;
 }
 

@@ -2,6 +2,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -55,12 +56,31 @@ class QuoteLineItemInputDto {
   @Max(99_999_999.99)
   costPerUnit?: number;
 
-  // Die Menge wird mit 2 Nachkommastellen gespeichert – genauere Angaben
-  // würden sonst von der berechneten Summe abweichen.
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.01)
+  // Genaue Menge (bis 3 Nachkommastellen, z.B. mm in m). Für Angebot und
+  // Summe wird sie nach der Rundungsregel gerundet: Position → Leistung →
+  // Einheit → Firma (siehe common/units.ts); die genaue Menge bleibt für
+  // die Nachkalkulation gespeichert.
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0.001)
   @Max(1_000_000)
   quantity!: number;
+
+  // Rundung nur für diese Position; leer = aus Leistung, Einheit bzw. Firma
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(3)
+  roundingDecimals?: number;
+
+  @IsOptional()
+  @IsIn(['half_up', 'up', 'down'])
+  roundingMode?: 'half_up' | 'up' | 'down';
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0.001)
+  @Max(1000)
+  roundingStep?: number;
 
   @IsOptional()
   @IsNumber()
