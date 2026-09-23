@@ -1,6 +1,9 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
+import { HttpAdapterHost } from '@nestjs/core';
 import { corsOrigins, csrfGuard } from './auth/session-cookie';
+import { requestLogger } from './logging/request-logger';
+import { ExceptionLoggerFilter } from './logging/exception-logger.filter';
 
 // Globale App-Konfiguration an einer Stelle – main.ts und die
 // Integrationstests nutzen dieselbe, damit die Tests genau das prüfen,
@@ -22,6 +25,8 @@ export function configureApp(app: INestApplication) {
 
   // Sicherheits-Header (Punkt 38: "sichere API") – u.a. X-Content-Type-Options,
   // X-Frame-Options, keine Preisgabe der Express-Version im Header.
+  app.use(requestLogger);
+  app.useGlobalFilters(new ExceptionLoggerFilter(app.get(HttpAdapterHost).httpAdapter));
   app.use(helmet());
 
   // Global: Eingaben werden validiert und auf die erwartete Form
@@ -32,6 +37,10 @@ export function configureApp(app: INestApplication) {
   // CORS: nur die eigenen Frontends (CORS_ORIGIN, kommagetrennt; ohne Wert
   // das lokale Vite-Frontend), mit Cookies (credentials) für die Sitzung.
   // X-Total-Count: Gesamtzahl bei seitenweise geladenen Listen (common/pagination.ts).
-  app.enableCors({ origin: corsOrigins(), credentials: true, exposedHeaders: ['X-Total-Count'] });
+  app.enableCors({
+    origin: corsOrigins(),
+    credentials: true,
+    exposedHeaders: ['X-Total-Count', 'X-Request-Id'],
+  });
   app.use(csrfGuard);
 }
