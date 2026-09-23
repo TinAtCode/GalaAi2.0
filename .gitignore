@@ -21,3 +21,4 @@ frontend/test-results/
 # Regelwerke für scripts/validate-xrechnung.sh
 backend/.xrechnung-rules/
 backend/.verapdf/
+.env.production

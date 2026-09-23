@@ -314,6 +314,15 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   erkanntem Text mitgelöscht. Nach einem Neustart gilt eine
   unterbrochene Texterkennung als fehlgeschlagen.
 
+- **Nachtrag – Betrieb in Containern** (`BETRIEB.md`): `backend/Dockerfile` (mehrstufig, Laufzeit nur mit
+  Produktionsabhängigkeiten, unprivilegierter Nutzer, Migrationen beim Start, Healthcheck),
+  `frontend/Dockerfile` (nginx, `/api` → Backend, gleiche Adresse), `docker-compose.prod.yml` mit Volumes für
+  Datenbank und Dokumente. Ersteinrichtung ohne Demo-Daten: `node dist/cli/setup-company.js` (Firma, Rollen,
+  erster Administrator, alles in einer Transaktion). Die OCR-Sprachdaten (Deutsch, Englisch) kommen jetzt als
+  npm-Pakete mit statt zur Laufzeit vom CDN – Texterkennung funktioniert ohne Internet; ein Test prüft die
+  echte Erkennung. Das Prisma-CLI ist Laufzeitabhängigkeit (für `migrate deploy`). `ops/smoke-test.sh` startet
+  den ganzen Stack und prüft ihn von außen; in der CI als eigener Workflow.
+
 - **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
   (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt
   (`vatTreatment: "reverse_charge"`). Die Rechnung übernimmt die Behandlung vom Angebot, das Storno vom
@@ -340,7 +349,7 @@ Auf ausdrücklichen Wunsch wurde der gesamte bisherige Code systematisch auf Lü
 
 - Dokumente: Upload/Download auf dem lokalen Dateisystem; am Projekt mit optionaler Texterkennung (siehe Nachtrag). Bei gescannten PDFs werden maximal die ersten 10 Seiten per Bild-OCR gelesen (Deckel gegen sehr lange Scans).
 - KI-Gateway ohne aktiven Anbieter (bewusst zurückgestellt).
-- E2E-Tests (Playwright) und CI-Workflows (GitHub Actions) laufen bei jedem Push; ein Deployment-Workflow fehlt noch.
+- E2E-Tests (Playwright) und CI-Workflows (GitHub Actions) laufen bei jedem Push, dazu ein Rauchtest der Produktions-Container (siehe `BETRIEB.md`). Ein automatisches Ausrollen auf einen Server fehlt noch – das hängt vom Zielserver ab.
 - Mobile App (React Native/Expo), DATANORM, Admin-Auslagerung: noch nicht begonnen.
 - GAEB-Import (X83 → Angebot mit freien Positionen): vorgemerkt. Echte GAEB-Beispieldateien kommen später vom Auftraggeber; ohne sie wird nicht gebaut, damit gegen echte Ausschreibungen getestet werden kann. DATEV: Buchungsstapel der Ausgangsrechnungen fertig (siehe Nachtrag).
 - Es existieren separate, umfassendere Projekt-Planungsdokumente (README.md, STATUS.md, DEVELOPMENT_GUIDE.md, TESTING_GUIDE.md, SECURITY_CHECKLIST.md, CICD_GUIDE.md, SKILLS_REFERENCE.md im Projekt-Root), die teils einen größeren, teamartigen Rahmen beschreiben (Mobile-Team, DevOps-Rolle, Security-Officer). Diese hier vorliegende STATUS.md beschreibt ausschließlich den tatsächlichen Code-Stand.

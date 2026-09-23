@@ -7,14 +7,14 @@ import type { CookieOptions, NextFunction, Request, Response } from 'express';
 export const SESSION_COOKIE = 'gartenai_session';
 const MAX_AGE_MS = 8 * 60 * 60 * 1000; // wie die Gültigkeit des Tokens (auth.module.ts)
 
-function cookieOptions(): CookieOptions {
+export function cookieOptions(): CookieOptions {
   // SameSite=Lax: fremde Seiten können keine Anfragen mit dem Cookie auslösen
   // (außer einfachen Links). Secure in Produktion oder per COOKIE_SECURE=1.
-  const sameSite = (process.env.COOKIE_SAMESITE ?? 'lax') as CookieOptions['sameSite'];
-  const secure =
-    process.env.COOKIE_SECURE !== undefined
-      ? process.env.COOKIE_SECURE === '1'
-      : process.env.NODE_ENV === 'production' || sameSite === 'none';
+  // Leere Werte (COOKIE_SECURE= in .env oder Compose) gelten als nicht gesetzt
+  const sameSite = (process.env.COOKIE_SAMESITE || 'lax') as CookieOptions['sameSite'];
+  const secure = process.env.COOKIE_SECURE
+    ? process.env.COOKIE_SECURE === '1'
+    : process.env.NODE_ENV === 'production' || sameSite === 'none';
   return { httpOnly: true, sameSite, secure, path: '/' };
 }
 
