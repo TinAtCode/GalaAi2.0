@@ -83,7 +83,7 @@ describe('Zahlungen und offene Posten', () => {
 
     await pay(invoice.id, { amount: 1000, paidOn: today }).expect(201);
     let items = (await api().get('/open-items').set(auth).expect(200)).body;
-    let item = items.find((i: { invoiceId: string }) => i.invoiceId === invoice.id);
+    const item = items.find((i: { invoiceId: string }) => i.invoiceId === invoice.id);
     expect(item).toMatchObject({
       number: invoice.number,
       customer: { name: 'Familie Birke' },
