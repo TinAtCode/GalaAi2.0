@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { changedFields, writeAudit } from '../common/audit';
 import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword, normalizeEmail } from '../auth/passwords';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
@@ -68,30 +69,51 @@ export class UsersService {
   }
 
   async update(companyId: string, actingUserId: string, id: string, dto: UpdateUserDto) {
-    await this.findOneOrThrow(companyId, id);
+    const before = await this.findOneOrThrow(companyId, id);
     if (dto.active === false && id === actingUserId) {
       throw new BadRequestException('Du kannst dich nicht selbst deaktivieren.');
     }
-    await this.prisma.user.update({
-      where: { id },
-      data: {
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        active: dto.active,
-        // Deaktivieren meldet alle Sitzungen sofort ab.
-        ...(dto.active === false ? { tokenVersion: { increment: 1 } } : {}),
-      },
+    const patch = { firstName: dto.firstName, lastName: dto.lastName, active: dto.active };
+    const { oldData, newData, hasChanges } = changedFields(before, patch);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id },
+        data: {
+          ...patch,
+          // Deaktivieren meldet alle Sitzungen sofort ab.
+          ...(dto.active === false ? { tokenVersion: { increment: 1 } } : {}),
+        },
+      });
+      if (hasChanges) {
+        await writeAudit(tx, {
+          companyId,
+          userId: actingUserId,
+          action: 'user_update',
+          entity: 'User',
+          entityId: id,
+          oldData,
+          newData,
+        });
+      }
     });
     return this.findOneOrThrow(companyId, id);
   }
 
   // Passwort durch einen Admin neu setzen (z.B. vergessen). Meldet alle
   // Sitzungen des Nutzers ab.
-  async resetPassword(companyId: string, id: string, password: string) {
+  async resetPassword(companyId: string, actingUserId: string, id: string, password: string) {
     await this.findOneOrThrow(companyId, id);
-    await this.prisma.user.update({
-      where: { id },
-      data: { passwordHash: await hashPassword(password), tokenVersion: { increment: 1 } },
+    const passwordHash = await hashPassword(password);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id }, data: { passwordHash, tokenVersion: { increment: 1 } } });
+      // Nur die Tatsache, nie das Passwort selbst
+      await writeAudit(tx, {
+        companyId,
+        userId: actingUserId,
+        action: 'user_password_reset',
+        entity: 'User',
+        entityId: id,
+      });
     });
     return { reset: true };
   }

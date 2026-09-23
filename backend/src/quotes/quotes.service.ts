@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { formatDocumentNumber, nextSequenceValue, yearInZone } from '../common/numbering';
 import { renderBusinessDocumentPdf } from '../pdf/business-document.pdf';
 import { buyerFromProject, formatDate, pdfLines, sellerFromCompany } from '../pdf/pdf-data';
+import { writeAudit } from '../common/audit';
 import { PrismaService } from '../prisma/prisma.service';
 import { CalculationsService } from '../calculations/calculations.service';
 import { CreateQuoteDto, QuoteStatus } from './dto/quote.dto';
@@ -120,37 +121,60 @@ export class QuotesService {
     });
   }
 
-  // Der Statuswechsel ist EIN bedingtes Update ("nur wenn der Status noch
-  // einer von <from> ist"). Getrenntes Lesen und Schreiben würde zwei
-  // gleichzeitige Klicks (z.B. "angenommen" und "abgelehnt") beide
-  // durchlassen – der zweite überschriebe den ersten.
-  private async transitionStatus(companyId: string, id: string, from: QuoteStatus[], to: QuoteStatus) {
-    const { count } = await this.prisma.quote.updateMany({
-      where: { id, companyId, status: { in: from } },
-      data: { status: to },
+  // Der Statuswechsel ist ein bedingtes Update ("nur wenn der Status noch
+  // der gelesene ist"). Ohne die Bedingung würden zwei gleichzeitige Klicks
+  // (z.B. "angenommen" und "abgelehnt") beide durchgehen – der zweite
+  // überschriebe den ersten. Wer wann gewechselt hat, steht im Audit-Log.
+  private transitionStatus(
+    companyId: string,
+    userId: string,
+    id: string,
+    from: QuoteStatus[],
+    to: QuoteStatus,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const quote = await tx.quote.findFirst({ where: { id, companyId }, include: { lineItems: true } });
+      if (!quote) {
+        throw new NotFoundException('Angebot nicht gefunden.');
+      }
+      if (!from.includes(quote.status)) {
+        throw new BadRequestException(
+          `Statuswechsel nicht erlaubt: Angebot ist "${quote.status}", erwartet einer von [${from.join(', ')}].`,
+        );
+      }
+      const { count } = await tx.quote.updateMany({
+        where: { id, companyId, status: { in: [quote.status] } },
+        data: { status: to },
+      });
+      if (count === 0) {
+        throw new BadRequestException('Das Angebot wurde gerade geändert – bitte neu laden.');
+      }
+      await writeAudit(tx, {
+        companyId,
+        userId,
+        action: 'quote_status',
+        entity: 'Quote',
+        entityId: id,
+        oldData: { status: quote.status },
+        newData: { status: to },
+      });
+      return { ...quote, status: to };
     });
-    const quote = await this.assertQuoteBelongsToCompany(companyId, id);
-    if (count === 0) {
-      throw new BadRequestException(
-        `Statuswechsel nicht erlaubt: Angebot ist "${quote.status}", erwartet einer von [${from.join(', ')}].`,
-      );
-    }
-    return quote;
   }
 
   // draft -> approved (interne Freigabe, permission: quote.approve)
-  approve(companyId: string, id: string) {
-    return this.transitionStatus(companyId, id, ['draft'], 'approved');
+  approve(companyId: string, userId: string, id: string) {
+    return this.transitionStatus(companyId, userId, id, ['draft'], 'approved');
   }
 
   // approved -> sent (an den Kunden verschickt, permission: quote.create reicht)
-  send(companyId: string, id: string) {
-    return this.transitionStatus(companyId, id, ['approved'], 'sent');
+  send(companyId: string, userId: string, id: string) {
+    return this.transitionStatus(companyId, userId, id, ['approved'], 'sent');
   }
 
   // sent -> accepted | rejected | expired (Kundenentscheidung erfassen)
-  setOutcome(companyId: string, id: string, status: 'accepted' | 'rejected' | 'expired') {
-    return this.transitionStatus(companyId, id, ['sent'], status);
+  setOutcome(companyId: string, userId: string, id: string, status: 'accepted' | 'rejected' | 'expired') {
+    return this.transitionStatus(companyId, userId, id, ['sent'], status);
   }
 
   async renderPdf(companyId: string, id: string) {

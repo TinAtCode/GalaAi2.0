@@ -226,6 +226,11 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   und läuft in der CI auf allen in den Tests erzeugten E-Rechnungen. Noch nicht unterstützt: 0 % USt
   (steuerfrei, § 13b), ZUGFeRD, Versand per E-Mail/Peppol.
 
+- **Nachtrag – Audit-Log**: Statuswechsel von Angeboten, Aufträgen und Projekten, Nutzeränderungen
+  (Sperren, Namen), Passwort-Reset (ohne das Passwort) sowie Rollenrechte und Rollenzuweisungen werden mit
+  handelndem Nutzer, altem und neuem Wert in derselben Transaktion protokolliert. Gleichzeitige
+  Statuswechsel: nur einer gelingt und nur dieser steht im Protokoll (Integrationstest).
+
 ---
 
 ## 6. Optimierungsdurchgang (dieser Arbeitsschritt)

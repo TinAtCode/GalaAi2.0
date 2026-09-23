@@ -38,6 +38,6 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() dto: UpdateOrderStatusDto,
   ) {
-    return this.ordersService.updateStatus(user.companyId, id, dto);
+    return this.ordersService.updateStatus(user.companyId, user.userId, id, dto);
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { writeAudit } from '../common/audit';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from './dto/project.dto';
 import { pageArgs, PageQueryDto } from '../common/pagination';
 
@@ -62,13 +63,25 @@ export class ProjectsService {
     });
   }
 
-  async updateStatus(companyId: string, id: string, dto: UpdateProjectStatusDto) {
-    // findOne wirft bereits NotFoundException, wenn das Projekt nicht zur
-    // Company gehört -> updateMany direkt danach ist sicher.
-    await this.findOne(companyId, id);
-    return this.prisma.project.update({
-      where: { id },
-      data: { status: dto.status },
+  updateStatus(companyId: string, userId: string, id: string, dto: UpdateProjectStatusDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const project = await tx.project.findFirst({ where: { id, companyId } });
+      if (!project) {
+        throw new NotFoundException('Projekt nicht gefunden.');
+      }
+      const updated = await tx.project.update({ where: { id }, data: { status: dto.status } });
+      if (project.status !== dto.status) {
+        await writeAudit(tx, {
+          companyId,
+          userId,
+          action: 'project_status',
+          entity: 'Project',
+          entityId: id,
+          oldData: { status: project.status },
+          newData: { status: dto.status },
+        });
+      }
+      return updated;
     });
   }
 

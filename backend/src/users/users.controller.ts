@@ -36,6 +36,6 @@ export class UsersController {
     @Param('id') id: string,
     @Body() dto: ResetPasswordDto,
   ) {
-    return this.usersService.resetPassword(user.companyId, id, dto.password);
+    return this.usersService.resetPassword(user.companyId, user.userId, id, dto.password);
   }
 }

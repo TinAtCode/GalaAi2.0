@@ -53,6 +53,7 @@ function createPrismaMock() {
   // Interaktive Transaktion: der Callback bekommt denselben Mock als tx.
   mock.$transaction = jest.fn((arg: any) => (typeof arg === 'function' ? arg(mock) : Promise.all(arg)));
   mock.$executeRaw = jest.fn(() => Promise.resolve(0));
+  mock.auditLog = { create: jest.fn(() => Promise.resolve({})) };
   let sequence = 0;
   mock.$queryRaw = jest.fn(() => Promise.resolve([{ lastValue: ++sequence }]));
   mock.company = {
@@ -126,37 +127,39 @@ describe('QuotesService – Statuswechsel', () => {
 
   it('approve funktioniert nur aus dem Status draft', async () => {
     const { service, quote } = await createDraftQuote();
-    const approved = await service.approve('company-a', quote.id);
+    const approved = await service.approve('company-a', 'user-a', quote.id);
     expect(approved.status).toBe('approved');
 
-    await expect(service.approve('company-a', quote.id)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.approve('company-a', 'user-a', quote.id)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('send funktioniert nur aus dem Status approved', async () => {
     const { service, quote } = await createDraftQuote();
 
-    await expect(service.send('company-a', quote.id)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.send('company-a', 'user-a', quote.id)).rejects.toBeInstanceOf(BadRequestException);
 
-    await service.approve('company-a', quote.id);
-    const sent = await service.send('company-a', quote.id);
+    await service.approve('company-a', 'user-a', quote.id);
+    const sent = await service.send('company-a', 'user-a', quote.id);
     expect(sent.status).toBe('sent');
   });
 
   it('setOutcome funktioniert nur aus dem Status sent', async () => {
     const { service, quote } = await createDraftQuote();
 
-    await expect(service.setOutcome('company-a', quote.id, 'accepted')).rejects.toBeInstanceOf(
+    await expect(service.setOutcome('company-a', 'user-a', quote.id, 'accepted')).rejects.toBeInstanceOf(
       BadRequestException,
     );
 
-    await service.approve('company-a', quote.id);
-    await service.send('company-a', quote.id);
-    const accepted = await service.setOutcome('company-a', quote.id, 'accepted');
+    await service.approve('company-a', 'user-a', quote.id);
+    await service.send('company-a', 'user-a', quote.id);
+    const accepted = await service.setOutcome('company-a', 'user-a', quote.id, 'accepted');
     expect(accepted.status).toBe('accepted');
   });
 
   it('Angebot einer fremden Firma ist nicht erreichbar', async () => {
     const { service, quote } = await createDraftQuote();
-    await expect(service.approve('company-b', quote.id)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.approve('company-b', 'user-a', quote.id)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

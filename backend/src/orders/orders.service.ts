@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
+import { writeAudit } from '../common/audit';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateOrderStatusDto } from './dto/order.dto';
 
@@ -85,18 +86,35 @@ export class OrdersService {
 
   // Feste Übergänge: ein erledigter oder stornierter Auftrag springt nicht
   // mehr zurück. Der Wechsel ist ein bedingtes Update (siehe QuotesService).
-  async updateStatus(companyId: string, id: string, dto: UpdateOrderStatusDto) {
+  updateStatus(companyId: string, userId: string, id: string, dto: UpdateOrderStatusDto) {
     const from = ALLOWED_ORDER_TRANSITIONS_FROM[dto.status];
-    const { count } = await this.prisma.order.updateMany({
-      where: { id, companyId, status: { in: from } },
-      data: { status: dto.status },
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({ where: { id, companyId } });
+      if (!order) {
+        throw new NotFoundException('Auftrag nicht gefunden.');
+      }
+      if (!from.includes(order.status)) {
+        throw new BadRequestException(
+          `Statuswechsel nicht erlaubt: Auftrag ist "${order.status}", "${dto.status}" geht nur aus [${from.join(', ')}].`,
+        );
+      }
+      const { count } = await tx.order.updateMany({
+        where: { id, companyId, status: { in: [order.status] } },
+        data: { status: dto.status },
+      });
+      if (count === 0) {
+        throw new BadRequestException('Der Auftrag wurde gerade geändert – bitte neu laden.');
+      }
+      await writeAudit(tx, {
+        companyId,
+        userId,
+        action: 'order_status',
+        entity: 'Order',
+        entityId: id,
+        oldData: { status: order.status },
+        newData: { status: dto.status },
+      });
+      return { ...order, status: dto.status };
     });
-    const order = await this.assertOrderBelongsToCompany(companyId, id);
-    if (count === 0) {
-      throw new BadRequestException(
-        `Statuswechsel nicht erlaubt: Auftrag ist "${order.status}", "${dto.status}" geht nur aus [${from.join(', ')}].`,
-      );
-    }
-    return order;
   }
 }

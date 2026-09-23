@@ -31,16 +31,16 @@ export class RolesController {
     @Param('id') id: string,
     @Body() dto: UpdateRolePermissionsDto,
   ) {
-    return this.rolesService.setPermissions(user.companyId, id, dto.permissionKeys);
+    return this.rolesService.setPermissions(user.companyId, user.userId, id, dto.permissionKeys);
   }
 
   @Post(':id/assign')
   assign(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: AssignRoleDto) {
-    return this.rolesService.assignToUser(user.companyId, id, dto.userId);
+    return this.rolesService.assignToUser(user.companyId, user.userId, id, dto.userId);
   }
 
   @Delete(':id/assign/:userId')
   unassign(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Param('userId') userId: string) {
-    return this.rolesService.removeFromUser(user.companyId, id, userId);
+    return this.rolesService.removeFromUser(user.companyId, user.userId, id, userId);
   }
 }

@@ -50,7 +50,7 @@ export class ProjectsController {
     @Param('id') id: string,
     @Body() dto: UpdateProjectStatusDto,
   ) {
-    return this.projectsService.updateStatus(user.companyId, id, dto);
+    return this.projectsService.updateStatus(user.companyId, user.userId, id, dto);
   }
 
   @Patch(':id')
