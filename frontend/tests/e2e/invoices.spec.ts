@@ -63,9 +63,10 @@ test.describe('Rechnungen', () => {
       if (tab !== page) await tab.close();
     }
 
-    // E-Rechnung (XRechnung) wird als XML-Datei heruntergeladen
+    // E-Rechnung (XRechnung) wird als XML-Datei heruntergeladen. Headless-
+    // Chrome lädt auch das PDF von oben als Download – daher nach Endung filtern.
     const [download] = await Promise.all([
-      page.waitForEvent('download'),
+      page.waitForEvent('download', { predicate: (d) => d.suggestedFilename().endsWith('.xml') }),
       card.getByTestId('invoice-xrechnung').click(),
     ]);
     expect(download.suggestedFilename()).toMatch(/^R-\d{4}-\d{4}\.xml$/);
