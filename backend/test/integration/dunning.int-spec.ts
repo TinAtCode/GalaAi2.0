@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { sentForTests } from '../../src/mail/mail.service';
 import { createApp, createCompany, fetchPdfText, resetDatabase, TestCompany } from './helpers';
+import { addCalendarDays, localDayString } from '../../src/common/time-zone';
 
 // Mahnwesen: Zahlungserinnerung, 1. und 2. Mahnung zu überfälligen Rechnungen.
 describe('Mahnwesen', () => {
@@ -125,7 +126,7 @@ describe('Mahnwesen', () => {
     expect(first.body).toMatchObject({ level: 1 });
     expect(Number(first.body.openAmount)).toBe(238);
     // Frist = heute + 10 Tage (Firmeneinstellung)
-    const expected = new Date(Date.now() + 10 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const expected = addCalendarDays(localDayString(new Date(), 'Europe/Berlin'), 10);
     expect(first.body.deadline.slice(0, 10)).toBe(expected);
 
     const running = await dun(invoice.id).expect(400);
@@ -156,7 +157,7 @@ describe('Mahnwesen', () => {
     await api()
       .post(`/invoices/${invoice.id}/payments`)
       .set(auth)
-      .send({ amount: 19, paidOn: new Date().toISOString().slice(0, 10) })
+      .send({ amount: 19, paidOn: localDayString(new Date(), 'Europe/Berlin') })
       .expect(201);
     const notice = (await dun(invoice.id).expect(201)).body;
     expect(Number(notice.openAmount)).toBe(100);
@@ -226,7 +227,7 @@ describe('Mahnwesen', () => {
     await api()
       .post(`/invoices/${invoice.id}/payments`)
       .set(auth)
-      .send({ amount: 1, paidOn: new Date().toISOString().slice(0, 10) })
+      .send({ amount: 1, paidOn: localDayString(new Date(), 'Europe/Berlin') })
       .expect(201);
     expect((await send(second.id).expect(400)).body.message).toContain('Zahlung eingegangen');
     await api().post(`/invoices/${invoice.id}/cancel`).set(auth).send({ reason: 'Kulanz' }).expect(201);
@@ -240,7 +241,7 @@ describe('Mahnwesen', () => {
     await api()
       .post(`/invoices/${paid.id}/payments`)
       .set(auth)
-      .send({ amount: Number(paid.totalGross), paidOn: new Date().toISOString().slice(0, 10) })
+      .send({ amount: Number(paid.totalGross), paidOn: localDayString(new Date(), 'Europe/Berlin') })
       .expect(201);
     expect((await dun(paid.id).expect(400)).body.message).toContain('bereits bezahlt');
 

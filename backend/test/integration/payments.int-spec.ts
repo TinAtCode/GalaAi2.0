@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { createApp, createCompany, resetDatabase, TestCompany } from './helpers';
+import { localDayString } from '../../src/common/time-zone';
 
 // Zahlungseingänge und offene Posten. Die Rechnung selbst bleibt
 // unverändert; offen ist der Bruttobetrag abzüglich der Zahlungen.
@@ -12,7 +13,8 @@ describe('Zahlungen und offene Posten', () => {
   let auth: { Authorization: string };
   let orderId: string;
   const api = () => request(app.getHttpServer());
-  const today = new Date().toISOString().slice(0, 10);
+  // "heute" in der Zeitzone der Firma, wie die App rechnet
+  const today = localDayString(new Date(), 'Europe/Berlin');
   const pay = (invoiceId: string, body: object) =>
     api().post(`/invoices/${invoiceId}/payments`).set(auth).send(body);
 
