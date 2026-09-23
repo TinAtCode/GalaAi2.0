@@ -2,7 +2,8 @@ import { test, expect, APIRequestContext } from '@playwright/test';
 import { API_BASE_URL, SEED, apiLogin, createDraftQuote, loginViaUi } from './fixtures';
 
 // Angebot bis zum Auftrag per API vorbereiten (Arrange), dann in der UI:
-// Firmendaten pflegen, Schlussrechnung erstellen, ausstellen, stornieren.
+// Firmendaten pflegen, Schlussrechnung erstellen, ausstellen, als PDF und
+// E-Rechnung abrufen, stornieren.
 async function createOrder(request: APIRequestContext, token: string) {
   const headers = { Authorization: `Bearer ${token}` };
   const quoteId = await createDraftQuote(request, token);
@@ -25,6 +26,10 @@ test.describe('Rechnungen', () => {
     await page.getByTestId('company-postalCode').fill('12345');
     await page.getByTestId('company-city').fill('Musterstadt');
     await page.getByTestId('company-taxNumber').fill('123/456/78901');
+    // für die E-Rechnung
+    await page.getByTestId('company-email').fill('info@musterbetrieb.de');
+    await page.getByTestId('company-phone').fill('+49 30 1234567');
+    await page.getByTestId('company-iban').fill('DE89 3704 0044 0532 0130 00');
     await page.getByTestId('company-submit').click();
     await expect(page.getByTestId('company-message')).toHaveText('Firmendaten gespeichert.');
 
@@ -52,6 +57,15 @@ test.describe('Rechnungen', () => {
     ]);
     await pdfTab.waitForURL(/^blob:/);
     await pdfTab.close();
+
+    // E-Rechnung (XRechnung) wird als XML-Datei heruntergeladen
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      card.getByTestId('invoice-xrechnung').click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/^R-\d{4}-\d{4}\.xml$/);
+    const xml = await (await download.createReadStream()).toArray();
+    expect(Buffer.concat(xml).toString('utf8')).toContain('urn:xeinkauf.de:kosit:xrechnung_3.0');
 
     page.once('dialog', (dialog) => dialog.accept('Falsche Menge'));
     await card.getByTestId('invoice-cancel').click();

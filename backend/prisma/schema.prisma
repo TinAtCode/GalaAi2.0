@@ -23,6 +23,14 @@ model Company {
   vatId      String? // USt-IdNr., z.B. DE123456789
   createdAt  DateTime @default(now())
 
+  // Zusätzlich für die E-Rechnung (XRechnung): Kontakt und Bankverbindung
+  email           String?
+  phone           String?
+  contactName     String? // Ansprechpartner; ohne Angabe der Firmenname
+  iban            String?
+  bic             String?
+  paymentTermDays Int     @default(14) // Zahlungsziel in Tagen
+
   // Konfigurierbare Kalkulationsgrundlagen (Punkt 20: keine starre,
   // fest eingebaute Marge). Werden vom Calculations-Modul genutzt und
   // können pro Anfrage überschrieben werden (siehe CalculateServiceDto).
@@ -133,17 +141,19 @@ model RolePermission {
 // Kunde → Objekt → Projekt
 // ─────────────────────────────────────────────
 model Customer {
-  id         String   @id @default(uuid())
-  companyId  String
-  company    Company  @relation(fields: [companyId], references: [id])
-  name       String
-  email      String?
-  phone      String?
+  id             String   @id @default(uuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  name           String
+  email          String?
+  phone          String?
   // Rechnungsanschrift; fehlt sie, wird die Anschrift des Objekts verwendet.
-  street     String?
-  postalCode String?
-  city       String?
-  createdAt  DateTime @default(now())
+  street         String?
+  postalCode     String?
+  city           String?
+  // Käuferreferenz der E-Rechnung, bei öffentlichen Auftraggebern die Leitweg-ID
+  buyerReference String?
+  createdAt      DateTime @default(now())
 
   properties Property[]
 

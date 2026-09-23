@@ -78,6 +78,18 @@ jobs:
       - name: Schema und Migrationen stimmen überein
         run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
       - run: npm run test:integration
+        env:
+          XRECHNUNG_OUT: ${{ runner.temp }}/xrechnung
+      # Die in den Tests erzeugten E-Rechnungen gegen XML-Schema, EN 16931
+      # und XRechnung-Regeln prüfen (scripts/validate-xrechnung.sh).
+      - name: E-Rechnungen validieren
+        env:
+          XRECHNUNG_OUT: ${{ runner.temp }}/xrechnung
+          XRECHNUNG_RULES_DIR: ${{ runner.temp }}/xrechnung-rules
+        run: |
+          command -v xmllint || (sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils > /dev/null)
+          npx jest test/xrechnung.spec.ts
+          scripts/validate-xrechnung.sh "$XRECHNUNG_OUT"
 
   frontend:
     runs-on: ubuntu-latest

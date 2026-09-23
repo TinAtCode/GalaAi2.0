@@ -6,6 +6,7 @@ import { writeAudit } from '../common/audit';
 import { formatDocumentNumber, nextSequenceValue, yearInZone } from '../common/numbering';
 import { CreateInvoiceFromOrderDto, IssueInvoiceDto } from './dto/invoice.dto';
 import { BusinessDocumentPdf, PdfParty, renderBusinessDocumentPdf } from '../pdf/business-document.pdf';
+import { XRechnungInput, buildXRechnung } from './xrechnung';
 import { buyerFromProject, formatDate, pdfLines, sellerFromCompany } from '../pdf/pdf-data';
 
 const D = (n: Prisma.Decimal.Value) => new Prisma.Decimal(n);
@@ -184,12 +185,20 @@ export class InvoicesService {
         city: company.city,
         taxNumber: company.taxNumber,
         vatId: company.vatId,
+        email: company.email,
+        phone: company.phone,
+        contactName: company.contactName,
+        iban: company.iban,
+        bic: company.bic,
+        paymentTermDays: company.paymentTermDays,
       },
       buyer: {
         name: customer.name,
         street: address.street,
         postalCode: address.postalCode,
         city: address.city,
+        email: customer.email,
+        buyerReference: customer.buyerReference,
       },
     };
   }
@@ -360,5 +369,93 @@ export class InvoicesService {
       notes,
     });
     return { buffer, fileName: `${invoice.number ?? 'Rechnung-Entwurf'}.pdf` };
+  }
+
+  // E-Rechnung (XRechnung 3.0, CII) einer ausgestellten Rechnung. Grundlage
+  // sind die beim Ausstellen festgeschriebenen Angaben; Felder, die ältere
+  // Snapshots noch nicht enthalten, kommen aus den aktuellen Stammdaten.
+  async renderXRechnung(companyId: string, id: string) {
+    const invoice = await this.findOne(companyId, id);
+    if (invoice.status === 'draft' || !invoice.number || !invoice.issueDate) {
+      throw new BadRequestException('Eine E-Rechnung gibt es erst für ausgestellte Rechnungen.');
+    }
+    if (invoice.vatRate.isZero()) {
+      throw new BadRequestException(
+        'Rechnungen ohne Umsatzsteuer (z.B. steuerfrei oder § 13b UStG) können noch nicht als E-Rechnung ausgegeben werden.',
+      );
+    }
+    const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+    const project = await this.prisma.project.findUniqueOrThrow({
+      where: { id: invoice.projectId },
+      include: { property: { include: { customer: true } } },
+    });
+    const customer = project.property.customer;
+    type Snapshot = Record<string, string | number | null | undefined>;
+    const sellerSnap = (invoice.sellerSnapshot ?? {}) as Snapshot;
+    const buyerSnap = (invoice.buyerSnapshot ?? {}) as Snapshot;
+    const pick = <T>(snap: Snapshot, key: string, fallback: T) => (snap[key] ?? fallback) as T;
+
+    const seller = {
+      name: pick(sellerSnap, 'name', company.name),
+      street: pick(sellerSnap, 'street', company.street ?? ''),
+      postalCode: pick(sellerSnap, 'postalCode', company.postalCode ?? ''),
+      city: pick(sellerSnap, 'city', company.city ?? ''),
+      taxNumber: pick<string | null>(sellerSnap, 'taxNumber', company.taxNumber),
+      vatId: pick<string | null>(sellerSnap, 'vatId', company.vatId),
+      email: pick(sellerSnap, 'email', company.email ?? ''),
+      phone: pick(sellerSnap, 'phone', company.phone ?? ''),
+      contactName: pick(sellerSnap, 'contactName', company.contactName ?? '') || company.name,
+      iban: pick(sellerSnap, 'iban', company.iban ?? ''),
+      bic: pick<string | null>(sellerSnap, 'bic', company.bic),
+      paymentTermDays: pick(sellerSnap, 'paymentTermDays', company.paymentTermDays),
+    };
+    const buyer = {
+      name: pick(buyerSnap, 'name', customer.name),
+      street: pick(buyerSnap, 'street', ''),
+      postalCode: pick(buyerSnap, 'postalCode', ''),
+      city: pick(buyerSnap, 'city', ''),
+      email: pick(buyerSnap, 'email', customer.email ?? ''),
+    };
+    const buyerReference = pick(buyerSnap, 'buyerReference', customer.buyerReference ?? '') || project.title;
+
+    const missing = [
+      !seller.email && 'E-Mail der Firma',
+      !seller.phone && 'Telefon der Firma',
+      !seller.iban && 'IBAN der Firma',
+      !buyer.email && 'E-Mail des Kunden',
+    ].filter(Boolean);
+    if (missing.length > 0) {
+      throw new BadRequestException(`Für die E-Rechnung fehlen: ${missing.join(', ')}.`);
+    }
+
+    let precedingInvoice: XRechnungInput['precedingInvoice'];
+    const notes: string[] = [];
+    if (invoice.kind === 'cancellation' && invoice.cancelsInvoiceId) {
+      const original = await this.prisma.invoice.findUniqueOrThrow({
+        where: { id: invoice.cancelsInvoiceId },
+      });
+      precedingInvoice = { number: original.number!, issueDate: original.issueDate! };
+      notes.push(`Stornorechnung zu Rechnung ${original.number}.`);
+    }
+
+    const xml = buildXRechnung({
+      kind: invoice.kind,
+      number: invoice.number,
+      issueDate: invoice.issueDate,
+      servicePeriodStart: invoice.servicePeriodStart,
+      servicePeriodEnd: invoice.servicePeriodEnd ?? invoice.issueDate,
+      timeZone: company.timeZone,
+      buyerReference,
+      precedingInvoice,
+      seller,
+      buyer,
+      vatRate: invoice.vatRate,
+      totalNet: invoice.totalNet,
+      totalVat: invoice.totalVat,
+      totalGross: invoice.totalGross,
+      lines: invoice.lineItems,
+      notes,
+    });
+    return { buffer: Buffer.from(xml, 'utf8'), fileName: `${invoice.number}.xml` };
   }
 }

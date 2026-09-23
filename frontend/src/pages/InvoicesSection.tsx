@@ -128,6 +128,19 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
             >
               PDF
             </button>
+            {invoice.status !== 'draft' && invoice.number && (
+              <button
+                className="btn"
+                disabled={busy}
+                onClick={() =>
+                  run(() => api.downloadFile(`/invoices/${invoice.id}/xrechnung`, `${invoice.number}.xml`))
+                }
+                title="E-Rechnung im Format XRechnung (CII)"
+                data-testid="invoice-xrechnung"
+              >
+                E-Rechnung
+              </button>
+            )}
             {invoice.status === 'draft' && (
               <>
                 <button

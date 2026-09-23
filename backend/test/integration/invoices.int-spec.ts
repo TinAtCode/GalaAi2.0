@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { PrismaService } from '../../src/prisma/prisma.service';
@@ -13,6 +15,7 @@ describe('Rechnungen', () => {
   let auth: { Authorization: string };
   let projectId: string;
   let orderId: string;
+  let customerId: string;
   const year = new Date().getFullYear();
   const api = () => request(app.getHttpServer());
   const R = (n: number) => `R-${year}-${String(n).padStart(4, '0')}`;
@@ -28,6 +31,7 @@ describe('Rechnungen', () => {
       .set(auth)
       .send({ name: 'Familie Berger', street: 'Lindenweg 3', postalCode: '50667', city: 'Köln' })
       .expect(201);
+    customerId = customer.body.id;
     const property = await api()
       .post('/properties')
       .set(auth)
@@ -206,6 +210,73 @@ describe('Rechnungen', () => {
     expect(issued.map((r) => r.body.number).sort()).toEqual([R(6), R(7)]);
   });
 
+  const xrechnung = (id: string, token = company.token) =>
+    api()
+      .get(`/invoices/${id}/xrechnung`)
+      .set({ Authorization: `Bearer ${token}` })
+      .buffer(true)
+      .parse((res, done) => {
+        let body = '';
+        res.on('data', (chunk: Buffer) => (body += chunk.toString('utf8')));
+        res.on('end', () => done(null, body));
+      });
+
+  it('E-Rechnung: fehlende Kontakt- und Bankdaten werden benannt', async () => {
+    const invoice = await prisma.invoice.findFirstOrThrow({ where: { number: R(1) } });
+    const res = await xrechnung(invoice.id).expect(400);
+    const message = JSON.parse(res.body).message;
+    for (const field of ['E-Mail der Firma', 'Telefon der Firma', 'IBAN der Firma', 'E-Mail des Kunden']) {
+      expect(message).toContain(field);
+    }
+    const open = await draft({ kind: 'partial', percent: 1 }).expect(201);
+    expect(JSON.parse((await xrechnung(open.body.id).expect(400)).body).message).toContain('ausgestellte');
+    await api().delete(`/invoices/${open.body.id}`).set(auth).expect(200);
+  });
+
+  it('E-Rechnung (XRechnung 3.0, CII) für Abschlag, Schlussrechnung und Storno', async () => {
+    await api()
+      .patch('/company/settings')
+      .set(auth)
+      .send({ email: 'info@rechnung.example', phone: '+49 221 12345', iban: 'de89 3704 0044 0532 0130 00' })
+      .expect(200);
+    await api().patch(`/customers/${customerId}`).set(auth).send({ email: 'berger@example.com' }).expect(200);
+
+    const byNumber = (n: number) => prisma.invoice.findFirstOrThrow({ where: { number: R(n) } });
+    const partial = await xrechnung((await byNumber(1)).id).expect(200);
+    expect(partial.headers['content-type']).toContain('application/xml');
+    expect(partial.headers['content-disposition']).toContain(`${R(1)}.xml`);
+    for (const expected of [
+      'urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0',
+      `<ram:ID>${R(1)}</ram:ID>`,
+      '<ram:TypeCode>326</ram:TypeCode>',
+      '<ram:IBANID>DE89370400440532013000</ram:IBANID>',
+      '<ram:URIID schemeID="EM">berger@example.com</ram:URIID>',
+      '<ram:ID schemeID="FC">214/5678/1234</ram:ID>',
+      '<ram:BuyerReference>Terrasse</ram:BuyerReference>',
+      '<ram:GrandTotalAmount>443.39</ram:GrandTotalAmount>',
+    ]) {
+      expect(partial.body).toContain(expected);
+    }
+
+    const final = await xrechnung((await byNumber(2)).id).expect(200);
+    expect(final.body).toContain('<ram:TypeCode>380</ram:TypeCode>');
+    expect(final.body).toContain('<ram:BilledQuantity unitCode="LS">-1.00</ram:BilledQuantity>');
+    expect(final.body).toContain('<ram:ChargeAmount>372.60</ram:ChargeAmount>');
+
+    const cancellation = await xrechnung((await byNumber(3)).id).expect(200);
+    expect(cancellation.body).toContain('<ram:TypeCode>381</ram:TypeCode>');
+    expect(cancellation.body).toContain(`<ram:IssuerAssignedID>${R(2)}</ram:IssuerAssignedID>`);
+    expect(cancellation.body).not.toMatch(/<ram:GrandTotalAmount>-/);
+
+    // Mit XRECHNUNG_OUT=<Verzeichnis> für den KoSIT-Validator speichern
+    if (process.env.XRECHNUNG_OUT) {
+      mkdirSync(process.env.XRECHNUNG_OUT, { recursive: true });
+      for (const [name, res] of Object.entries({ partial, final, cancellation })) {
+        writeFileSync(join(process.env.XRECHNUNG_OUT, `int-${name}.xml`), res.body);
+      }
+    }
+  });
+
   it('andere Firmen sehen und bearbeiten keine fremden Rechnungen', async () => {
     const other = await createCompany(app, prisma, 'Fremd Rechnung GmbH');
     const invoice = await prisma.invoice.findFirstOrThrow({ where: { number: R(4) } });
@@ -213,6 +284,7 @@ describe('Rechnungen', () => {
     await api().get(`/invoices/${invoice.id}`).set(as).expect(404);
     expect((await fetchPdfText(app, `/invoices/${invoice.id}/pdf`, other.token)).status).toBe(404);
     await api().post(`/invoices/${invoice.id}/cancel`).set(as).send({ reason: 'Übernahme' }).expect(404);
+    await xrechnung(invoice.id, other.token).expect(404);
     await api().post('/invoices/from-order').set(as).send({ orderId, kind: 'final' }).expect(404);
     const list = await api().get(`/invoices/by-project/${projectId}`).set(as).expect(200);
     expect(list.body).toEqual([]);

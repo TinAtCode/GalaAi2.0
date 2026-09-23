@@ -112,6 +112,20 @@ Query-Parameter) → legt die Datei unter `backend/uploads/<companyId>/...` ab u
 Metadaten. Mit der zurückgegebenen `id` dann `GET /documents/:id/download` aufrufen, um die Datei
 wieder herunterzuladen.
 
+**Rechnungen und E-Rechnung testen:** In den Einstellungen die Firmendaten pflegen (Anschrift und
+Steuernummer für jede Rechnung; E-Mail, Telefon und IBAN zusätzlich für die E-Rechnung). Am Projekt mit
+Auftrag eine Abschlags- oder Schlussrechnung anlegen, ausstellen, dann „PDF“ bzw. „E-Rechnung“ (XRechnung
+als XML-Datei). Der Kunde braucht für die E-Rechnung eine E-Mail-Adresse; bei Behörden die Leitweg-ID als
+Käuferreferenz.
+
+**E-Rechnungen prüfen:** `backend/scripts/validate-xrechnung.sh <Ordner>` prüft alle XML-Dateien eines
+Ordners gegen XML-Schema, EN 16931 und die XRechnung-Regeln (braucht `git`, `xmllint` und Node.js; lädt
+die Regelwerke beim ersten Aufruf). Beispieldateien erzeugt
+`XRECHNUNG_OUT=/tmp/xr npx jest test/xrechnung.spec.ts` im Ordner `backend`. Die Warnung BR-DE-19
+(IBAN-Prüfsumme) ist ein Rechenfehler von SaxonJS bei langen Zahlen – der offizielle KoSIT-Validator
+meldet sie nicht. Verbindlich ist letztlich der [KoSIT-Validator](https://github.com/itplr-kosit/validator)
+bzw. die Prüfung beim Empfänger.
+
 ## 6. E2E-Tests (Playwright) ausführen
 
 Backend UND Frontend müssen laufen (Schritte 3+4), dann in einem dritten Terminal:

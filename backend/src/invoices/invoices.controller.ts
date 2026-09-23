@@ -28,6 +28,15 @@ export class InvoicesController {
     });
   }
 
+  @Get(':id/xrechnung')
+  async xrechnung(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const { buffer, fileName } = await this.invoicesService.renderXRechnung(user.companyId, id);
+    return new StreamableFile(buffer, {
+      type: 'application/xml',
+      disposition: `attachment; filename="${fileName}"`,
+    });
+  }
+
   @Get(':id')
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.invoicesService.findOne(user.companyId, id);

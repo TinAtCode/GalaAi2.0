@@ -1,4 +1,18 @@
-import { IsNumber, IsOptional, IsString, IsTimeZone, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsBIC,
+  IsEmail,
+  IsIBAN,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsTimeZone,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class UpdateCompanySettingsDto {
   // Firmendaten für Rechnungen (§ 14 UStG)
@@ -32,6 +46,39 @@ export class UpdateCompanySettingsDto {
   @IsString()
   @MaxLength(20)
   vatId?: string;
+
+  // Für die E-Rechnung (XRechnung)
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(200)
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  contactName?: string;
+
+  // Leerzeichen sind erlaubt und werden entfernt.
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.replace(/\s+/g, '').toUpperCase() : value))
+  @IsIBAN()
+  iban?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.replace(/\s+/g, '').toUpperCase() : value))
+  @IsBIC()
+  bic?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  paymentTermDays?: number;
 
   @IsOptional()
   @IsNumber()

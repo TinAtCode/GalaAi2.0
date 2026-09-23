@@ -8,6 +8,12 @@ interface CompanySettings {
   city: string | null;
   taxNumber: string | null;
   vatId: string | null;
+  email: string | null;
+  phone: string | null;
+  contactName: string | null;
+  iban: string | null;
+  bic: string | null;
+  paymentTermDays: number;
   defaultVatRate: string | number;
 }
 
@@ -18,6 +24,11 @@ const FIELDS: { key: keyof CompanySettings; label: string }[] = [
   { key: 'city', label: 'Ort' },
   { key: 'taxNumber', label: 'Steuernummer' },
   { key: 'vatId', label: 'USt-IdNr.' },
+  { key: 'email', label: 'E-Mail' },
+  { key: 'phone', label: 'Telefon' },
+  { key: 'contactName', label: 'Ansprechpartner' },
+  { key: 'iban', label: 'IBAN' },
+  { key: 'bic', label: 'BIC' },
 ];
 
 // Firmendaten, die auf jeder Rechnung stehen müssen (§ 14 UStG).
@@ -35,6 +46,7 @@ export function CompanySection() {
         setForm({
           ...Object.fromEntries(FIELDS.map((f) => [f.key, String(settings[f.key] ?? '')])),
           defaultVatRate: String(Number(settings.defaultVatRate)),
+          paymentTermDays: String(settings.paymentTermDays),
         }),
       )
       .catch(() => setMessage({ ok: false, text: 'Firmendaten konnten nicht geladen werden.' }));
@@ -50,6 +62,7 @@ export function CompanySection() {
         if (form?.[field.key]?.trim()) body[field.key] = form[field.key].trim();
       }
       body.defaultVatRate = Number((form?.defaultVatRate ?? '19').replace(',', '.'));
+      body.paymentTermDays = Number(form?.paymentTermDays ?? '14');
       await api.patch('/company/settings', body);
       setMessage({ ok: true, text: 'Firmendaten gespeichert.' });
     } catch (err) {
@@ -64,7 +77,8 @@ export function CompanySection() {
       <h3>Firmendaten</h3>
       <p>
         Diese Angaben erscheinen auf jeder Rechnung. Ohne Anschrift und Steuernummer (oder USt-IdNr.) lässt
-        sich keine Rechnung ausstellen.
+        sich keine Rechnung ausstellen. Für die E-Rechnung (XRechnung) werden zusätzlich E-Mail, Telefon und
+        IBAN gebraucht.
       </p>
       {form === null && !message && <p>Lädt …</p>}
       {form !== null && (
@@ -86,6 +100,15 @@ export function CompanySection() {
               onChange={(e) => setForm({ ...form, defaultVatRate: e.target.value })}
               inputMode="decimal"
               data-testid="company-defaultVatRate"
+            />
+          </label>
+          <label className="field">
+            <span>Zahlungsziel (Tage)</span>
+            <input
+              value={form.paymentTermDays ?? ''}
+              onChange={(e) => setForm({ ...form, paymentTermDays: e.target.value })}
+              inputMode="numeric"
+              data-testid="company-paymentTermDays"
             />
           </label>
           {message && (

@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
 
 export class CreateCustomerDto {
@@ -26,6 +26,12 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   city?: string;
+
+  // Käuferreferenz der E-Rechnung (bei Behörden die Leitweg-ID)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  buyerReference?: string;
 }
 
 export class UpdateCustomerDto extends PartialType(CreateCustomerDto) {}

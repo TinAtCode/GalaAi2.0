@@ -26,6 +26,7 @@ interface Customer {
   street: string | null;
   postalCode: string | null;
   city: string | null;
+  buyerReference: string | null;
   properties: Property[];
 }
 
@@ -36,6 +37,8 @@ const CUSTOMER_FIELDS: { key: keyof Customer; label: string; type?: string }[] =
   { key: 'street', label: 'Straße (Rechnungsanschrift)' },
   { key: 'postalCode', label: 'PLZ' },
   { key: 'city', label: 'Ort' },
+  // Für E-Rechnungen an Behörden Pflicht; sonst optional
+  { key: 'buyerReference', label: 'Leitweg-ID / Käuferreferenz' },
 ];
 
 const STATUS_LABELS: Record<Project['status'], string> = {

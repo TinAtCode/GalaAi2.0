@@ -214,7 +214,17 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   (A-2026-0001) und Umsatzsteuer; Rechnungen (Abschlag, Schluss mit Abzug der Abschläge, Storno) mit
   lückenlosen Nummern (R-2026-0001), Prüfung der Pflichtangaben nach § 14 UStG und Unveränderlichkeit
   ausgestellter Rechnungen per Datenbank-Trigger. Firmendaten in den Einstellungen. Euro-Beträge werden
-  jetzt richtig formatiert (Prisma liefert Decimal als Text). Offen: PDF und E-Rechnung.
+  jetzt richtig formatiert (Prisma liefert Decimal als Text).
+
+- **Nachtrag – PDF und E-Rechnung**: Angebote und Rechnungen als PDF (`GET /quotes/:id/pdf`,
+  `GET /invoices/:id/pdf`). E-Rechnung im Format XRechnung 3.0, Syntax UN/CEFACT CII
+  (`GET /invoices/:id/xrechnung`, Button „E-Rechnung“ am Projekt): Abschlag = 326, Schlussrechnung = 380,
+  Storno = Gutschrift 381 mit Bezug auf die Originalrechnung; verrechnete Abschläge als negative Menge zum
+  positiven Preis (BR-27). Dafür neue Firmendaten (E-Mail, Telefon, Ansprechpartner, IBAN, BIC,
+  Zahlungsziel) und beim Kunden die Käuferreferenz/Leitweg-ID; beides wird beim Ausstellen mit
+  festgeschrieben. `backend/scripts/validate-xrechnung.sh` prüft XML-Schema, EN 16931 und XRechnung-Regeln
+  und läuft in der CI auf allen in den Tests erzeugten E-Rechnungen. Noch nicht unterstützt: 0 % USt
+  (steuerfrei, § 13b), ZUGFeRD, Versand per E-Mail/Peppol.
 
 ---
 

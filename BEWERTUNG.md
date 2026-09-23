@@ -30,7 +30,7 @@ Die technische Grundlage ist ordentlich. Als Geschäftssoftware für einen Garte
 
 | Fehlt | Folge |
 |---|---|
-| **Rechnungen** (Abschlagsrechnung, Schlussrechnung, Gutschrift) 🔶 | Das Ziel jedes Auftrags ist die Rechnung. Rechnungen stehen nicht einmal in der Roadmap (`GartenAI-Architektur-v1.md`). Dazu kommt die E-Rechnungspflicht (XRechnung/ZUGFeRD), die für Betriebe ab 2027/28 greift. **Stand:** Abschlags-, Schluss- und Stornorechnungen mit lückenlosen Nummern, Pflichtangaben-Prüfung und Unveränderlichkeit per Datenbank-Trigger. Offen: PDF und E-Rechnung. |
+| **Rechnungen** (Abschlagsrechnung, Schlussrechnung, Gutschrift) ✅ | Das Ziel jedes Auftrags ist die Rechnung. Rechnungen stehen nicht einmal in der Roadmap (`GartenAI-Architektur-v1.md`). Dazu kommt die E-Rechnungspflicht (XRechnung/ZUGFeRD), die für Betriebe ab 2027/28 greift. **Stand:** Abschlags-, Schluss- und Stornorechnungen mit lückenlosen Nummern, Pflichtangaben-Prüfung und Unveränderlichkeit per Datenbank-Trigger, PDF für Angebote und Rechnungen, E-Rechnung im Format XRechnung 3.0 (CII) – in der CI gegen XML-Schema, EN 16931 und die XRechnung-Regeln geprüft. Offen: steuerfreie Rechnungen und § 13b UStG (0 % mit Befreiungsgrund) als E-Rechnung, ZUGFeRD (PDF mit eingebettetem XML), Versand. |
 | **Umsatzsteuer, Angebotsnummern, Angebots-PDF** 🔶 | Ein Angebot lässt sich weder verschicken noch rechtssicher nummerieren. **Stand:** fortlaufende Nummern und Umsatzsteuer (Standardsatz je Firma) erledigt; PDF offen. |
 | **Benutzerverwaltung** ✅ | Es gibt keinen Endpunkt zum Anlegen von Nutzern oder zum Ändern und Zurücksetzen von Passwörtern. Nutzer entstehen nur über das Demo-Seed. **Stand:** Nutzer anlegen, deaktivieren, Passwort ändern und neu setzen – im Backend und in den Einstellungen. |
 | **Bearbeiten** ✅ | Es gibt nur 6 PATCH-/DELETE-Routen, fast ausschließlich für Statuswechsel und Rollen. Kunden, Artikel und Projekte lassen sich nicht korrigieren, ein vergessenes „Stopp“ in der Zeiterfassung ebenso wenig. **Stand:** PATCH für Kunden, Objekte, Projekte, Artikel, Maschinen, Lieferanten, Dienstleistungen und Zeiteinträge (Korrektur mit Begründung). Die Oberfläche dafür fehlt noch größtenteils. |
@@ -100,7 +100,7 @@ Bereits behoben (Commits auf dem Branch):
 |---|---|
 | **1. Fundament** ✅ | echte Migrationen · Integrationstests gegen PostgreSQL in der CI · `companyId` in allen Tabellen · Enums statt Status-Texte · exakte Dezimalrechnung · Zeitzone `Europe/Berlin` explizit. Noch offen: zentrale Erzwingung der Mandantentrennung (z.B. Row-Level-Security) |
 | **2. Benutzbarkeit** 🔶 | Benutzerverwaltung mit Passwort-Reset · Bearbeiten und Archivieren für alle Stammdaten · Korrektur von Zeiteinträgen mit Audit-Log · seitenweises Laden · 401-Behandlung im Frontend. **Stand:** alles außer den Bearbeiten-Masken im Frontend erledigt |
-| **3. Kernablauf schließen** 🔶 | Angebotsnummer · Umsatzsteuer · Angebots-PDF · **Rechnungen** (Abschlag und Schluss) mit Blick auf die E-Rechnung. **Stand:** alles außer PDF und E-Rechnung erledigt |
+| **3. Kernablauf schließen** ✅ | Angebotsnummer · Umsatzsteuer · Angebots-PDF · **Rechnungen** (Abschlag und Schluss) mit Blick auf die E-Rechnung. **Stand:** erledigt, inklusive PDF und E-Rechnung (XRechnung) |
 | **4. Kalkulation vervollständigen** ✅ | Maschinen · Rundung pro Gesamtposition · Nachkalkulation auf Basis des eingefrorenen Angebots |
 | **5. Erst danach ausbauen** | Mobile App mit Offline-Sync · KI · Schnittstellen (DATEV, GAEB, DATANORM) |
 

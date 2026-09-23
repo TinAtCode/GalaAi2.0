@@ -52,6 +52,23 @@ async function requestWithHeaders<T>(
   return { data: (await response.json()) as T, headers: response.headers };
 }
 
+// Dateien (PDF, XML) mit Anmeldung laden – ein normaler Link sendet kein Token.
+async function fetchFile(path: string): Promise<Blob> {
+  const token = localStorage.getItem('gartenai.token');
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (response.status === 401 && token) onUnauthorized?.();
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new ApiError(
+      response.status,
+      body.message ?? `Datei konnte nicht geladen werden (${response.status}).`,
+    );
+  }
+  return response.blob();
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   // Für seitenweise geladene Listen: Einträge plus Gesamtzahl aus X-Total-Count.
@@ -68,21 +85,22 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
   // Geschützte Datei (z.B. PDF) mit Token laden und in einem neuen Tab öffnen –
   // ein einfacher Link ginge nicht, weil der Browser das Token nicht mitschickt.
+  // PDF in einem neuen Tab öffnen
   openFile: async (path: string) => {
-    const token = localStorage.getItem('gartenai.token');
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (response.status === 401 && token) onUnauthorized?.();
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new ApiError(
-        response.status,
-        body.message ?? `Datei konnte nicht geladen werden (${response.status}).`,
-      );
-    }
-    const url = URL.createObjectURL(await response.blob());
+    const url = URL.createObjectURL(await fetchFile(path));
     window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
+
+  // Datei herunterladen (z.B. E-Rechnung als XML)
+  downloadFile: async (path: string, fileName: string) => {
+    const url = URL.createObjectURL(await fetchFile(path));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   },
 };
