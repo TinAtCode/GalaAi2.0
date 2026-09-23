@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -70,6 +70,9 @@ export function CustomerDetailPage() {
   const [newProjectTitle, setNewProjectTitle] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // Hat jemand schon getippt, überschreibt eine (spät eintreffende) Ladeantwort
+  // die Eingaben nicht mehr – erst nach dem Speichern gilt wieder der Serverstand.
+  const edited = useRef(false);
 
   const load = useCallback(
     () =>
@@ -77,7 +80,9 @@ export function CustomerDetailPage() {
         .get<Customer>(`/customers/${customerId}`)
         .then((c) => {
           setCustomer(c);
-          setForm(Object.fromEntries(CUSTOMER_FIELDS.map((f) => [f.key, String(c[f.key] ?? '')])));
+          if (!edited.current) {
+            setForm(Object.fromEntries(CUSTOMER_FIELDS.map((f) => [f.key, String(c[f.key] ?? '')])));
+          }
         })
         .catch((err) =>
           setError(err instanceof ApiError ? err.message : 'Kunde konnte nicht geladen werden.'),
@@ -104,7 +109,11 @@ export function CustomerDetailPage() {
 
   const saveCustomer = async (event: FormEvent) => {
     event.preventDefault();
-    if (await run(() => api.patch(`/customers/${customerId}`, filled(form)))) setSaved(true);
+    const ok = await run(async () => {
+      await api.patch(`/customers/${customerId}`, filled(form));
+      edited.current = false;
+    });
+    if (ok) setSaved(true);
   };
 
   const addProperty = async (event: FormEvent) => {
@@ -147,7 +156,10 @@ export function CustomerDetailPage() {
               <input
                 type={field.type ?? 'text'}
                 value={form[field.key] ?? ''}
-                onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+                onChange={(e) => {
+                  edited.current = true;
+                  setForm({ ...form, [field.key]: e.target.value });
+                }}
                 disabled={!canWrite}
                 data-testid={`customer-${field.key}`}
               />

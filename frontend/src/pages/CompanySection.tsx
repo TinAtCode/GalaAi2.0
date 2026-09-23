@@ -45,11 +45,16 @@ export function CompanySection() {
     api
       .get<CompanySettings>('/company/settings')
       .then((settings) => {
-        setSmallBusiness(settings.smallBusiness);
-        setForm({
-          ...Object.fromEntries(FIELDS.map((f) => [f.key, String(settings[f.key] ?? '')])),
-          defaultVatRate: String(Number(settings.defaultVatRate)),
-          paymentTermDays: String(settings.paymentTermDays),
+        // Nur die erste Antwort übernehmen: kommt eine zweite (React lädt im
+        // Entwicklungsmodus doppelt), sind evtl. schon Eingaben gemacht.
+        setForm((current) => {
+          if (current) return current;
+          setSmallBusiness(settings.smallBusiness);
+          return {
+            ...Object.fromEntries(FIELDS.map((f) => [f.key, String(settings[f.key] ?? '')])),
+            defaultVatRate: String(Number(settings.defaultVatRate)),
+            paymentTermDays: String(settings.paymentTermDays),
+          };
         });
       })
       .catch(() => setMessage({ ok: false, text: 'Firmendaten konnten nicht geladen werden.' }));
