@@ -30,6 +30,8 @@ export const PERMISSIONS = {
 
   MASTERDATA_WRITE: 'masterdata.write',
   SYSTEM_SETTINGS_WRITE: 'system.settings.write',
+
+  AUDIT_READ: 'audit.read',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

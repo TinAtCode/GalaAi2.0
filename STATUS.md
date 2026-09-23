@@ -237,7 +237,7 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
 - **Nachtrag – Audit-Log**: Statuswechsel von Angeboten, Aufträgen und Projekten, Nutzeränderungen
   (Sperren, Namen), Passwort-Reset (ohne das Passwort) sowie Rollenrechte und Rollenzuweisungen werden mit
   handelndem Nutzer, altem und neuem Wert in derselben Transaktion protokolliert. Gleichzeitige
-  Statuswechsel: nur einer gelingt und nur dieser steht im Protokoll (Integrationstest).
+  Statuswechsel: nur einer gelingt und nur dieser steht im Protokoll (Integrationstest). Einsehbar unter Einstellungen → Protokoll (`GET /audit-log`, filterbar, seitenweise; Recht `audit.read`, das die Migration allen Rollen mit `system.settings.write` gibt).
 
 ---
 

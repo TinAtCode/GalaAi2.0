@@ -488,6 +488,8 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([companyId])
+  @@index([companyId, createdAt])
+  @@index([companyId, entityId])
 }
 
 // ─────────────────────────────────────────────
