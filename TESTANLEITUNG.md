@@ -150,6 +150,11 @@ Rechnungsnummer im Verwendungszweck zeigen den Vorschlag, „Buchen“ erfasst d
 Zum Ausprobieren ohne Bank eignet sich `backend/test/fixtures/camt/camt053-v08.xml` (Platzhalter
 `__NUMBER1__` durch eine eigene Rechnungsnummer und `__AMOUNT1__` durch einen Betrag ersetzen).
 
+**Dokumente testen:** Auf einer Projektseite unter „Dokumente“ die Art wählen und ein PDF oder Foto
+hochladen, „Text erkennen“ angehakt lassen. Nach wenigen Sekunden steht „Text erkannt“ mit einem Ausschnitt
+am Dokument; über das Suchfeld findet man es mit einem Wort aus dem Text. Für Fotos und gescannte PDFs braucht
+der Server Tesseract mit deutschen Sprachdaten, PDFs mit Textebene gehen ohne.
+
 **PDF/A und ZUGFeRD prüfen:** `backend/scripts/validate-pdfa.sh <Ordner>` prüft alle PDFs eines Ordners
 mit veraPDF auf PDF/A-3b und PDFs mit eingebetteter `factur-x.xml` zusätzlich mit dem Mustang-Validator
 als ZUGFeRD-Rechnung (braucht Java und Maven; lädt beide Validatoren beim ersten Aufruf). Beispieldateien

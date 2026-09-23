@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   Param,
@@ -43,9 +44,14 @@ export class DocumentsController {
     return withTotalCount(res, await this.documentsService.findAllForCompany(user.companyId, page));
   }
 
+  // ?q=: Suche in Dateiname und erkanntem Text
   @Get('by-project/:projectId')
-  findAllForProject(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
-    return this.documentsService.findAllForProject(user.companyId, projectId);
+  findAllForProject(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId') projectId: string,
+    @Query('q') q?: string,
+  ) {
+    return this.documentsService.findAllForProject(user.companyId, projectId, q);
   }
 
   @Get(':id')
@@ -76,7 +82,23 @@ export class DocumentsController {
     @UploadedFile(requiredFile()) file: Express.Multer.File,
     @Query('projectId') projectId?: string,
     @Query('documentType') documentType?: (typeof DOCUMENT_TYPES)[number],
+    // ocr=1: Text erkennen (PDF oder Bild), Ergebnis am Dokument
+    @Query('ocr') ocr?: string,
   ) {
-    return this.documentsService.upload(user.companyId, user.userId, file, projectId, documentType);
+    return this.documentsService.upload(
+      user.companyId,
+      user.userId,
+      file,
+      projectId,
+      documentType,
+      ocr === '1' || ocr === 'true',
+    );
+  }
+
+  // Löschen braucht zusätzlich ein eigenes Recht
+  @Delete(':id')
+  @RequirePermissions(PERMISSIONS.DOCUMENT_READ, PERMISSIONS.DOCUMENT_DELETE)
+  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.documentsService.remove(user.companyId, user.userId, id);
   }
 }

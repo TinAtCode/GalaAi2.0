@@ -455,17 +455,22 @@ model TimeEntry {
 // Grundlage (Dokumenttyp, Zuordnung zu Projekt, Hochlade-Protokoll).
 // ─────────────────────────────────────────────
 model Document {
-  id               String   @id @default(uuid())
+  id               String        @id @default(uuid())
   companyId        String
-  company          Company  @relation(fields: [companyId], references: [id])
+  company          Company       @relation(fields: [companyId], references: [id])
   projectId        String?
-  project          Project? @relation(fields: [projectId], references: [id])
+  project          Project?      @relation(fields: [projectId], references: [id])
   fileName         String
-  documentType     String   @default("other") // invoice, quote, delivery_note, price_list, floor_plan, other, ...
+  documentType     String        @default("other") // invoice, quote, delivery_note, price_list, floor_plan, other, ...
   storagePath      String // Verweis auf den Objektspeicher, KEIN Dateiinhalt
   uploadedByUserId String?
-  uploadedByUser   User?    @relation(fields: [uploadedByUserId], references: [id])
-  createdAt        DateTime @default(now())
+  uploadedByUser   User?         @relation(fields: [uploadedByUserId], references: [id])
+  createdAt        DateTime      @default(now())
+  // Texterkennung beim Hochladen (optional): Stand und erkannter Text,
+  // durchsuchbar über GET /documents/by-project/:id?q=
+  ocrStatus        OcrJobStatus?
+  ocrText          String?
+  ocrJobs          OcrJob[]
 
   @@index([companyId])
   @@index([projectId])
@@ -594,6 +599,9 @@ model OcrJob {
   company    Company      @relation(fields: [companyId], references: [id])
   userId     String?
   fileName   String
+  // Auftrag zu einem hochgeladenen Dokument: das Ergebnis landet dort
+  documentId String?
+  document   Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
   status     OcrJobStatus @default(queued)
   result     Json?
   error      String?
@@ -601,6 +609,7 @@ model OcrJob {
   finishedAt DateTime?
 
   @@index([companyId, createdAt])
+  @@index([documentId])
 }
 
 enum VatTreatment {

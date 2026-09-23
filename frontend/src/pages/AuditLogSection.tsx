@@ -35,6 +35,7 @@ const ACTION_LABELS: Record<string, string> = {
   ai_completion: 'KI-Anfrage',
   datev_export: 'DATEV-Export',
   bank_import: 'Kontoauszug eingelesen',
+  document_delete: 'Dokument gelöscht',
   invoice_payment: 'Zahlung erfasst',
   invoice_payment_delete: 'Zahlung gelöscht',
   dunning_create: 'Mahnung erstellt',

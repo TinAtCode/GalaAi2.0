@@ -21,6 +21,7 @@ export const PERMISSIONS = {
   EMPLOYEE_DATA_READ: 'employee.data.read',
 
   DOCUMENT_READ: 'document.read',
+  DOCUMENT_DELETE: 'document.delete',
 
   AI_USE: 'ai.use',
   AI_EXECUTE_ACTION: 'ai.execute_action',

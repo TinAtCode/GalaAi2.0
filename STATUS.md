@@ -302,6 +302,18 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Position und Merkmalen – nicht aus der vom Zahler gewählten EndToEndId. XML ohne DOCTYPE (Schutz vor
   XXE), Datei höchstens 5 MB. Noch nicht: MT940 und CSV-Formate, automatische Abholung per EBICS/FinTS.
 
+- **Nachtrag – Dokumente am Projekt**: Abschnitt „Dokumente“ auf der Projektseite (Recht `document.read`):
+  mehrere Dateien auf einmal hochladen mit Art (Foto, Lieferschein, Plan, Aufmaß …), herunterladen,
+  löschen (mit Audit-Log; eigenes Recht `document.delete`, per Migration an alle Rollen mit
+  `system.settings.write`). Auf Wunsch (`POST /documents/upload?…&ocr=1`, Häkchen „Text erkennen“) läuft die
+  Texterkennung für PDF und Bilder über die OCR-Warteschlange; Stand (`ocrStatus`) und Text (`ocrText`)
+  stehen am Dokument, die Seite lädt nach, bis der Text da ist. `GET /documents/by-project/:id?q=` sucht
+  in Dateiname und erkanntem Text; die Liste liefert nur einen Ausschnitt um den Treffer. Beim Löschen
+  bleibt die Datei, wenn ein weiteres Dokument auf sie verweist (`storagePath` ist über `POST /documents`
+  frei eintragbar, Pfade werden dabei vereinheitlicht); die OCR-Aufträge zum Dokument werden samt
+  erkanntem Text mitgelöscht. Nach einem Neustart gilt eine
+  unterbrochene Texterkennung als fehlgeschlagen.
+
 - **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
   (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt
   (`vatTreatment: "reverse_charge"`). Die Rechnung übernimmt die Behandlung vom Angebot, das Storno vom
@@ -326,7 +338,7 @@ Auf ausdrücklichen Wunsch wurde der gesamte bisherige Code systematisch auf Lü
 
 ## 7. Offene Punkte
 
-- Dokumente: echter Datei-Upload/-Download funktioniert (lokales Dateisystem). OCR-Ergebnis wird nicht automatisch als Document gespeichert (zwei getrennte Schritte: OCR ansehen, dann ggf. hochladen). Bei gescannten PDFs werden maximal die ersten 10 Seiten per Bild-OCR gelesen (Deckel gegen sehr lange Scans).
+- Dokumente: Upload/Download auf dem lokalen Dateisystem; am Projekt mit optionaler Texterkennung (siehe Nachtrag). Bei gescannten PDFs werden maximal die ersten 10 Seiten per Bild-OCR gelesen (Deckel gegen sehr lange Scans).
 - KI-Gateway ohne aktiven Anbieter (bewusst zurückgestellt).
 - E2E-Tests (Playwright) und CI-Workflows (GitHub Actions) laufen bei jedem Push; ein Deployment-Workflow fehlt noch.
 - Mobile App (React Native/Expo), DATANORM, Admin-Auslagerung: noch nicht begonnen.
