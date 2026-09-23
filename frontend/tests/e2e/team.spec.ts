@@ -23,12 +23,9 @@ test.describe('Team – Zeiterfassungs-Freigabe', () => {
     await expect(entry.getByTestId('time-entry-approve')).toHaveCount(0);
   });
 
-  test.skip(
-    'ohne employee.data.read-Berechtigung ist "Team" in der Navigation nicht sichtbar',
-    async () => {
-      // Dokumentiert das erwartete Verhalten für eine eingeschränkte Rolle;
-      // übersprungen, solange es im Seed keinen zweiten User ohne diese
-      // Berechtigung gibt (siehe STATUS.md: kein Rollen-Verwaltungs-UI).
-    },
-  );
+  test.skip('ohne employee.data.read-Berechtigung ist "Team" in der Navigation nicht sichtbar', async () => {
+    // Dokumentiert das erwartete Verhalten für eine eingeschränkte Rolle;
+    // übersprungen, solange es im Seed keinen zweiten User ohne diese
+    // Berechtigung gibt (siehe STATUS.md: kein Rollen-Verwaltungs-UI).
+  });
 });

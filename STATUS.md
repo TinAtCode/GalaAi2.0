@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 22.09.2026 – Fundament (Schritt 1 aus BEWERTUNG.md): echte Migrationen, Integrationstests gegen PostgreSQL, companyId in allen Mandanten-Tabellen, Status-Enums, Dezimalrechnung, Firmen-Zeitzone
+Letzte Aktualisierung: 24.09.2026 – Finanzbereich (Kontostände, Kontobewegungen, Forderungen, Monatsübersicht) mit Rolle Buchhaltung. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -24,11 +24,12 @@ Letzte Aktualisierung: 22.09.2026 – Fundament (Schritt 1 aus BEWERTUNG.md): ec
 | 13 | Datenwächter (Preislisten-Diff + Datei-Upload CSV/XLSX + zeilenweise Auswahl) | ✅ |
 | 14 | KI-Gateway | 🔶 Adapter-Grundgerüst fertig, kein aktiver Anbieter (Entscheidung folgt später) |
 | 15 | Nachkalkulation (Arbeitszeit + Material, Soll/Ist) | ✅ |
-| — | E2E-Tests (Playwright), Lint/Format (ESLint+Prettier), CI/CD (GitHub Actions) | 🔶 vollständig geschrieben, E2E-Ausführung hier nicht möglich (siehe Abschnitt 5) |
-| 16–18 | Mobile App, Schnittstellen, Admin-Auslagerung | ⬜ |
+| — | E2E-Tests (Playwright), Lint/Format (ESLint+Prettier), CI (GitHub Actions), Container-Rauchtest | ✅ laufen bei jedem Push |
+| — | Rechnungen, E-Rechnung, ZUGFeRD, Zahlungen, Mahnwesen, Bankabgleich, DATEV, Dokumente, Finanzen, Betrieb | ✅ siehe Nachträge in Abschnitt 5 |
+| 16–18 | Mobile App, weitere Schnittstellen (GAEB, DATANORM), Admin-Auslagerung | ⬜ |
 
-Backend: NestJS 11 (Express 5) + Prisma 5 + PostgreSQL. Frontend: React 18 + React Router 7 + Vite 8 + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
-Tests: `cd backend && npm test` (125 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen), `npm run test:integration` (76 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (16 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
+Backend: NestJS 11.2 (Express 5; bewusst noch nicht NestJS 12 – reines ESM, eigener Umbau) + Prisma 5 + PostgreSQL. Frontend: React 18 + React Router 7 + Vite 8 + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
+Tests: `cd backend && npm test` (167 Unit-Tests), `npm run test:integration` (160 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (31 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Dazu `bash ops/smoke-test.sh` für die Produktions-Container. Lint und Formatierung in beiden Projekten ohne Befund.
 
 ---
 
@@ -122,9 +123,11 @@ sind in Phase 5 umgesetzt: React + Vite, Theming-System per CSS-Variablen +
 Einstellungen-Seite mit Live-Farbwahl, responsive Navigation (Bottom-Bar mobil,
 Seitenleiste ab 900px, Punkte permission-abhängig ein-/ausgeblendet), Login gegen
 das Backend. Echte Datenseiten: Mein Tag (inkl. Zeiterfassungs-Start/Stopp-Widget),
-Kunden, Projekte, Projekt-Detail (Termine anlegen, Angebote/Aufträge mit
-Statuswechsel-Aktionen), Kalkulation, Stammdaten, Team (Mitarbeiter-Zeiteinträge
-ansehen und freigeben, nur mit `employee.data.read` sichtbar).
+Kunden, Projekte, Projekt-Detail (Termine, Angebote mit freien Positionen,
+Aufträge, Rechnungen mit Zahlungen, Dokumente mit Texterkennung), Kalkulation,
+Stammdaten, Offene Posten mit Mahnwesen, Bankabgleich, Finanzen, Team
+(Zeiteinträge ansehen und freigeben) und Einstellungen (Firma, DATEV, Nutzer,
+Rollen, Protokoll). Jeder Punkt erscheint nur mit dem passenden Recht.
 
 ---
 
@@ -350,30 +353,23 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
 
 ---
 
-## 6. Optimierungsdurchgang (dieser Arbeitsschritt)
+## 6. Qualitätssicherung
 
-Auf ausdrücklichen Wunsch wurde der gesamte bisherige Code systematisch auf Lücken geprüft:
-- **Gefunden und behoben:** fehlende DB-Indizes auf allen Fremdschlüsseln (21 ergänzt), kein Rate-Limiting (ergänzt, real getestet), keine Security-Header (Helmet ergänzt, real getestet), `.gitignore` fehlte in beiden Projekten (ergänzt), CORS war nicht einschränkbar (jetzt über `CORS_ORIGIN` konfigurierbar).
-- **Geprüft und für in Ordnung befunden:** Guards/Mandantenprüfungen sind über alle Module hinweg konsistent, DTO-Validierung ist durchgängig, keine zirkulären Modul-Abhängigkeiten.
-- Schema samt neuer Indizes wurde erneut komplett gegen eine echte PostgreSQL angewendet (siehe Abschnitt 5) – fehlerfrei. Alle 86 Tests weiterhin grün, kompletter DI-Graph erneut real gebootet.
+Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review), bevor er committet wird; gefundene Fehler werden mit einem Test belegt und behoben. Die CI prüft bei jedem Push Lint, Formatierung, Unit-, Integrations- und E2E-Tests, alle erzeugten E-Rechnungen und PDFs (KoSIT, veraPDF, Mustang), die Alarmregeln und die Produktions-Container.
 
 ---
 
 ## 7. Offene Punkte
 
-- Dokumente: Upload/Download auf dem lokalen Dateisystem; am Projekt mit optionaler Texterkennung (siehe Nachtrag). Bei gescannten PDFs werden maximal die ersten 10 Seiten per Bild-OCR gelesen (Deckel gegen sehr lange Scans).
-- KI-Gateway ohne aktiven Anbieter (bewusst zurückgestellt).
-- E2E-Tests (Playwright) und CI-Workflows (GitHub Actions) laufen bei jedem Push, dazu ein Rauchtest der Produktions-Container (siehe `BETRIEB.md`). Ein automatisches Ausrollen auf einen Server fehlt noch – das hängt vom Zielserver ab.
-- Mobile App (React Native/Expo), DATANORM, Admin-Auslagerung: noch nicht begonnen.
-- GAEB-Import (X83 → Angebot mit freien Positionen): vorgemerkt. Echte GAEB-Beispieldateien kommen später vom Auftraggeber; ohne sie wird nicht gebaut, damit gegen echte Ausschreibungen getestet werden kann. DATEV: Buchungsstapel der Ausgangsrechnungen fertig (siehe Nachtrag).
-- Es existieren separate, umfassendere Projekt-Planungsdokumente (README.md, STATUS.md, DEVELOPMENT_GUIDE.md, TESTING_GUIDE.md, SECURITY_CHECKLIST.md, CICD_GUIDE.md, SKILLS_REFERENCE.md im Projekt-Root), die teils einen größeren, teamartigen Rahmen beschreiben (Mobile-Team, DevOps-Rolle, Security-Officer). Diese hier vorliegende STATUS.md beschreibt ausschließlich den tatsächlichen Code-Stand.
+- **Wartet auf Eingaben:** GAEB-Import (echte Beispieldateien vom Auftraggeber), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Hero-Vergleich (später), KI-Anbieter (Entscheidung; bestimmt die Qualität bei Screenshots, Fotos und freien PDFs).
+- **In Arbeit bzw. als Nächstes:** Einheitenkatalog mit Umrechnung und Rundung (Firma → Einheit → Artikel/Leistung → Position), Finanzen mit Kategorien, wiederkehrenden Zahlungen und Jahresüberblick, Eingangsrechnungen, Mahngebühren und Verzugszinsen (optional).
+- **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Aufmaß-App, Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, automatischer Bankabruf, Peppol, OCR über mehrere Server-Instanzen, automatisches Ausrollen auf einen Server.
+- Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 
 ---
 
 ## 8. Nächste sinnvolle Schritte
 
-1. **Dein Test** (siehe `TESTANLEITUNG.md`) – danach mit echten Ergebnissen/Feedback weiterplanen. Dabei auch `npx playwright install chromium` + `npm run test:e2e` im Frontend ausprobieren.
-2. KI-Anbieter festlegen, sobald relevant → echter Adapter + erster KI-Agent.
-3. Weitere E2E-Tests für die übrigen Module (Stammdaten, Team) nach demselben Muster.
-
-Ohne weitere Vorgabe: nächster Ausbauschritt ist, was im Code noch als Lücke vermerkt ist (siehe Abschnitt 7).
+1. **Dein Test** mit einem echten Projekt (siehe `TESTANLEITUNG.md`, für einen Server `BETRIEB.md`) – danach mit echten Rückmeldungen weiterplanen.
+2. Die Punkte „In Arbeit bzw. als Nächstes“ aus Abschnitt 7 in dieser Reihenfolge.
+3. KI-Anbieter festlegen, sobald Screenshots, Fotos und freie PDFs zuverlässig gelesen werden sollen.

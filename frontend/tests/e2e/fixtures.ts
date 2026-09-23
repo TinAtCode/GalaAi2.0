@@ -22,7 +22,7 @@ export async function loginViaUi(page: Page) {
 
 // Direkter API-Login – für Tests, die NICHT den Login-Vorgang selbst
 // prüfen, sondern nur einen gültigen Token brauchen, um Testdaten über die
-// API vorzubereiten (Arrange-Schritt, siehe TESTING_GUIDE.md AAA-Pattern).
+// API vorzubereiten (Arrange-Schritt).
 export async function apiLogin(request: APIRequestContext): Promise<string> {
   const res = await request.post(`${API_BASE_URL}/auth/login`, {
     data: { email: SEED.email, password: SEED.password },

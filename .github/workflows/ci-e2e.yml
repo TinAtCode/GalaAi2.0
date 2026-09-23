@@ -1,13 +1,7 @@
 name: CI - E2E Tests (Playwright)
 
-# HINWEIS (siehe STATUS.md): Dieser Workflow konnte in der Entwicklungs-
-# Sandbox nicht real ausgeführt werden, da sowohl `prisma generate` als
-# auch der Playwright-Browser-Download dort netzwerkseitig blockiert sind.
-# Auf echten GitHub-Actions-Runnern (normaler Internetzugang) funktionieren
-# beide Schritte standardmäßig. Die Tests selbst wurden syntaktisch/typisch
-# geprüft (`npx playwright test --list`, `tsc --noEmit`) und alle
-# verwendeten data-testid-Selektoren gegen den tatsächlichen Code
-# abgeglichen.
+# Playwright-E2E-Tests im Browser gegen Backend und Frontend mit frisch
+# migrierter und geseedeter Datenbank.
 
 on:
   push:
