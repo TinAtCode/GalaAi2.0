@@ -1,0 +1,18 @@
+# Beispiel: Prometheus holt die Metriken des Backends ab und wertet die
+# Alarmregeln aus. Token = METRICS_TOKEN des Backends (als Datei, nicht im
+# Klartext in dieser Konfiguration).
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: gartenai-backend
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/gartenai-metrics-token
+    static_configs:
+      - targets: ['backend:3000']

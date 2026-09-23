@@ -1,0 +1,76 @@
+# Tests der Alarmregeln: promtool test rules alerts.test.yml
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="gartenai-backend", instance="backend:3000"}'
+        values: '1 1 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: BackendNichtErreichbar
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: BackendNichtErreichbar
+        exp_alerts:
+          - exp_labels: { severity: critical, job: gartenai-backend, instance: 'backend:3000' }
+            exp_annotations:
+              summary: Das Backend antwortet nicht auf /metrics.
+              description: Seit 2 Minuten keine Metriken von backend:3000 – Server, Netz oder METRICS_TOKEN prüfen.
+
+  # 10 % Serverfehler über 20 Minuten -> Alarm; 1 % -> kein Alarm
+  - interval: 1m
+    input_series:
+      - series: 'http_requests_total{job="gartenai-backend", method="GET", route="/customers", status="200"}'
+        values: '0+90x20'
+      - series: 'http_requests_total{job="gartenai-backend", method="GET", route="/customers", status="500"}'
+        values: '0+10x20'
+      - series: 'http_requests_total{job="gartenai-backend", method="GET", route="/projects", status="200"}'
+        values: '0+0x20'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: VieleServerfehler
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: Mehr als 5 % der Anfragen enden mit einem Serverfehler.
+              description: Anteil 5xx 10% – im Log nach Einträgen mit level=error suchen.
+
+  - interval: 1m
+    input_series:
+      - series: 'http_requests_total{job="gartenai-backend", method="GET", route="/customers", status="200"}'
+        values: '0+99x20'
+      - series: 'http_requests_total{job="gartenai-backend", method="GET", route="/customers", status="500"}'
+        values: '0+1x20'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: VieleServerfehler
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'ocr_queue_waiting{job="gartenai-backend"}'
+        values: '12x30'
+      - series: 'mail_send_failures_total{job="gartenai-backend"}'
+        values: '0 0 0 1 1 1'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: OcrStau
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: OcrStau
+        exp_alerts:
+          - exp_labels: { severity: warning, job: gartenai-backend }
+            exp_annotations:
+              summary: Mehr als 10 Dokumente warten seit 15 Minuten auf die Texterkennung.
+              description: Warteschlange 12 – OCR_CONCURRENCY erhöhen oder den Server entlasten.
+      - eval_time: 5m
+        alertname: EmailVersandFehlgeschlagen
+        exp_alerts:
+          - exp_labels: { severity: warning, job: gartenai-backend }
+            exp_annotations:
+              summary: Rechnungen konnten nicht per E-Mail versendet werden.
+              description: SMTP_URL, Zugangsdaten und den Mailserver prüfen.

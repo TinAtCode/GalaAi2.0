@@ -1,0 +1,71 @@
+# Alarmregeln für das GartenAI-Backend (Metriken aus GET /metrics).
+# Schwellen sind Startwerte für einen kleinen Betrieb – nach den ersten
+# Wochen im Betrieb an die echten Werte anpassen.
+groups:
+  - name: gartenai-backend
+    rules:
+      - alert: BackendNichtErreichbar
+        expr: up{job="gartenai-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Das Backend antwortet nicht auf /metrics.
+          description: Seit 2 Minuten keine Metriken von {{ $labels.instance }} – Server, Netz oder METRICS_TOKEN prüfen.
+
+      - alert: VieleServerfehler
+        expr: |
+          sum(rate(http_requests_total{job="gartenai-backend",status=~"5.."}[5m]))
+            / sum(rate(http_requests_total{job="gartenai-backend"}[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: Mehr als 5 % der Anfragen enden mit einem Serverfehler.
+          description: Anteil 5xx {{ $value | humanizePercentage }} – im Log nach Einträgen mit level=error suchen.
+
+      - alert: LangsameAntworten
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="gartenai-backend"}[5m]))) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 5 % der Anfragen dauern länger als 2 Sekunden.
+          description: 95. Perzentil {{ $value | humanizeDuration }}.
+
+      - alert: OcrStau
+        expr: ocr_queue_waiting{job="gartenai-backend"} > 10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Mehr als 10 Dokumente warten seit 15 Minuten auf die Texterkennung.
+          description: Warteschlange {{ $value }} – OCR_CONCURRENCY erhöhen oder den Server entlasten.
+
+      - alert: EmailVersandFehlgeschlagen
+        expr: increase(mail_send_failures_total{job="gartenai-backend"}[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Rechnungen konnten nicht per E-Mail versendet werden.
+          description: SMTP_URL, Zugangsdaten und den Mailserver prüfen.
+
+      - alert: EventLoopBlockiert
+        expr: nodejs_eventloop_lag_p99_seconds{job="gartenai-backend"} > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Der Node.js-Prozess ist ausgelastet (Event-Loop-Verzögerung über 0,5 s).
+          description: Oft durch große PDF-Exporte oder OCR – Last und Speicher prüfen.
+
+      - alert: HoherSpeicherverbrauch
+        expr: process_resident_memory_bytes{job="gartenai-backend"} > 1.5e9
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Das Backend belegt mehr als 1,5 GB Arbeitsspeicher.
+          description: Belegt {{ $value | humanize1024 }}B.

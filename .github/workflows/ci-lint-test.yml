@@ -34,6 +34,12 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm audit --audit-level=high
         continue-on-error: true
+      # Alarmregeln für Prometheus (ops/prometheus): Syntax und Regeltests
+      - name: Alarmregeln prüfen
+        working-directory: ops/prometheus
+        run: |
+          docker run --rm -v "$PWD:/rules:ro" -w /rules --entrypoint promtool prom/prometheus:v3.5.0 check rules alerts.yml
+          docker run --rm -v "$PWD:/rules:ro" -w /rules --entrypoint promtool prom/prometheus:v3.5.0 test rules alerts.test.yml
 
   # Integrationstests gegen eine echte PostgreSQL: dieselben Migrationen wie
   # in Produktion, echter Prisma-Client, echte HTTP-Aufrufe. Fängt Fehler, die

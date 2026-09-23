@@ -109,7 +109,8 @@ Internetzugang.
 **Metriken testen:** in `backend/.env` `METRICS_TOKEN` setzen, Backend neu starten, dann
 `curl -H "Authorization: Bearer <Token>" http://localhost:3000/metrics` → Prometheus-Format mit
 `http_requests_total`, `http_request_duration_seconds`, `ocr_queue_running` usw. Ohne Token ist
-`/metrics` abgeschaltet (404).
+`/metrics` abgeschaltet (404). Beispiel-Konfiguration und Alarmregeln für Prometheus liegen in
+`ops/prometheus`; `promtool test rules ops/prometheus/alerts.test.yml` prüft die Regeln.
 
 **Dokumente hochladen/herunterladen testen:** eine beliebige Datei als `multipart/form-data`-Feld
 `file` an `POST /documents/upload` schicken (optional `?projectId=...&documentType=invoice` als
