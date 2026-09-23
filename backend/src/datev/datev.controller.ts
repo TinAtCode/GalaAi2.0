@@ -15,12 +15,19 @@ export class DatevController {
 
   // GET /datev/bookings?from=2026-09-01&to=2026-09-30
   @Get('bookings')
-  async bookings(@CurrentUser() user: AuthenticatedUser, @Query('from') from = '', @Query('to') to = '') {
+  // &payments=1: Zahlungseingänge mitexportieren
+  async bookings(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('from') from = '',
+    @Query('to') to = '',
+    @Query('payments') payments = '',
+  ) {
     const { buffer, fileName } = await this.datevService.exportBookings(
       user.companyId,
       user.userId,
       from,
       to,
+      payments === '1' || payments === 'true',
     );
     return new StreamableFile(buffer, {
       type: 'text/csv; charset=windows-1252',

@@ -5,7 +5,7 @@ import { writeAudit } from '../common/audit';
 import { addCalendarDays, dayRangeInZone, localDayString, parseDayParam } from '../common/time-zone';
 import { allocateDebtorNumber } from '../customers/debtor-number';
 import { buildBuchungsstapel, ExtfBooking } from './extf-writer';
-import { revenueAccountFor, revenueAccounts } from './revenue-accounts';
+import { moneyAccounts, revenueAccountFor, revenueAccounts } from './revenue-accounts';
 
 const KIND_LABELS = {
   partial: 'Abschlagsrechnung',
@@ -43,7 +43,11 @@ const ddmmyyyy = (instant: Date, tz: string) => {
 export class DatevService {
   constructor(private prisma: PrismaService) {}
 
-  async exportBookings(companyId: string, userId: string, from: string, to: string) {
+  // Mit includePayments zusätzlich die Zahlungseingänge (Geldkonto an Debitor,
+  // Belegfeld 1 = Rechnungsnummer für den OP-Ausgleich). Standard: nein –
+  // viele Kanzleien übernehmen die Bankumsätze direkt aus dem Bankkonto,
+  // dann wären die Zahlungen doppelt gebucht.
+  async exportBookings(companyId: string, userId: string, from: string, to: string, includePayments = false) {
     if (!DAY.test(from) || !DAY.test(to)) {
       throw new BadRequestException('Zeitraum als Datum angeben, z.B. from=2026-09-01&to=2026-09-30.');
     }
@@ -66,16 +70,37 @@ export class DatevService {
       include: { project: { include: { property: { include: { customer: true } } } } },
       orderBy: [{ issueDate: 'asc' }, { number: 'asc' }],
     });
-    if (invoices.length === 0) {
-      throw new BadRequestException('Im Zeitraum gibt es keine ausgestellten Rechnungen.');
+    // Zahlungen: paidOn ist ein reines Datum, daher direkt nach Tagen filtern
+    const payments = includePayments
+      ? await this.prisma.invoicePayment.findMany({
+          where: {
+            companyId,
+            paidOn: { gte: new Date(`${from}T00:00:00Z`), lte: new Date(`${to}T00:00:00Z`) },
+          },
+          include: {
+            invoice: { include: { project: { include: { property: { include: { customer: true } } } } } },
+          },
+          orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }],
+        })
+      : [];
+    if (invoices.length === 0 && payments.length === 0) {
+      throw new BadRequestException(
+        includePayments
+          ? 'Im Zeitraum gibt es keine ausgestellten Rechnungen und keine Zahlungseingänge.'
+          : 'Im Zeitraum gibt es keine ausgestellten Rechnungen.',
+      );
     }
     const accounts = revenueAccounts(company.datevChartOfAccounts, company.datevRevenueAccounts);
+    const money = moneyAccounts(company.datevChartOfAccounts, company.datevRevenueAccounts);
+    const customers = [
+      ...invoices.map((i) => i.project.property.customer),
+      ...payments.map((p) => p.invoice.project.property.customer),
+    ];
 
     return this.prisma.$transaction(async (tx) => {
       // Kunden ohne Debitorennummer (z.B. aus älteren Datenbeständen) bekommen jetzt eine
       const debtorOf = new Map<string, number>();
-      for (const invoice of invoices) {
-        const customer = invoice.project.property.customer;
+      for (const customer of customers) {
         if (debtorOf.has(customer.id)) continue;
         let number = customer.debtorNumber;
         if (number === null) {
@@ -119,6 +144,22 @@ export class DatevService {
         });
       }
 
+      for (const payment of payments) {
+        const invoice = payment.invoice;
+        const customer = invoice.project.property.customer;
+        const buyer = (invoice.buyerSnapshot ?? {}) as { name?: string };
+        const [, month, dayOfMonth] = payment.paidOn.toISOString().slice(0, 10).split('-');
+        bookings.push({
+          amount: payment.amount,
+          side: 'S',
+          account: money[payment.method],
+          contraAccount: debtorOf.get(customer.id)!,
+          documentDate: `${dayOfMonth}${month}`,
+          documentNumber: invoice.number!,
+          text: `Zahlung ${buyer.name ?? customer.name}`,
+        });
+      }
+
       const compact = (day: string) => day.replace(/-/g, '');
       const buffer = buildBuchungsstapel(
         {
@@ -128,7 +169,7 @@ export class DatevService {
           from: compact(from),
           to: compact(to),
           chart: company.datevChartOfAccounts,
-          label: `Ausgangsrechnungen ${from.slice(5, 7)}/${from.slice(0, 4)}`,
+          label: `${includePayments ? 'Rechnungen+Zahlungen' : 'Ausgangsrechnungen'} ${from.slice(5, 7)}/${from.slice(0, 4)}`,
           createdAt: new Date(),
         },
         bookings,
@@ -139,7 +180,7 @@ export class DatevService {
         action: 'datev_export',
         entity: 'Company',
         entityId: companyId,
-        newData: { from, to, count: bookings.length } as Prisma.InputJsonValue,
+        newData: { from, to, count: bookings.length, payments: payments.length } as Prisma.InputJsonValue,
       });
       return {
         buffer,

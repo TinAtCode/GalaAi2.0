@@ -56,6 +56,15 @@ test.describe('DATEV-Export', () => {
     expect(header).toMatch(/^"EXTF";700;21;"Buchungsstapel";12;\d{17};;"RE";"GartenAI";"";29098;55003;/);
     expect(rows.some((r) => r.includes(`"${number}"`) && r.includes(';8400;'))).toBe(true);
 
+    // Mit Zahlungseingängen: derselbe Export mit payments=1
+    await section.getByTestId('datev-with-payments').check();
+    const [withPayments] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/datev/bookings') && r.url().includes('payments=1')),
+      section.getByTestId('datev-export').click(),
+    ]);
+    expect(withPayments.status()).toBe(200);
+    await section.getByTestId('datev-with-payments').uncheck();
+
     // Leerer Zeitraum: verständliche Meldung statt leerer Datei
     await section.getByTestId('datev-from').fill('2000-01-01');
     await section.getByTestId('datev-to').fill('2000-01-31');

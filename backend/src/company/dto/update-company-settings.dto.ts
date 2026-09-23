@@ -17,7 +17,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-// Abweichende Erlöskonten für den DATEV-Export (vierstellige Sachkonten)
+// Abweichende Erlös- und Geldkonten für den DATEV-Export (vierstellige Sachkonten)
 export class DatevRevenueAccountsDto {
   @IsOptional()
   @IsInt()
@@ -42,6 +42,25 @@ export class DatevRevenueAccountsDto {
   @Min(1000)
   @Max(9999)
   reverseCharge?: number;
+
+  // Geldkonten für Zahlungseingänge (Bank, Kasse, sonstige)
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(9999)
+  bank?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(9999)
+  cash?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(9999)
+  other?: number;
 }
 
 export class UpdateCompanySettingsDto {

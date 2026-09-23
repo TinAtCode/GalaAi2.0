@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 
 type Chart = 'SKR03' | 'SKR04';
-type AccountKey = 'standard19' | 'standard7' | 'smallBusiness' | 'reverseCharge';
+type AccountKey = 'standard19' | 'standard7' | 'smallBusiness' | 'reverseCharge' | 'bank' | 'cash' | 'other';
 
 interface DatevSettings {
   datevConsultantNumber: number | null;
@@ -13,8 +13,24 @@ interface DatevSettings {
 
 // Standardkonten wie im Backend (datev/revenue-accounts.ts) – nur als Anzeige
 const DEFAULT_ACCOUNTS: Record<Chart, Record<AccountKey, number>> = {
-  SKR03: { standard19: 8400, standard7: 8300, smallBusiness: 8195, reverseCharge: 8337 },
-  SKR04: { standard19: 4400, standard7: 4300, smallBusiness: 4185, reverseCharge: 4337 },
+  SKR03: {
+    standard19: 8400,
+    standard7: 8300,
+    smallBusiness: 8195,
+    reverseCharge: 8337,
+    bank: 1200,
+    cash: 1000,
+    other: 1360,
+  },
+  SKR04: {
+    standard19: 4400,
+    standard7: 4300,
+    smallBusiness: 4185,
+    reverseCharge: 4337,
+    bank: 1800,
+    cash: 1600,
+    other: 1460,
+  },
 };
 
 const ACCOUNT_LABELS: { key: AccountKey; label: string }[] = [
@@ -22,6 +38,9 @@ const ACCOUNT_LABELS: { key: AccountKey; label: string }[] = [
   { key: 'standard7', label: 'Erlöse 7 %' },
   { key: 'smallBusiness', label: 'Erlöse Kleinunternehmer (§ 19)' },
   { key: 'reverseCharge', label: 'Erlöse § 13b' },
+  { key: 'bank', label: 'Bank (Zahlungseingänge)' },
+  { key: 'cash', label: 'Kasse (Barzahlungen)' },
+  { key: 'other', label: 'Geldtransit (sonstige Zahlungen)' },
 ];
 
 const isoDay = (d: Date) =>
@@ -43,6 +62,9 @@ export function DatevSection({ canEdit, canExport }: { canEdit: boolean; canExpo
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [range, setRange] = useState(previousMonth);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  // Zahlungseingänge mitexportieren – nur, wenn die Kanzlei die Bankumsätze
+  // nicht ohnehin direkt aus dem Bankkonto übernimmt (sonst doppelt gebucht)
+  const [withPayments, setWithPayments] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -94,7 +116,7 @@ export function DatevSection({ canEdit, canExport }: { canEdit: boolean; canExpo
     try {
       const compact = (day: string) => day.replace(/-/g, '');
       await api.downloadFile(
-        `/datev/bookings?from=${range.from}&to=${range.to}`,
+        `/datev/bookings?from=${range.from}&to=${range.to}${withPayments ? '&payments=1' : ''}`,
         `EXTF_Buchungsstapel_${compact(range.from)}_${compact(range.to)}.csv`,
       );
     } catch (err) {
@@ -138,6 +160,20 @@ export function DatevSection({ canEdit, canExport }: { canEdit: boolean; canExpo
           </button>
         </div>
       )}
+      {canExport && (
+        <label
+          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.9rem', marginBottom: 12 }}
+        >
+          <input
+            type="checkbox"
+            checked={withPayments}
+            onChange={(e) => setWithPayments(e.target.checked)}
+            data-testid="datev-with-payments"
+          />
+          Zahlungseingänge mitexportieren (Bank bzw. Kasse an Debitor) – nur, wenn der Steuerberater die
+          Bankumsätze nicht selbst aus dem Bankkonto übernimmt, sonst sind sie doppelt gebucht.
+        </label>
+      )}
       {exportMessage && (
         <p className="field-error" data-testid="datev-export-message">
           {exportMessage}
@@ -177,8 +213,8 @@ export function DatevSection({ canEdit, canExport }: { canEdit: boolean; canExpo
             </select>
           </label>
           <p className="list-item-meta">
-            Erlöskonten: leer lassen für die Standardkonten; nur ändern, wenn der Steuerberater andere
-            vorgibt. Kunden bekommen automatisch Debitorennummern ab 10000 (änderbar beim Kunden).
+            Erlös- und Geldkonten: leer lassen für die Standardkonten; nur ändern, wenn der Steuerberater
+            andere vorgibt. Kunden bekommen automatisch Debitorennummern ab 10000 (änderbar beim Kunden).
           </p>
           {ACCOUNT_LABELS.map(({ key, label }) => (
             <label key={key} className="field">

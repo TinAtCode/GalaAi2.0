@@ -247,7 +247,7 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Zahlungen und ein gleichzeitiges Storno werden über Sperren serialisiert. `GET /open-items` bzw. die Seite
   „Offene Posten“ zeigt alle Rechnungen mit Restbetrag, Fälligkeit (Rechnungsdatum + Zahlungsziel in
   Kalendertagen der Firmen-Zeitzone) und Tagen im Verzug. Jede Zahlung und Korrektur steht im Audit-Log.
-  Noch nicht: Zahlungsbuchungen im DATEV-Export, Bankabgleich.
+  Zahlungsbuchungen optional im DATEV-Export (siehe dort). Noch nicht: Bankabgleich.
 
 - **Nachtrag – Mahnwesen**: Aus den offenen Posten heraus Zahlungserinnerung, 1. und 2. Mahnung
   (`POST /invoices/:id/dunning`, Tabelle `DunningNotice`). Nur für überfällige, offene Rechnungen; die
@@ -279,7 +279,12 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Firma). Abschlagsrechnungen gehen direkt auf das Erlöskonto; die Schlussrechnung verrechnet sie
   bereits, die Summe der Erlöse stimmt. Wer „erhaltene Anzahlungen“ getrennt führt, bucht in DATEV um.
   Ein Stapel umfasst höchstens ein Kalenderjahr (Wirtschaftsjahr = Kalenderjahr); jeder Export steht
-  im Audit-Log. Noch nicht: Debitoren-Stammdaten (Namen und Anschriften) als eigener Export, Belegbilder.
+  im Audit-Log. Auf Wunsch (`&payments=1`, Häkchen „Zahlungseingänge mitexportieren“) kommen die
+  Zahlungseingänge des Zeitraums dazu: Bank (SKR03 1200 / SKR04 1800), Kasse (1000 / 1600) bzw. für
+  sonstige Zahlungen Geldtransit (1360 / 1460) an Debitor, Belegfeld 1 = Rechnungsnummer für den
+  OP-Ausgleich; Konten einstellbar. Standard ist aus, weil viele Kanzleien die Bankumsätze direkt aus dem
+  Bankkonto übernehmen – sonst wären sie doppelt gebucht. Noch nicht: Debitoren-Stammdaten (Namen und
+  Anschriften) als eigener Export, Belegbilder.
 
 - **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
   (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt

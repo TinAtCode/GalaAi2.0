@@ -203,6 +203,59 @@ describe('DATEV-Export', () => {
     await download(`from=${today}&to=${today}`).expect(200);
   });
 
+  it('Zahlungseingänge nur auf Wunsch: Geldkonto an Debitor, Belegfeld = Rechnungsnummer', async () => {
+    await api()
+      .patch('/company/settings')
+      .set(auth)
+      .send({ datevChartOfAccounts: 'SKR03', datevRevenueAccounts: {} })
+      .expect(200);
+    const { partialIssued } = await issuedInvoices();
+    const pay = (amount: number, method: string) =>
+      api()
+        .post(`/invoices/${partialIssued.id}/payments`)
+        .set(auth)
+        .send({ amount, paidOn: today, method })
+        .expect(201);
+    await pay(100, 'bank');
+    await pay(20.5, 'cash');
+    await pay(5, 'other');
+
+    const without = lines((await download(range).expect(200)).body)
+      .slice(2)
+      .map(fields);
+    expect(without.some((r) => col(r, 'Buchungstext').startsWith('"Zahlung '))).toBe(false);
+
+    const res = await download(`${range}&payments=1`).expect(200);
+    const [header, , ...rows] = lines(res.body);
+    expect(fields(header)[16]).toBe(`"Rechnungen+Zahlungen 01/${year}"`);
+    const paymentRows = rows.map(fields).filter((r) => col(r, 'Buchungstext').startsWith('"Zahlung '));
+    expect(paymentRows).toHaveLength(3);
+    const [bank, cash, other] = paymentRows;
+    expect(col(bank, 'Umsatz')).toBe('100,00');
+    expect(col(bank, 'Soll-/Haben-Kennzeichen')).toBe('"S"');
+    expect(col(bank, 'Konto')).toBe('1200');
+    expect(col(bank, 'Gegenkonto (ohne BU-Schlüssel)')).toBe('10000');
+    expect(col(bank, 'Belegfeld 1')).toBe(`"${partialIssued.number}"`);
+    expect(col(bank, 'Belegdatum')).toBe(`${today.slice(8, 10)}${today.slice(5, 7)}`);
+    expect(col(cash, 'Konto')).toBe('1000');
+    expect(col(cash, 'Umsatz')).toBe('20,50');
+    // sonstige Zahlungen auf Geldtransit, nicht auf die Bank
+    expect(col(other, 'Konto')).toBe('1360');
+
+    // SKR04 und eigene Geldkonten
+    await api()
+      .patch('/company/settings')
+      .set(auth)
+      .send({ datevChartOfAccounts: 'SKR04', datevRevenueAccounts: { bank: 1810 } })
+      .expect(200);
+    const skr04 = lines((await download(`${range}&payments=1`).expect(200)).body)
+      .slice(2)
+      .map(fields)
+      .filter((r) => col(r, 'Buchungstext').startsWith('"Zahlung '))
+      .map((r) => col(r, 'Konto'));
+    expect(skr04).toEqual(['1810', '1600', '1460']);
+  });
+
   it('Kunden ohne Debitorennummer bekommen beim Export genau eine, auch bei gleichzeitigen Exporten', async () => {
     await prisma.customer.update({ where: { id: customerId }, data: { debtorNumber: null } });
     const results = await Promise.all([download(range), download(range), download(range)]);

@@ -35,3 +35,24 @@ export function revenueAccountFor(
     `Rechnung ${invoice.number}: für ${invoice.vatRate.toString()} % Umsatzsteuer gibt es kein Erlöskonto im DATEV-Export (nur 19 % und 7 %).`,
   );
 }
+
+// Geldkonten für Zahlungseingänge (DATEV-Standard): Bank, Kasse und für
+// sonstige Zahlungen (Verrechnung, PayPal …) das Geldtransitkonto – von dort
+// bucht die Kanzlei um, statt dass das Bankkonto nicht mehr zum Auszug passt.
+export type MoneyAccountKey = 'bank' | 'cash' | 'other';
+export const DEFAULT_MONEY_ACCOUNTS: Record<DatevChart, Record<MoneyAccountKey, number>> = {
+  SKR03: { bank: 1200, cash: 1000, other: 1360 },
+  SKR04: { bank: 1800, cash: 1600, other: 1460 },
+};
+
+// Abweichungen stehen in derselben Einstellung wie die Erlöskonten
+export function moneyAccounts(chart: DatevChart, overrides: Prisma.JsonValue | null) {
+  const custom = (
+    overrides && typeof overrides === 'object' && !Array.isArray(overrides) ? overrides : {}
+  ) as Record<string, unknown>;
+  const result = { ...DEFAULT_MONEY_ACCOUNTS[chart] };
+  for (const key of Object.keys(result) as MoneyAccountKey[]) {
+    if (typeof custom[key] === 'number') result[key] = custom[key];
+  }
+  return result;
+}
