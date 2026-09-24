@@ -1503,3 +1503,275 @@ input[type='radio'] {
     flex: none;
   }
 }
+
+/* ───────────────────────────────────────────────────────────
+   Pflegeverträge
+   ─────────────────────────────────────────────────────────── */
+
+.notice {
+  font-size: 0.9rem;
+  padding: 10px 14px;
+  border-radius: var(--radius-small);
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  color: color-mix(in srgb, var(--color-success) 80%, var(--color-ink));
+  margin: 0 0 12px;
+}
+
+.contract-card {
+  border-left: 4px solid var(--color-primary);
+}
+
+.status-badge.status-contract-active {
+  background: color-mix(in srgb, var(--color-success) 18%, transparent);
+  color: var(--color-success);
+}
+
+.status-badge.status-contract-paused {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  color: color-mix(in srgb, var(--color-accent) 75%, var(--color-ink));
+}
+
+.contract-task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.contract-form {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  padding: 16px;
+  margin-bottom: 14px;
+  background: var(--color-surface);
+}
+
+.contract-form-heading {
+  font-size: 0.95rem;
+  margin: 18px 0 8px;
+}
+
+.contract-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.contract-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.app-content .contract-row .grow {
+  flex: 1 1 220px;
+}
+
+.app-content .contract-row .narrow {
+  flex: 0 1 90px;
+  min-width: 70px;
+}
+
+.app-content .contract-row .tiny {
+  width: 70px;
+}
+
+/* Position: Leistung, Menge, Einheit, Preis, Summe, Entfernen */
+.contract-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 64px 84px 84px 36px;
+  gap: 8px;
+  align-items: center;
+}
+
+.app-content .contract-line input {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 599px) {
+  .contract-line {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 36px;
+  }
+
+  .contract-line > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .contract-line .contract-line-total {
+    grid-column: 1 / 4;
+    text-align: left;
+  }
+}
+
+.contract-line-total {
+  min-width: 90px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.contract-task {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  background: var(--color-surface-2);
+}
+
+.inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: var(--color-ink-muted);
+}
+
+/* ───────────────────────────────────────────────────────────
+   Plantafel: Mitarbeiter × Tage
+   ─────────────────────────────────────────────────────────── */
+
+.board-scroll {
+  overflow-x: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-card);
+}
+
+.board {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 920px;
+  table-layout: fixed;
+  font-size: 0.85rem;
+}
+
+.board th,
+.board td {
+  border-bottom: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+  vertical-align: top;
+  padding: 6px;
+}
+
+.board thead th {
+  background: var(--color-surface-2);
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--color-ink-muted);
+  text-align: left;
+  position: sticky;
+  top: 0;
+}
+
+.board .board-person {
+  width: 150px;
+  text-align: left;
+  font-weight: 500;
+  border-left: none;
+  position: sticky;
+  left: 0;
+  background: var(--color-surface);
+  z-index: 1;
+}
+
+.board thead .board-person {
+  background: var(--color-surface-2);
+  z-index: 2;
+}
+
+.board td {
+  height: 72px;
+  transition: background 0.1s;
+}
+
+.board .board-today {
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.board thead th.board-today {
+  color: var(--color-primary);
+}
+
+.board td.board-drop {
+  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -3px;
+}
+
+.board-item {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-radius: var(--radius-small);
+  border: 1px solid color-mix(in srgb, var(--color-info) 35%, transparent);
+  border-left: 3px solid var(--color-info);
+  background: color-mix(in srgb, var(--color-info) 10%, var(--color-surface));
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.board-item[draggable='true'] {
+  cursor: grab;
+}
+
+.board-item.is-contract {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  border-left-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+}
+
+.board-item.is-done {
+  opacity: 0.55;
+}
+
+.board-item-time {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.board-item-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-item-meta {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-over {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-danger);
+}
+
+.board-dialog {
+  position: fixed;
+  z-index: 31;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-raised);
+  padding: 20px;
+}

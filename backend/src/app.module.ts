@@ -37,6 +37,7 @@ import { UsersModule } from './users/users.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { MailModule } from './mail/mail.module';
+import { ContractsModule } from './contracts/contracts.module';
 import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
 
 @Module({
@@ -79,6 +80,7 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     BankModule,
     FinanceModule,
     PlansModule,
+    ContractsModule,
     UnitsModule,
     UsersModule,
     InvoicesModule,

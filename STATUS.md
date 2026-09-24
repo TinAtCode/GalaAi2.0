@@ -478,6 +478,21 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   (`METRICS_HISTORY_DAYS`), abschaltbar mit `METRICS_HISTORY=off`. Ein Test prüft, dass die bekannten
   Schwellen zu `ops/prometheus/alerts.yml` passen.
 
+- **Nachtrag – Pflege- und Wartungsverträge**: Vertrag am Projekt (`MaintenanceContract`) mit Positionen je
+  Abrechnungszeitraum (monatlich bis jährlich, im Voraus oder nachträglich) und wiederkehrenden Einsätzen
+  (`ContractTask`: Rhythmus in Wochen, Saison auch über den Jahreswechsel, Uhrzeit, Dauer, Mitarbeiter).
+  `POST /contracts/schedule` legt fällige Einsätze bis zu einem Datum (höchstens ein Jahr) als Termine an –
+  ohne Doppelte, bei Überschneidung ohne Mitarbeiter. `POST /contracts/invoice-due` bzw. `/contracts/:id/invoice`
+  erstellt Rechnungsentwürfe (Rechnungsart `periodic`, E-Rechnung 380, Leistungszeitraum). Der nächste Zeitraum
+  folgt aus den nicht stornierten Rechnungen, ein Storno gibt ihn wieder frei; am Vertragsende wird der letzte
+  Zeitraum gekürzt (Betrag unverändert). Rechnungen gehören jetzt zu einem Auftrag oder einem Vertrag
+  (Check-Constraint). Rechte: ansehen mit `customer.read` (Preise nur mit `price.sale.read`), anlegen mit
+  `customer.write` und `price.sale.read`, planen mit `customer.write`, abrechnen mit `invoice.create`.
+- **Nachtrag – Plantafel**: `GET /appointments/board?from=&days=` liefert die Termine aller Mitarbeiter eines
+  Zeitraums (ohne abgesagte) und die zuteilbaren Mitarbeiter, `PATCH /appointments/:id` verschiebt und teilt
+  neu zu (Dauer bleibt, dieselbe Kollisionsprüfung wie beim Anlegen). Seite „Plantafel“: Mitarbeiter ×
+  Wochentage, Ziehen mit der Maus, Dialog zum Antippen (Touch), Tage über 8 Stunden markiert.
+
 ---
 
 ## 6. Qualitätssicherung
@@ -492,7 +507,8 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 - **Erledigt am 25.09.2026:** Zahlungen auf Mahngebühren und Zinsen, Kontoauszüge als MT940 und CSV, DXF-Import, Aufmaß offline (installierbare App, Lagepläne ohne Netz), OCR-Limit über mehrere Server (siehe Nachtrag unten).
 - **Nicht geplant (Entscheidung vom 24.09.2026):** automatischer Kontoabruf per EBICS/FinTS (Auszüge werden als CAMT.053, MT940 oder CSV hochgeladen), Versand der E-Rechnungen über Peppol (Versand per E-Mail mit PDF und XRechnung).
 - **Im Betrieb:** Schwellen der Alarmregeln nach einigen Wochen anpassen. Das Backend zeichnet die Werte dafür ab jetzt selbst auf; die Auswertung macht Vorschläge (siehe Nachtrag „Verlauf für die Alarmschwellen“ und BETRIEB.md).
-- **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, Ablage der Dokumente im Objektspeicher, automatisches Ausrollen auf einen Server.
+- **Erledigt am 26.09.2026:** Pflege- und Wartungsverträge (Einsätze als Termine, Abrechnung je Zeitraum), Plantafel (siehe Nachträge).
+- **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Stammdaten-Import aus beliebigen Quellen mit Abgleich, Ablage der Dokumente im Objektspeicher, automatisches Ausrollen auf einen Server.
 - Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 
 ---

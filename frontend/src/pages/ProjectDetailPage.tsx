@@ -6,6 +6,8 @@ import { formatEuro } from '../format';
 import { DocumentsSection } from './DocumentsSection';
 import { PlansSection } from './plans/PlansSection';
 import { InvoicesSection } from './InvoicesSection';
+import { ContractsSection } from './contracts/ContractsSection';
+import { Contract } from './contracts/types';
 import { QuoteForm } from './QuoteForm';
 import { MaterialCard, PostCalculationCard } from './ProjectInsights';
 import { quantityText, SOURCE_LABELS } from '../rounding';
@@ -110,6 +112,9 @@ export function ProjectDetailPage() {
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [orders, setOrders] = useState<Order[] | null>(null);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  // Rechnungen neu laden, wenn aus einem Vertrag abgerechnet wurde
+  const [invoicesKey, setInvoicesKey] = useState(0);
   const [project, setProject] = useState<ProjectInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -129,12 +134,14 @@ export function ProjectDetailPage() {
       api.get<Quote[]>(`/quotes/by-project/${projectId}`),
       api.get<Order[]>(`/orders/by-project/${projectId}`),
       api.get<ProjectInfo>(`/projects/${projectId}`),
+      api.get<Contract[]>(`/contracts?projectId=${projectId}`),
     ])
-      .then(([a, q, o, p]) => {
+      .then(([a, q, o, p, c]) => {
         setAppointments(a);
         setQuotes(q);
         setOrders(o);
         setProject(p);
+        setContracts(c);
         setInsightsKey((k) => k + 1);
       })
       .catch((err) =>
@@ -178,9 +185,11 @@ export function ProjectDetailPage() {
   };
 
   const canWrite = hasPermission('customer.write');
-  const showInvoices = !!projectId && !!orders?.length && hasPermission('invoice.create');
+  const showInvoices =
+    !!projectId && (!!orders?.length || contracts.length > 0) && hasPermission('invoice.create');
   const sections: [string, string, boolean][] = [
     ['angebote', 'Angebote & Aufträge', true],
+    ['vertraege', 'Pflegeverträge', true],
     ['rechnungen', 'Rechnungen', showInvoices],
     ['plaene', 'Lagepläne', hasPermission('plan.read')],
     ['dokumente', 'Dokumente', hasPermission('document.read')],
@@ -472,9 +481,22 @@ export function ProjectDetailPage() {
             )}
           </section>
 
+          {projectId && (
+            <section className="card" id="vertraege">
+              <ContractsSection
+                projectId={projectId}
+                contracts={contracts}
+                onChange={() => {
+                  load();
+                  setInvoicesKey((k) => k + 1);
+                }}
+              />
+            </section>
+          )}
+
           {showInvoices && orders && (
             <section className="card" id="rechnungen">
-              <InvoicesSection projectId={projectId!} orderIds={orders.map((o) => o.id)} />
+              <InvoicesSection key={invoicesKey} projectId={projectId!} orderIds={orders.map((o) => o.id)} />
             </section>
           )}
 

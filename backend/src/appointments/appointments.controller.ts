@@ -7,7 +7,12 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { parseDayParam } from '../common/time-zone';
 import { AppointmentsService } from './appointments.service';
-import { CreateAppointmentDto, UpdateAppointmentStatusDto } from './dto/appointment.dto';
+import {
+  BoardQueryDto,
+  CreateAppointmentDto,
+  UpdateAppointmentDto,
+  UpdateAppointmentStatusDto,
+} from './dto/appointment.dto';
 
 // Reduziert einen Termin auf genau das, was Punkt 24 für die
 // Mitarbeiter-Ansicht "Mein Tag" fordert: Baustelle, Kunde, Adresse,
@@ -40,6 +45,19 @@ export class AppointmentsController {
     return appointments.map(toMyDayItem);
   }
 
+  @Get('assignees')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_WRITE)
+  assignees(@CurrentUser() user: AuthenticatedUser) {
+    return this.appointmentsService.assignees(user.companyId);
+  }
+
+  // Plantafel: Termine aller Mitarbeiter in einem Zeitraum
+  @Get('board')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
+  board(@CurrentUser() user: AuthenticatedUser, @Query() query: BoardQueryDto) {
+    return this.appointmentsService.board(user.companyId, query);
+  }
+
   @Get('by-project/:projectId')
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
   findAllForProject(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
@@ -50,6 +68,12 @@ export class AppointmentsController {
   @RequirePermissions(PERMISSIONS.CUSTOMER_WRITE)
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateAppointmentDto) {
     return this.appointmentsService.create(user.companyId, dto);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_WRITE)
+  update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateAppointmentDto) {
+    return this.appointmentsService.update(user.companyId, id, dto);
   }
 
   @Patch(':id/status')

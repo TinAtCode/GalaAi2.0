@@ -4,8 +4,9 @@ import { formatEuro, parseAmount } from '../format';
 
 interface Invoice {
   id: string;
-  orderId: string;
-  kind: 'partial' | 'final' | 'cancellation';
+  orderId: string | null;
+  contractId?: string | null;
+  kind: 'partial' | 'final' | 'cancellation' | 'periodic';
   status: 'draft' | 'issued' | 'cancelled';
   number: string | null;
   issueDate: string | null;
@@ -65,6 +66,7 @@ const KIND_LABELS: Record<Invoice['kind'], string> = {
   partial: 'Abschlagsrechnung',
   final: 'Schlussrechnung',
   cancellation: 'Stornorechnung',
+  periodic: 'Rechnung (Pflegevertrag)',
 };
 
 const STATUS_LABELS: Record<Invoice['status'], string> = {

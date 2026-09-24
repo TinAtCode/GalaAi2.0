@@ -17,7 +17,7 @@ export interface XRechnungParty {
 }
 
 export interface XRechnungInput {
-  kind: 'partial' | 'final' | 'cancellation';
+  kind: 'partial' | 'final' | 'cancellation' | 'periodic';
   number: string;
   issueDate: Date;
   servicePeriodStart: Date | null;
@@ -151,7 +151,7 @@ export function buildXRechnung(input: XRechnungInput): string {
   // Eine Stornorechnung wird als Gutschrift (381) mit umgekehrten Vorzeichen
   // übertragen: Beträge der Kopfsummen sind dann positiv.
   const sign = input.kind === 'cancellation' ? -1 : 1;
-  const typeCode = { partial: '326', final: '380', cancellation: '381' }[input.kind];
+  const typeCode = { partial: '326', final: '380', cancellation: '381', periodic: '380' }[input.kind];
   const signed = (d: Prisma.Decimal) => d.times(sign);
   const category = VAT_CATEGORIES[input.vatTreatment];
   const rate = input.vatTreatment === 'standard' ? input.vatRate.toFixed(2) : '0.00';
