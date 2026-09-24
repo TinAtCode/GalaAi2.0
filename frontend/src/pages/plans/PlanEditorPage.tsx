@@ -44,6 +44,8 @@ import {
   squareMeters,
 } from './geometry';
 import { edgeMidpoint, isCircle, outline } from './outline';
+import { DxfDrawing, parseDxf } from './dxf';
+import { DxfImport } from './DxfImport';
 
 interface Plan {
   id: string;
@@ -109,6 +111,8 @@ export function PlanEditorPage() {
   const [circleChoice, setCircleChoice] = useState<Partial<Record<Tool, boolean>>>({});
   const circleMode = circleChoice[tool] ?? tool === 'manhole';
   const [quoteOpen, setQuoteOpen] = useState(false);
+  // DXF-Datei, deren Layer gerade zugeordnet werden
+  const [dxf, setDxf] = useState<{ name: string; drawing: DxfDrawing } | null>(null);
   const [background, setBackground] = useState<{ id: string; url: string } | null>(null);
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.7);
   const [size, setSize] = useState<Point>([800, 560]);
@@ -199,6 +203,13 @@ export function PlanEditorPage() {
     const zoom = Math.min(size[0] / w, size[1] / h) * 0.95;
     setView({ zoom, x: b.minX - (size[0] / zoom - w) / 2, y: b.minY - (size[1] / zoom - h) / 2 });
   }, [plan, size, objects]);
+  // nach einem Import einpassen, sobald die neuen Objekte gerendert sind
+  const fitPending = useRef(false);
+  useEffect(() => {
+    if (!fitPending.current) return;
+    fitPending.current = false;
+    fit();
+  }, [fit]);
   const fitted = useRef<string | null>(null);
   useEffect(() => {
     const key = `${plan?.id}:${backgroundId}:${size[0] > 0}`;
@@ -656,6 +667,41 @@ export function PlanEditorPage() {
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
+
+  // DXF im Browser lesen; zugeordnet und übernommen wird im Dialog rechts
+  const readDxf = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const drawing = parseDxf(await file.text());
+      if (!drawing.entities.length) {
+        setError('In der DXF-Datei wurden keine übernehmbaren Elemente gefunden.');
+        return;
+      }
+      setError(null);
+      setDxf({ name: file.name, drawing });
+      setTool('select');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Die DXF-Datei konnte nicht gelesen werden.');
+    }
+  };
+
+  const importDxf = (imported: PlanObject[], dropped: number) => {
+    const room = 2000 - objects.length;
+    const taken = imported.slice(0, Math.max(0, room));
+    commit([...objects, ...taken]);
+    setDxf(null);
+    setNotice(
+      `${taken.length} Objekte aus der DXF übernommen` +
+        (imported.length > taken.length
+          ? ` (höchstens 2000 je Plan, ${imported.length - taken.length} ausgelassen)`
+          : '') +
+        (dropped ? `, ${dropped} passten nicht zur gewählten Art` : '') +
+        '.',
+    );
+    fitPending.current = true;
+  };
 
   const uploadBackground = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1194,6 +1240,16 @@ export function PlanEditorPage() {
                 data-testid="plan-background"
               />
             </label>
+            <label className="plan-tool" title="CAD-Zeichnung (DXF) übernehmen">
+              DXF …
+              <input
+                type="file"
+                accept=".dxf,application/dxf,image/vnd.dxf"
+                onChange={readDxf}
+                style={{ display: 'none' }}
+                data-testid="plan-dxf"
+              />
+            </label>
             <button
               className={`plan-tool${tool === 'calibrate' ? ' active' : ''}`}
               onClick={() => {
@@ -1388,6 +1444,16 @@ export function PlanEditorPage() {
         </div>
 
         <aside className="plan-panel">
+          {dxf && (
+            <DxfImport
+              fileName={dxf.name}
+              drawing={dxf.drawing}
+              unitsPerMeter={unitsPerMeter}
+              newId={newId}
+              onImport={importDxf}
+              onCancel={() => setDxf(null)}
+            />
+          )}
           {calibration?.points.length === 2 && (
             <div className="job-card" style={{ display: 'block' }} data-testid="plan-calibration">
               <strong>Maßstab festlegen</strong>

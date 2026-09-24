@@ -342,4 +342,52 @@ test.describe('Lagepläne', () => {
     await item.getByRole('button', { name: 'Löschen' }).click();
     await expect(item).toHaveCount(0);
   });
+
+  test('DXF-Import: Layer zuordnen, Mengen aus der Zeichnung', async ({ page }) => {
+    const run = String(Date.now()).slice(-6);
+    await loginViaUi(page);
+    await page.goto(`/projekte/${SEED.projectId}`);
+    await page.getByTestId('plan-new-name').fill(`DXF ${run}`);
+    await page.getByTestId('plan-create').click();
+    await expect(page.getByTestId('plan-editor')).toBeVisible();
+
+    // Zeichnung in Metern: Rasen 10 × 4 m, Regenwasserleitung 12 m, Hilfslinie, Text
+    const entities = [
+      ['0', 'LWPOLYLINE', '8', 'Rasen', '90', '4', '70', '1'],
+      ['10', '0', '20', '0', '10', '10', '20', '0', '10', '10', '20', '4', '10', '0', '20', '4'],
+      ['0', 'LINE', '8', 'RW_Leitung', '10', '0', '20', '-2', '11', '12', '21', '-2'],
+      ['0', 'LINE', '8', 'Hilfslinien', '10', '0', '20', '0', '11', '5', '21', '5'],
+      ['0', 'TEXT', '8', 'Beschriftung', '10', '1', '20', '1', '1', 'Spielwiese'],
+    ].flat();
+    const text = [
+      ...['0', 'SECTION', '2', 'HEADER', '9', '$INSUNITS', '70', '6', '0', 'ENDSEC'],
+      ...['0', 'SECTION', '2', 'ENTITIES', ...entities, '0', 'ENDSEC', '0', 'EOF'],
+    ].join('\n');
+    await page.getByTestId('plan-dxf').setInputFiles({
+      name: 'garten.dxf',
+      mimeType: 'application/dxf',
+      buffer: Buffer.from(text),
+    });
+    const dialog = page.getByTestId('dxf-import');
+    await expect(dialog).toBeVisible();
+    // erraten: Rasen, Regenwasser, Beschriftung; Hilfslinien ausgelassen
+    await expect(dialog.locator('[data-layer="Rasen"]')).toHaveValue('lawn');
+    await expect(dialog.locator('[data-layer="RW_Leitung"]')).toHaveValue('rainwater');
+    await expect(dialog.locator('[data-layer="Hilfslinien"]')).toHaveValue('');
+    await expect(page.getByTestId('dxf-summary')).toContainText('3 Objekte');
+    await page.getByTestId('dxf-apply').click();
+
+    const quantities = page.getByTestId('plan-quantities');
+    await expect(quantities).toContainText('Rasen40,00 m²');
+    await expect(quantities).toContainText('Regenwasser12,00 m');
+    await expect(page.locator('[data-testid="plan-object"][data-type="text"]')).toContainText('Spielwiese');
+    // Rückgängig nimmt den ganzen Import zurück
+    await page.getByTestId('plan-undo').click();
+    await expect(page.getByTestId('plan-object')).toHaveCount(0);
+    await page.goto(`/projekte/${SEED.projectId}`);
+    page.on('dialog', (d) => d.accept());
+    const item = page.getByTestId('plan-item').filter({ hasText: `DXF ${run}` });
+    await item.getByRole('button', { name: 'Löschen' }).click();
+    await expect(item).toHaveCount(0);
+  });
 });
