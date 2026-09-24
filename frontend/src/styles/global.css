@@ -1469,3 +1469,37 @@ input[type='radio'] {
   background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-warning) 35%, transparent);
 }
+
+/* Formular in zwei Spalten (ab Tablet), Felder in voller Breite mit form-grid-full */
+.form-grid {
+  display: grid;
+  gap: 14px 16px;
+}
+
+@media (min-width: 700px) {
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .form-grid-full {
+    grid-column: 1 / -1;
+  }
+}
+
+/* mobil: Sprungmarken in einer Zeile zum Wischen */
+@media (max-width: 699px) {
+  .section-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .section-nav a {
+    white-space: nowrap;
+    flex: none;
+  }
+}
