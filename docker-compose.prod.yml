@@ -33,6 +33,9 @@ services:
     environment:
       DATABASE_URL: postgresql://gartenai:${POSTGRES_PASSWORD}@postgres:5432/gartenai?schema=public
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET fehlt}
+      # verschlüsselt gespeicherte Geheimnisse (API-Schlüssel der KI-Anbieter)
+      SECRET_KEY: ${SECRET_KEY:-}
+      AI_BLOCK_PRIVATE_NETWORKS: ${AI_BLOCK_PRIVATE_NETWORKS:-}
       # laufende Version (GET /api/health), prüft ops/deploy.sh nach dem Start
       GARTENAI_VERSION: ${GARTENAI_VERSION:-local}
       # Anzahl Proxys vor dem Backend: 1 = nur nginx, 2 = HTTPS-Proxy + nginx
@@ -54,6 +57,9 @@ services:
       S3_PREFIX: ${S3_PREFIX:-}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-}
       S3_SSE: ${S3_SSE:-}
+    # selbst gehostete KI auf dem Server selbst (z.B. Ollama): http://host.docker.internal:11434/v1
+    extra_hosts:
+      - host.docker.internal:host-gateway
     volumes:
       - uploads:/data/uploads
 

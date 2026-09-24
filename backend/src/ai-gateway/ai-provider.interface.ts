@@ -1,18 +1,24 @@
-// Jeder KI-Anbieter (Anthropic, OpenAI, ein eigener API-Key, später ein
-// lokales Modell) implementiert diese eine Schnittstelle. Das ist der ganze
-// Vertrag zwischen GartenAI und "irgendeiner" KI – kein Modul außerhalb
-// dieses Gateways darf einen Anbieter direkt aufrufen (Punkt 10).
+// Jeder KI-Anbieter implementiert diese eine Schnittstelle – eine
+// OpenAI-kompatible API (auch selbst gehostet), Anthropic oder ein eigener
+// Agent. Das ist der ganze Vertrag zwischen GartenAI und „irgendeiner“ KI;
+// kein Modul außerhalb dieses Gateways ruft einen Anbieter direkt auf.
 export interface AiCompletionRequest {
   prompt: string;
-  // Bereits VOR dem Aufruf permission-gefilterter Kontext (siehe Punkt 13:
-  // die KI darf niemals mehr Daten sehen als der anfragende User selbst).
+  // Wofür (z.B. "angebotstext", "test") – für den Agenten und das Protokoll
+  task?: string;
+  // Bereits nach den Rechten des Anfragenden gefilterter Kontext: die KI
+  // sieht nie mehr als der Mensch, der fragt (siehe context-filter.ts)
   context?: Record<string, unknown>;
+  // Wer fragt (nur für eigene Agenten: Firma, Nutzer, Rechte)
+  caller?: { companyId: string; userId: string; permissions: string[] };
 }
 
 export interface AiCompletionResult {
   text: string;
   providerName: string;
-  // Für Audit-Zwecke (Punkt 36: "KI ja/nein" im Protokoll) und Debugging.
+  model?: string;
+  // strukturierte Zusatzdaten eines eigenen Agenten (z.B. Vorschläge)
+  data?: Record<string, unknown>;
   raw?: unknown;
 }
 
@@ -21,8 +27,12 @@ export interface AiProvider {
   complete(request: AiCompletionRequest): Promise<AiCompletionResult>;
 }
 
-// Injection-Token für Nest's DI-Container. Ein neuer Anbieter wird
-// eingebunden, indem im AiGatewayModule dieser Token auf eine andere
-// AiProvider-Implementierung gebunden wird – der Rest der Anwendung merkt
-// davon nichts.
-export const AI_PROVIDER = Symbol('AI_PROVIDER');
+// Fehler des Anbieters (nicht erreichbar, Zeitüberschreitung, falsche Antwort)
+export class AiProviderError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}

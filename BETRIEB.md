@@ -11,7 +11,7 @@ mit HTTPS davor (z.B. Caddy, Traefik oder ein vorhandener nginx).
 
 ```bash
 cp .env.production.example .env.production
-# POSTGRES_PASSWORD und JWT_SECRET setzen mit: openssl rand -hex 32
+# POSTGRES_PASSWORD, JWT_SECRET und SECRET_KEY setzen mit: openssl rand -hex 32
 # (Hex: das Passwort steht auch in der Datenbank-URL)
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```

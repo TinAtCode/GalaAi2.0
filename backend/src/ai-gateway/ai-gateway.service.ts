@@ -1,40 +1,311 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  HttpException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { AiProviderConfig, AiProviderKind, Prisma } from '@prisma/client';
+import { changedFields, writeAudit } from '../common/audit';
+import { openSecret, sealSecret } from '../common/secret-box';
 import { PrismaService } from '../prisma/prisma.service';
-import { AI_PROVIDER, AiCompletionRequest, AiCompletionResult, AiProvider } from './ai-provider.interface';
+import { AiCompletionResult, AiProvider, AiProviderError } from './ai-provider.interface';
+import { filterContext, MAX_CONTEXT_BYTES } from './context-filter';
+import { CompleteDto } from './dto/complete.dto';
+import { CreateAiProviderDto, UpdateAiProviderDto } from './dto/provider.dto';
+import { AgentProvider, AnthropicProvider, OpenAiCompatibleProvider } from './providers/configured-providers';
+import { assertProviderUrl } from './providers/http';
+import { NoopAiProvider } from './providers/noop-provider';
+
+interface Caller {
+  companyId: string;
+  userId: string;
+  permissions: string[];
+}
+
+// was nach außen geht: nie der Schlüssel, nur ob einer hinterlegt ist
+function publicConfig(config: AiProviderConfig) {
+  const { apiKeyEncrypted, ...rest } = config;
+  return { ...rest, hasApiKey: Boolean(apiKeyEncrypted) };
+}
+
+// Schlägt fehl, wenn SECRET_KEY (bzw. JWT_SECRET) seit dem Speichern geändert wurde
+function decryptKey(sealed: string) {
+  try {
+    return openSecret(sealed);
+  } catch {
+    throw new BadRequestException(
+      'Der gespeicherte API-Schlüssel lässt sich nicht entschlüsseln (SECRET_KEY geändert?) – bitte neu eingeben.',
+    );
+  }
+}
+
+export function providerFor(config: AiProviderConfig): AiProvider {
+  const settings = {
+    name: config.name,
+    baseUrl: config.baseUrl,
+    model: config.model,
+    apiKey: config.apiKeyEncrypted ? decryptKey(config.apiKeyEncrypted) : null,
+    timeoutSeconds: config.timeoutSeconds,
+    maxTokens: config.maxTokens,
+    systemPrompt: config.systemPrompt,
+  };
+  switch (config.kind) {
+    case AiProviderKind.openai_compatible:
+      return new OpenAiCompatibleProvider(settings);
+    case AiProviderKind.anthropic:
+      return new AnthropicProvider(settings);
+    case AiProviderKind.agent:
+      return new AgentProvider(settings);
+  }
+}
 
 @Injectable()
 export class AiGatewayService {
-  constructor(
-    @Inject(AI_PROVIDER) private provider: AiProvider,
-    private prisma: PrismaService,
-  ) {}
+  private readonly none = new NoopAiProvider();
 
-  // Einziger Ort, an dem ein KI-Anbieter aufgerufen wird. Jeder Aufruf wird
-  // protokolliert (Punkt 36: Audit-Log mit "KI ja/nein"), unabhängig davon,
-  // welcher Anbieter gerade dahintersteckt.
-  async complete(
-    companyId: string,
-    userId: string,
-    request: AiCompletionRequest,
-  ): Promise<AiCompletionResult> {
-    const result = await this.provider.complete(request);
+  constructor(private prisma: PrismaService) {}
 
-    await this.prisma.auditLog.create({
-      data: {
-        companyId,
-        userId,
-        action: 'ai_completion',
-        entity: 'AiGateway',
-        newData: { prompt: request.prompt, providerName: result.providerName },
-        source: 'ai',
-      },
+  // ── Anbieter verwalten (Einstellungen → KI-Anbieter) ──────────────────────
+
+  async list(companyId: string) {
+    const configs = await this.prisma.aiProviderConfig.findMany({
+      where: { companyId },
+      orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
     });
-
-    return result;
+    return configs.map(publicConfig);
   }
 
-  // Für Diagnose/Frontend: welcher Anbieter ist gerade aktiv?
-  getActiveProviderName(): string {
-    return this.provider.name;
+  private async find(companyId: string, id: string) {
+    const config = await this.prisma.aiProviderConfig.findFirst({ where: { id, companyId } });
+    if (!config) throw new NotFoundException('KI-Anbieter nicht gefunden.');
+    return config;
+  }
+
+  // Adresse prüfen (Format, gesperrte Netze); Anthropic ohne Adresse = offizielle API
+  private async checkedUrl(kind: AiProviderKind, baseUrl: string | undefined) {
+    const url = baseUrl?.trim() || (kind === AiProviderKind.anthropic ? 'https://api.anthropic.com' : '');
+    if (!url) throw new BadRequestException('Bitte die Adresse des Anbieters angeben.');
+    try {
+      await assertProviderUrl(url);
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
+    return url;
+  }
+
+  private needsModel(kind: AiProviderKind, model: string | null | undefined) {
+    if (kind !== AiProviderKind.agent && !model?.trim()) {
+      throw new BadRequestException('Bitte das Modell angeben (z.B. llama3.1 oder claude-…).');
+    }
+  }
+
+  async create(caller: Caller, dto: CreateAiProviderDto) {
+    const baseUrl = await this.checkedUrl(dto.kind, dto.baseUrl);
+    this.needsModel(dto.kind, dto.model);
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.isDefault) await this.clearDefault(tx, caller.companyId);
+      const created = await tx.aiProviderConfig.create({
+        data: {
+          companyId: caller.companyId,
+          name: dto.name.trim(),
+          kind: dto.kind,
+          baseUrl,
+          model: dto.model?.trim() || null,
+          apiKeyEncrypted: dto.apiKey ? sealSecret(dto.apiKey.trim()) : null,
+          enabled: dto.enabled ?? true,
+          isDefault: dto.isDefault ?? false,
+          timeoutSeconds: dto.timeoutSeconds ?? 60,
+          maxTokens: dto.maxTokens ?? 1024,
+          systemPrompt: dto.systemPrompt?.trim() || null,
+        },
+      });
+      const { hasApiKey, ...logged } = publicConfig(created);
+      await writeAudit(tx, {
+        companyId: caller.companyId,
+        userId: caller.userId,
+        action: 'ai_provider_created',
+        entity: 'AiProviderConfig',
+        entityId: created.id,
+        newData: {
+          ...logged,
+          hasApiKey,
+          createdAt: undefined,
+          updatedAt: undefined,
+        } as Prisma.InputJsonValue,
+      });
+      return publicConfig(created);
+    });
+  }
+
+  async update(caller: Caller, id: string, dto: UpdateAiProviderDto) {
+    const existing = await this.find(caller.companyId, id);
+    const kind = dto.kind ?? existing.kind;
+    const baseUrl =
+      dto.baseUrl !== undefined || dto.kind !== undefined
+        ? await this.checkedUrl(kind, dto.baseUrl ?? existing.baseUrl)
+        : existing.baseUrl;
+    const model = dto.model !== undefined ? dto.model.trim() || null : existing.model;
+    this.needsModel(kind, model);
+    const patch = {
+      name: dto.name?.trim(),
+      kind: dto.kind,
+      baseUrl,
+      model,
+      enabled: dto.enabled,
+      isDefault: dto.isDefault,
+      timeoutSeconds: dto.timeoutSeconds,
+      maxTokens: dto.maxTokens,
+      systemPrompt: dto.systemPrompt !== undefined ? dto.systemPrompt.trim() || null : undefined,
+    };
+    const apiKeyEncrypted = dto.clearApiKey ? null : dto.apiKey ? sealSecret(dto.apiKey.trim()) : undefined;
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.isDefault) await this.clearDefault(tx, caller.companyId);
+      const updated = await tx.aiProviderConfig.update({
+        where: { id },
+        data: { ...patch, apiKeyEncrypted },
+      });
+      const { oldData, newData } = changedFields(existing, patch);
+      if (apiKeyEncrypted !== undefined) {
+        oldData.apiKey = existing.apiKeyEncrypted ? 'hinterlegt' : 'keiner';
+        newData.apiKey = apiKeyEncrypted ? 'neu hinterlegt' : 'gelöscht';
+      }
+      await writeAudit(tx, {
+        companyId: caller.companyId,
+        userId: caller.userId,
+        action: 'ai_provider_updated',
+        entity: 'AiProviderConfig',
+        entityId: id,
+        oldData,
+        newData,
+      });
+      return publicConfig(updated);
+    });
+  }
+
+  async remove(caller: Caller, id: string) {
+    const existing = await this.find(caller.companyId, id);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.aiProviderConfig.deleteMany({ where: { id, companyId: caller.companyId } });
+      await writeAudit(tx, {
+        companyId: caller.companyId,
+        userId: caller.userId,
+        action: 'ai_provider_deleted',
+        entity: 'AiProviderConfig',
+        entityId: id,
+        oldData: { name: existing.name, kind: existing.kind, baseUrl: existing.baseUrl },
+      });
+    });
+    return { deleted: true };
+  }
+
+  private clearDefault(tx: Prisma.TransactionClient, companyId: string) {
+    return tx.aiProviderConfig.updateMany({
+      where: { companyId, isDefault: true },
+      data: { isDefault: false },
+    });
+  }
+
+  // Verbindung prüfen: kurze Frage, Antwort und Dauer zurück (auch Fehler als Ergebnis)
+  async test(caller: Caller, id: string) {
+    const config = await this.find(caller.companyId, id);
+    const started = Date.now();
+    try {
+      const provider = providerFor(config);
+      const result = await this.run(caller, provider, config, {
+        prompt: 'Antworte nur mit dem Wort: OK',
+        task: 'verbindungstest',
+      });
+      return {
+        ok: true,
+        text: result.text.slice(0, 500),
+        model: result.model,
+        durationMs: Date.now() - started,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error:
+          error instanceof HttpException
+            ? (error.getResponse() as { message: string }).message
+            : 'Unerwarteter Fehler beim Test.',
+        durationMs: Date.now() - started,
+      };
+    }
+  }
+
+  // ── Nutzen ────────────────────────────────────────────────────────────────
+
+  private async activeConfig(companyId: string, providerId?: string) {
+    if (providerId) {
+      const config = await this.find(companyId, providerId);
+      if (!config.enabled) throw new BadRequestException('Dieser KI-Anbieter ist ausgeschaltet.');
+      return config;
+    }
+    return this.prisma.aiProviderConfig.findFirst({ where: { companyId, enabled: true, isDefault: true } });
+  }
+
+  async status(companyId: string) {
+    const config = await this.activeConfig(companyId);
+    return config
+      ? { activeProvider: config.name, kind: config.kind, model: config.model, configured: true }
+      : { activeProvider: this.none.name, kind: null, model: null, configured: false };
+  }
+
+  // Einziger Ort, an dem ein KI-Anbieter aufgerufen wird. Jeder Aufruf steht
+  // im Audit-Log (Quelle "ai"), auch fehlgeschlagene.
+  async complete(caller: Caller, dto: CompleteDto): Promise<AiCompletionResult> {
+    const config = await this.activeConfig(caller.companyId, dto.providerId);
+    return this.run(caller, config ? providerFor(config) : this.none, config, dto);
+  }
+
+  private async run(
+    caller: Caller,
+    provider: AiProvider,
+    config: AiProviderConfig | null,
+    dto: Pick<CompleteDto, 'prompt' | 'task' | 'context'>,
+  ): Promise<AiCompletionResult> {
+    const context = dto.context
+      ? (filterContext(dto.context, caller.permissions) as Record<string, unknown>)
+      : undefined;
+    if (context && Buffer.byteLength(JSON.stringify(context)) > MAX_CONTEXT_BYTES) {
+      throw new BadRequestException('Zu viele Daten für die KI (höchstens 100 KB).');
+    }
+    const started = Date.now();
+    let result: AiCompletionResult | undefined;
+    let failure: string | undefined;
+    try {
+      result = await provider.complete({
+        prompt: dto.prompt,
+        task: dto.task,
+        context,
+        caller: { companyId: caller.companyId, userId: caller.userId, permissions: caller.permissions },
+      });
+      return result;
+    } catch (error) {
+      failure = error instanceof AiProviderError ? error.message : 'Unerwarteter Fehler beim KI-Anbieter.';
+      throw new BadGatewayException(`KI-Anbieter „${provider.name}“: ${failure}`);
+    } finally {
+      await this.prisma.auditLog.create({
+        data: {
+          companyId: caller.companyId,
+          userId: caller.userId,
+          action: failure ? 'ai_completion_failed' : 'ai_completion',
+          entity: 'AiGateway',
+          entityId: config?.id,
+          source: 'ai',
+          newData: {
+            task: dto.task ?? null,
+            provider: provider.name,
+            kind: config?.kind ?? 'none',
+            model: result?.model ?? config?.model ?? null,
+            prompt: dto.prompt.slice(0, 2000),
+            contextKeys: context ? Object.keys(context) : [],
+            durationMs: Date.now() - started,
+            ...(failure ? { error: failure } : { answerChars: result?.text.length ?? 0 }),
+          },
+        },
+      });
+    }
   }
 }
