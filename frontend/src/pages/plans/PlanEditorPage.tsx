@@ -46,6 +46,16 @@ import {
 import { edgeMidpoint, isCircle, outline } from './outline';
 import { DxfDrawing, parseDxf } from './dxf';
 import { DxfImport } from './DxfImport';
+import { offlineDb, OutboxEntry } from '../../offline/db';
+import {
+  discardLocalVersion,
+  flushOutbox,
+  isNetworkError,
+  keepLocalVersion,
+  notifyOfflineChange,
+  useOnline,
+  useOutbox,
+} from '../../offline/sync';
 
 interface Plan {
   id: string;
@@ -141,22 +151,85 @@ export function PlanEditorPage() {
   const perimeterOf = (o: PlanObject) =>
     isCircle(o.props) ? 2 * Math.PI * radiusOf(o) : toMeters(polygonPerimeter(outlineOf(o)));
 
-  // Laden
-  const apply = (loaded: Plan) => {
+  // Laden – offline aus dem Gerät; eine noch nicht übertragene Änderung
+  // (Warteschlange) geht dem Serverstand vor
+  const online = useOnline();
+  const [offlineCopy, setOfflineCopy] = useState<number | null>(null); // Stand vom (ms)
+  const outbox = useOutbox();
+  const pending = outbox.find((e) => e.planId === planId) ?? null;
+
+  const apply = (loaded: Plan, queued?: OutboxEntry) => {
     setPlan(loaded);
-    setObjects(loaded.objects);
-    setName(loaded.name);
-    setUnitsPerMeter(loaded.unitsPerMeter);
+    const local = queued && !queued.conflict;
+    setObjects(local ? (queued.objects as PlanObject[]) : loaded.objects);
+    setName(local ? queued.name : loaded.name);
+    setUnitsPerMeter(local ? queued.unitsPerMeter : loaded.unitsPerMeter);
     setDirty(false);
     setHistory({ past: [], future: [] });
   };
 
   useEffect(() => {
-    api
-      .get<Plan>(`/plans/${planId}`)
-      .then(apply)
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'Plan konnte nicht geladen werden.'));
+    if (!planId) return;
+    let current = true;
+    (async () => {
+      const queued = await offlineDb.getOutbox(planId).catch(() => undefined);
+      try {
+        const loaded = await api.get<Plan>(`/plans/${planId}`);
+        if (!current) return;
+        apply(loaded, queued);
+        setOfflineCopy(null);
+        // für später ohne Netz auf dem Gerät behalten (Hintergrund kommt beim Laden dazu)
+        const cached = await offlineDb.getPlan(planId).catch(() => undefined);
+        await offlineDb
+          .putPlan({
+            id: loaded.id,
+            projectId: loaded.projectId,
+            name: loaded.name,
+            plan: loaded,
+            background:
+              cached?.backgroundId === loaded.background?.documentId ? cached?.background : undefined,
+            backgroundId:
+              cached?.backgroundId === loaded.background?.documentId ? cached?.backgroundId : undefined,
+            cachedAt: Date.now(),
+          })
+          .catch(() => undefined);
+      } catch (err) {
+        if (!current) return;
+        if (!isNetworkError(err)) {
+          setError(err instanceof ApiError ? err.message : 'Plan konnte nicht geladen werden.');
+          return;
+        }
+        const cached = await offlineDb.getPlan(planId).catch(() => undefined);
+        if (!current) return;
+        if (!cached) {
+          setError('Keine Verbindung – dieser Plan wurde auf diesem Gerät noch nicht geöffnet.');
+          return;
+        }
+        apply(cached.plan as Plan, queued);
+        setOfflineCopy(cached.cachedAt);
+      }
+    })();
+    return () => {
+      current = false;
+    };
   }, [planId]);
+
+  // Nach dem Übertragen der Warteschlange: neuen Serverstand (Version) übernehmen
+  const hadPending = useRef(false);
+  useEffect(() => {
+    if (pending && !pending.conflict) {
+      hadPending.current = true;
+      return;
+    }
+    if (!hadPending.current || pending || !planId) return;
+    hadPending.current = false;
+    offlineDb
+      .getPlan(planId)
+      .then((cached) => {
+        if (cached) setPlan(cached.plan as Plan);
+      })
+      .catch(() => undefined);
+  }, [pending, planId]);
 
   // Hintergrundbild als Blob (Anmeldung per Cookie)
   const backgroundId = plan?.background?.documentId;
@@ -165,14 +238,27 @@ export function PlanEditorPage() {
     if (!backgroundId) return;
     let url: string | null = null;
     let cancelled = false;
+    const show = (blob: Blob) => {
+      if (cancelled) return;
+      url = URL.createObjectURL(blob);
+      setBackground({ id: backgroundId, url });
+    };
     api
       .blob(`/plans/${planId}/background`)
-      .then((blob) => {
-        if (cancelled) return;
-        url = URL.createObjectURL(blob);
-        setBackground({ id: backgroundId, url });
+      .then(async (blob) => {
+        show(blob);
+        // Hintergrund für offline mitspeichern
+        const cached = await offlineDb.getPlan(planId!).catch(() => undefined);
+        if (cached)
+          await offlineDb.putPlan({ ...cached, background: blob, backgroundId }).catch(() => undefined);
       })
-      .catch(() => !cancelled && setError('Hintergrund konnte nicht geladen werden.'));
+      .catch(async (err) => {
+        const cached = isNetworkError(err)
+          ? await offlineDb.getPlan(planId!).catch(() => undefined)
+          : undefined;
+        if (cached?.background && cached.backgroundId === backgroundId) show(cached.background);
+        else if (!cancelled) setError('Hintergrund konnte nicht geladen werden.');
+      });
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
@@ -607,22 +693,55 @@ export function PlanEditorPage() {
     setBusy(true);
     setError(null);
     const snapshot = current.current;
-    try {
-      const saved = await api.put<Plan>(`/plans/${plan.id}`, {
-        version: plan.version,
-        name: snapshot.name.trim() || plan.name,
-        unitsPerMeter: snapshot.unitsPerMeter,
-        objects: snapshot.objects,
-      });
-      setPlan(saved);
+    const body = {
+      name: snapshot.name.trim() || plan.name,
+      unitsPerMeter: snapshot.unitsPerMeter,
+      objects: snapshot.objects,
+    };
+    const stillDirty = () => {
       const now = current.current;
-      setDirty(
+      return (
         now.objects !== snapshot.objects ||
-          now.name !== snapshot.name ||
-          now.unitsPerMeter !== snapshot.unitsPerMeter,
+        now.name !== snapshot.name ||
+        now.unitsPerMeter !== snapshot.unitsPerMeter
       );
+    };
+    // Ohne Netz (oder solange noch eine ältere Änderung wartet): in die
+    // Warteschlange – auf dem Stand, auf dem die erste Änderung beruhte
+    const queue = async () => {
+      const waiting = await offlineDb.getOutbox(plan.id).catch(() => undefined);
+      await offlineDb.putOutbox({
+        planId: plan.id,
+        projectId: plan.projectId,
+        ...body,
+        baseVersion: waiting?.baseVersion ?? plan.version,
+        conflict: waiting?.conflict,
+        queuedAt: Date.now(),
+      });
+      notifyOfflineChange();
+      setDirty(stillDirty());
+      setNotice('Auf dem Gerät gespeichert – wird übertragen, sobald wieder Netz da ist.');
+    };
+    try {
+      if (!navigator.onLine || (await offlineDb.getOutbox(plan.id).catch(() => undefined))) {
+        await queue();
+        if (navigator.onLine) void flushOutbox();
+        return;
+      }
+      const saved = await api.put<Plan>(`/plans/${plan.id}`, { version: plan.version, ...body });
+      setPlan(saved);
+      setOfflineCopy(null);
+      setDirty(stillDirty());
+      const cached = await offlineDb.getPlan(plan.id).catch(() => undefined);
+      if (cached) await offlineDb.putPlan({ ...cached, plan: saved, name: saved.name, cachedAt: Date.now() });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Speichern fehlgeschlagen.');
+      if (isNetworkError(err)) {
+        try {
+          await queue();
+        } catch {
+          setError('Keine Verbindung und kein Offline-Speicher im Browser – bitte später speichern.');
+        }
+      } else setError(err instanceof ApiError ? err.message : 'Speichern fehlgeschlagen.');
     } finally {
       saving.current = false;
       setBusy(false);
@@ -1112,8 +1231,19 @@ export function PlanEditorPage() {
           <h2 style={{ margin: 0 }}>{plan.name}</h2>
         )}
         <span className="list-item-meta no-print" data-testid="plan-state">
-          {dirty ? 'nicht gespeichert' : 'gespeichert'}
+          {dirty
+            ? 'nicht gespeichert'
+            : pending?.conflict
+              ? 'Konflikt'
+              : pending
+                ? 'auf dem Gerät gespeichert'
+                : 'gespeichert'}
         </span>
+        {(!online || offlineCopy) && (
+          <span className="status-badge status-open no-print" data-testid="plan-offline">
+            offline{offlineCopy ? ` · Stand ${new Date(offlineCopy).toLocaleString('de-DE')}` : ''}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         {canEdit && (
           <button
@@ -1126,6 +1256,42 @@ export function PlanEditorPage() {
           </button>
         )}
       </header>
+      {pending?.conflict && (
+        <div className="job-card no-print" style={{ display: 'block' }} data-testid="plan-conflict">
+          <strong>Konflikt beim Übertragen</strong>
+          <p className="list-item-meta" style={{ margin: '4px 0 8px' }}>
+            Deine offline gespeicherte Änderung vom {new Date(pending.queuedAt).toLocaleString('de-DE')}{' '}
+            beruht auf einem älteren Stand – auf dem Server wurde der Plan inzwischen geändert (oder er ist
+            nicht mehr erreichbar).
+          </p>
+          <div className="btn-row">
+            <button
+              className="btn btn-primary"
+              disabled={!online || busy}
+              onClick={() =>
+                keepLocalVersion(pending.planId).catch((err) =>
+                  setError(err instanceof ApiError ? err.message : 'Übertragen fehlgeschlagen.'),
+                )
+              }
+              data-testid="plan-conflict-keep"
+            >
+              Meine Version übernehmen
+            </button>
+            <button
+              className="btn"
+              disabled={!online || busy}
+              onClick={async () => {
+                await discardLocalVersion(pending.planId);
+                const loaded = await api.get<Plan>(`/plans/${pending.planId}`);
+                apply(loaded);
+              }}
+              data-testid="plan-conflict-discard"
+            >
+              Serverstand laden (meine Änderung verwerfen)
+            </button>
+          </div>
+        </div>
+      )}
       <p className={`plan-message no-print${error ? ' field-error' : ' list-item-meta'}`} role="status">
         {error ?? notice ?? ''}
       </p>

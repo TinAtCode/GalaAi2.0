@@ -3,6 +3,8 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Icon, IconName } from './icons';
 import { CommandPalette } from './CommandPalette';
+import { offlineDb } from '../offline/db';
+import { startOfflineSync, useOnline, useOutbox } from '../offline/sync';
 
 export interface NavItem {
   to: string;
@@ -26,6 +28,15 @@ export const NAV_ITEMS: NavItem[] = [
     primary: true,
   },
   { to: '/kunden', label: 'Kunden', icon: 'users', testId: 'nav-customers', group: 'Arbeit', primary: true },
+  // Lagepläne auf diesem Gerät (auch ohne Netz)
+  {
+    to: '/offline',
+    label: 'Offline-Pläne',
+    icon: 'offline',
+    permission: 'plan.read',
+    testId: 'nav-offline',
+    group: 'Arbeit',
+  },
   {
     to: '/kalkulation',
     label: 'Kalkulation',
@@ -93,6 +104,24 @@ export function AppShell() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const visible = NAV_ITEMS.filter((item) => !item.permission || hasPermission(item.permission));
+  const online = useOnline();
+  const outbox = useOutbox();
+
+  // offline gespeicherte Änderungen übertragen, sobald Netz da ist
+  useEffect(() => startOfflineSync(), []);
+
+  // Abmelden löscht die Offline-Daten – vorher warnen, wenn noch etwas wartet
+  const signOut = async () => {
+    const waiting = await offlineDb.allOutbox().catch(() => []);
+    if (
+      waiting.length &&
+      !window.confirm(
+        `${waiting.length} offline gespeicherte ${waiting.length === 1 ? 'Änderung ist' : 'Änderungen sind'} noch nicht übertragen und gehen beim Abmelden verloren. Trotzdem abmelden?`,
+      )
+    )
+      return;
+    await logout();
+  };
 
   // Strg+K / Cmd+K öffnet die Schnellsuche
   useEffect(() => {
@@ -179,7 +208,7 @@ export function AppShell() {
               </span>
             </div>
           )}
-          <button onClick={logout} data-testid="nav-logout">
+          <button onClick={signOut} data-testid="nav-logout">
             Abmelden
           </button>
         </div>
@@ -211,7 +240,7 @@ export function AppShell() {
                   {item.label}
                 </NavLink>
               ))}
-            <button onClick={logout}>
+            <button onClick={signOut}>
               <Icon name="logout" size={22} />
               Abmelden
             </button>
@@ -222,6 +251,19 @@ export function AppShell() {
       {searchOpen && <CommandPalette items={visible} onClose={() => setSearchOpen(false)} />}
 
       <main className="app-content">
+        {(!online || outbox.length > 0) && (
+          <div
+            className={`offline-banner no-print${online ? '' : ' is-offline'}`}
+            role="status"
+            data-testid="offline-banner"
+          >
+            {!online ? 'Keine Verbindung – ' : ''}
+            {outbox.length > 0
+              ? `${outbox.length} Planänderung${outbox.length === 1 ? '' : 'en'} ${online ? 'werden übertragen' : 'warten auf die Übertragung'}${outbox.some((e) => e.conflict) ? ' (Konflikt – bitte im Plan entscheiden)' : ''}.`
+              : 'Lagepläne auf diesem Gerät lassen sich weiter bearbeiten.'}{' '}
+            <NavLink to="/offline">Offline-Pläne</NavLink>
+          </div>
+        )}
         <Outlet />
       </main>
     </div>

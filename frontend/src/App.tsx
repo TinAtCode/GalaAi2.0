@@ -6,6 +6,7 @@ import { MyDayPage } from './pages/MyDayPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { OfflinePlansPage } from './pages/OfflinePlansPage';
 import { PlanEditorPage } from './pages/plans/PlanEditorPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { CalculationPage } from './pages/CalculationPage';
@@ -39,6 +40,7 @@ export function App() {
         <Route path="projekte" element={<ProjectsPage />} />
         <Route path="projekte/:projectId" element={<ProjectDetailPage />} />
         <Route path="projekte/:projectId/plaene/:planId" element={<PlanEditorPage />} />
+        <Route path="offline" element={<OfflinePlansPage />} />
         <Route path="kunden" element={<CustomersPage />} />
         <Route path="kunden/:customerId" element={<CustomerDetailPage />} />
         <Route path="kalkulation" element={<CalculationPage />} />
