@@ -21,7 +21,7 @@ ARGS=(-f "$COMPOSE_FILE")
 [ -f "$ENV_FILE" ] && ARGS+=(--env-file "$ENV_FILE")
 compose() { docker compose "${ARGS[@]}" "$@"; }
 
-[ -f "$DIR/gartenai.dump" ] && [ -f "$DIR/SHA256SUMS" ] || die "$DIR ist keine Sicherung von ops/backup.sh."
+if ! { [ -f "$DIR/gartenai.dump" ] && [ -f "$DIR/SHA256SUMS" ]; }; then die "$DIR ist keine Sicherung von ops/backup.sh."; fi
 (cd "$DIR" && sha256sum --quiet -c SHA256SUMS) || die "Prüfsummen stimmen nicht – Sicherung beschädigt, nichts geändert."
 
 if [ "$YES" != "--yes" ]; then
