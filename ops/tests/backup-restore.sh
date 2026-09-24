@@ -51,7 +51,7 @@ DOC=$(curl -fsS -X POST "$BASE/documents/upload?documentType=delivery_note" -H "
 echo "✓ Daten angelegt"
 
 BACKUP=$(ENV_FILE=/dev/null ops/backup.sh "$WORK/backups" | tail -n 1)
-[ -f "$BACKUP/gartenai.dump" ] && [ -f "$BACKUP/uploads.tgz" ] || fail "Sicherung unvollständig: $BACKUP"
+if ! { [ -f "$BACKUP/gartenai.dump" ] && [ -f "$BACKUP/uploads.tgz" ]; }; then fail "Sicherung unvollständig: $BACKUP"; fi
 echo "✓ Sicherung: $BACKUP"
 
 # nach der Sicherung: weitere Daten, dann alles weg
