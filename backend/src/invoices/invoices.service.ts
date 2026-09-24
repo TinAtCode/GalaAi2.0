@@ -23,7 +23,12 @@ interface LineInput {
   lineTotal: Prisma.Decimal.Value;
 }
 
-function totals(lines: LineInput[], vatRate: Prisma.Decimal) {
+// Sperrschlüssel je Grundlage (Auftrag oder Pflegevertrag): Entwürfe,
+// Ausstellen und Storno derselben Grundlage laufen nacheinander
+export const invoiceSource = (invoice: { orderId: string | null; contractId: string | null }) =>
+  (invoice.orderId ?? invoice.contractId)!;
+
+export function totals(lines: LineInput[], vatRate: Prisma.Decimal) {
   const totalNet = lines.reduce((sum, l) => sum.plus(l.lineTotal), D(0));
   const totalVat = cents(totalNet.times(vatRate).div(100));
   return { totalNet, totalVat, totalGross: totalNet.plus(totalVat) };
@@ -236,7 +241,7 @@ export class InvoicesService {
   async issue(companyId: string, userId: string, id: string, dto: IssueInvoiceDto) {
     const draft = await this.findOne(companyId, id);
     return this.prisma.$transaction(async (tx) => {
-      await lockFor(tx, 'invoice-order', draft.orderId);
+      await lockFor(tx, 'invoice-order', invoiceSource(draft));
       const { seller, buyer, timeZone } = await this.sellerAndBuyer(tx, companyId, draft.projectId);
       const issueDate = dto.issueDate ? new Date(dto.issueDate) : new Date();
       const year = yearInZone(issueDate, timeZone);
@@ -277,7 +282,7 @@ export class InvoicesService {
   async cancel(companyId: string, userId: string, id: string, reason: string) {
     const original = await this.findOne(companyId, id);
     return this.prisma.$transaction(async (tx) => {
-      await lockFor(tx, 'invoice-order', original.orderId);
+      await lockFor(tx, 'invoice-order', invoiceSource(original));
       // wie beim Buchen einer Zahlung: keine Zahlung während des Stornos
       await lockFor(tx, 'invoice-payment', id);
       const current = await tx.invoice.findUniqueOrThrow({ where: { id } });
@@ -304,6 +309,7 @@ export class InvoicesService {
           companyId,
           projectId: original.projectId,
           orderId: original.orderId,
+          contractId: original.contractId,
           kind: 'cancellation',
           cancelsInvoiceId: original.id,
           vatRate: original.vatRate,
@@ -364,9 +370,12 @@ export class InvoicesService {
     });
     const draft = invoice.status === 'draft';
     const tz = company.timeZone;
-    const kindLabel = { partial: 'Abschlagsrechnung', final: 'Rechnung', cancellation: 'Stornorechnung' }[
-      invoice.kind
-    ];
+    const kindLabel = {
+      partial: 'Abschlagsrechnung',
+      final: 'Rechnung',
+      cancellation: 'Stornorechnung',
+      periodic: 'Rechnung',
+    }[invoice.kind];
 
     const meta: [string, string][] = [];
     if (invoice.number) meta.push(['Rechnungsnummer', invoice.number]);
@@ -546,9 +555,12 @@ export class InvoicesService {
     }
 
     const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
-    const kindLabel = { partial: 'Abschlagsrechnung', final: 'Rechnung', cancellation: 'Stornorechnung' }[
-      invoice.kind
-    ];
+    const kindLabel = {
+      partial: 'Abschlagsrechnung',
+      final: 'Rechnung',
+      cancellation: 'Stornorechnung',
+      periodic: 'Rechnung',
+    }[invoice.kind];
     const text =
       dto.message ??
       [

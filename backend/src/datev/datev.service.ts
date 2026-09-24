@@ -11,6 +11,7 @@ const KIND_LABELS = {
   partial: 'Abschlagsrechnung',
   final: 'Rechnung',
   cancellation: 'Stornorechnung',
+  periodic: 'Rechnung',
 } as const;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 

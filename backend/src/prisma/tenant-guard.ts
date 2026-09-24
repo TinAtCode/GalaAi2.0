@@ -37,6 +37,8 @@ export const TENANT_MODELS = new Set([
   'SitePlan',
   'PlanServiceMapping',
   'InvoiceChargeWaiver',
+  'MaintenanceContract',
+  'ContractTask',
 ]);
 
 const GUARDED_ACTIONS = new Set([
