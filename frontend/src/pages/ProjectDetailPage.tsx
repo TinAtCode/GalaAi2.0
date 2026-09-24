@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatEuro } from '../format';
 import { DocumentsSection } from './DocumentsSection';
+import { PlansSection } from './plans/PlansSection';
 import { InvoicesSection } from './InvoicesSection';
 import { QuoteForm } from './QuoteForm';
 import { quantityText, SOURCE_LABELS } from '../rounding';
@@ -444,6 +445,10 @@ export function ProjectDetailPage() {
 
       {projectId && orders && orders.length > 0 && hasPermission('invoice.create') && (
         <InvoicesSection projectId={projectId} orderIds={orders.map((o) => o.id)} />
+      )}
+
+      {projectId && hasPermission('plan.read') && (
+        <PlansSection projectId={projectId} canEdit={hasPermission('plan.write')} />
       )}
 
       {projectId && hasPermission('document.read') && (

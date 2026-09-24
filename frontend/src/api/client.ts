@@ -108,6 +108,8 @@ export const api = {
     body.append('file', file);
     return request<T>(path, { method: 'POST', body });
   },
+  // Datei als Blob (z.B. Hintergrundbild eines Plans)
+  blob: (path: string) => fetchFile(path),
   // PDF in einem neuen Tab öffnen
   openFile: async (path: string) => {
     const url = URL.createObjectURL(await fetchFile(path));

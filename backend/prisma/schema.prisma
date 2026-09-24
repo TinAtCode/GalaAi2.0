@@ -100,6 +100,7 @@ model Company {
   categoryRules     CategoryRule[]
   recurringPayments RecurringPayment[]
   incomingInvoices  IncomingInvoice[]
+  sitePlans         SitePlan[]
 }
 
 // ─────────────────────────────────────────────
@@ -227,6 +228,7 @@ model Project {
   appointments   Appointment[]
   timeEntries    TimeEntry[]
   documents      Document[]
+  sitePlans      SitePlan[]
   materialUsages ProjectMaterialUsage[]
   invoices       Invoice[]
 
@@ -502,6 +504,7 @@ model Document {
   ocrText          String?
   ocrJobs          OcrJob[]
   payable          IncomingInvoice?
+  sitePlans        SitePlan[]
 
   @@index([companyId])
   @@index([projectId])
@@ -976,4 +979,29 @@ model IncomingInvoice {
   updatedAt              DateTime         @updatedAt
 
   @@index([companyId, status])
+}
+
+// Lageplan am Projekt: Entwässerung, Leitungen, Flächen, Zäune/Tore/Türen,
+// Symbole. Objekte als JSON in Planeinheiten (bei Hintergrundbild dessen
+// Pixel), Maßstab unitsPerMeter. version schützt gegen gegenseitiges
+// Überschreiben beim gleichzeitigen Bearbeiten.
+model SitePlan {
+  id                   String    @id @default(uuid())
+  companyId            String
+  company              Company   @relation(fields: [companyId], references: [id])
+  projectId            String
+  project              Project   @relation(fields: [projectId], references: [id])
+  name                 String
+  unitsPerMeter        Float     @default(50)
+  backgroundDocumentId String?
+  backgroundDocument   Document? @relation(fields: [backgroundDocumentId], references: [id], onDelete: SetNull)
+  backgroundWidth      Int?
+  backgroundHeight     Int?
+  objects              Json      @default("[]")
+  version              Int       @default(1)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([projectId])
 }

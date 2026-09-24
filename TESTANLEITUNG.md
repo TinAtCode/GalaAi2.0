@@ -167,6 +167,11 @@ bei einer normalen PDF oder einem Foto werden sie vorgeschlagen – prüfen, spe
 mit der Zahlung (Rechnungsnummer im Verwendungszweck) einlesen: die Rechnung steht unter „Bezahlt“. Die
 Übersicht zeigt die Liquiditätsvorschau der nächsten 13 Wochen.
 
+**Lagepläne testen:** Auf einer Projektseite unter „Lagepläne“ einen Plan anlegen. Werkzeug wählen (z.B.
+„Rasen“), Eckpunkte anklicken, mit Doppelklick schließen; Leitungen mit Enter beenden. Unter „Hintergrund …“
+ein Foto oder eine PDF laden, dann „Maßstab“: zwei Punkte einer bekannten Strecke anklicken und die Länge
+eingeben. Rechts stehen die Mengen (m, m², Stück); „Speichern“, „Drucken“ oder „Als SVG“.
+
 **Dokumente testen:** Auf einer Projektseite unter „Dokumente“ die Art wählen und ein PDF oder Foto
 hochladen, „Text erkennen“ angehakt lassen. Nach wenigen Sekunden steht „Text erkannt“ mit einem Ausschnitt
 am Dokument; über das Suchfeld findet man es mit einem Wort aus dem Text. Für Fotos und gescannte PDFs braucht

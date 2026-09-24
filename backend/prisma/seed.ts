@@ -1,6 +1,6 @@
 import { PrismaClient, Permission } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { BOOKKEEPING_PERMISSIONS, PERMISSIONS } from '../src/common/permissions';
+import { BOOKKEEPING_PERMISSIONS, EMPLOYEE_PERMISSIONS, PERMISSIONS } from '../src/common/permissions';
 
 const prisma = new PrismaClient();
 
@@ -39,7 +39,7 @@ async function main() {
 
   // 4. Rolle "Mitarbeiter" mit eingeschränkten Rechten (keine Preise)
   const employeePermissions = allPermissions.filter((p: Permission) =>
-    ([PERMISSIONS.CUSTOMER_READ, PERMISSIONS.AI_USE] as string[]).includes(p.key),
+    (EMPLOYEE_PERMISSIONS as string[]).includes(p.key),
   );
   await prisma.role.upsert({
     where: { companyId_name: { companyId: company.id, name: 'Mitarbeiter' } },

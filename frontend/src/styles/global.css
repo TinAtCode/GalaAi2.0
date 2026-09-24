@@ -492,3 +492,229 @@
 .finance-table td:first-child {
   text-align: left;
 }
+
+/* ───────────────────────────────────────────────────────────
+   Lageplan-Editor
+   ─────────────────────────────────────────────────────────── */
+
+.app-content:has(.plan-editor) {
+  max-width: none;
+}
+
+.plan-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.plan-name {
+  font-size: 1.3rem;
+  font-family: var(--font-display);
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: var(--radius-medium);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.plan-name:hover,
+.plan-name:focus {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.plan-toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.plan-tool-group {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.plan-tool-label {
+  width: 100%;
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+}
+
+.plan-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.plan-tool.active {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.plan-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.plan-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.plan-body {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.plan-canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: min(72vh, 760px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  overflow: hidden;
+  background: #f4f5f6;
+}
+
+.plan-canvas svg {
+  display: block;
+  user-select: none;
+}
+
+.plan-hint {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #1b1b1b;
+  pointer-events: none;
+}
+
+.plan-hint span {
+  background: rgba(255, 255, 255, 0.88);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.plan-hint button {
+  pointer-events: auto;
+}
+
+.plan-message {
+  min-height: 1.3em;
+  margin: 0 0 6px;
+}
+
+.plan-tool-compact {
+  display: none;
+}
+
+.plan-scale {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: #1b1b1b;
+}
+
+.plan-scale span {
+  display: block;
+  height: 6px;
+  border: 2px solid #1b1b1b;
+  border-top: none;
+}
+
+.plan-zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 4px;
+}
+
+.plan-panel {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (max-width: 700px) {
+  .plan-tool-types {
+    display: none;
+  }
+  .plan-tool-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+  }
+  .plan-tool-compact select {
+    min-height: var(--touch-target-min);
+    font-size: 1rem;
+  }
+  .plan-hint span {
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .plan-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .plan-panel {
+    flex: none;
+  }
+  .plan-canvas {
+    height: 60vh;
+  }
+}
+
+@media print {
+  .app-nav,
+  .no-print {
+    display: none !important;
+  }
+  .plan-body {
+    flex-direction: column;
+  }
+  .plan-canvas {
+    height: 170mm;
+    border: none;
+  }
+  .plan-panel {
+    flex: none;
+  }
+}

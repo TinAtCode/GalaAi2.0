@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
+import { json } from 'express';
 import { HttpAdapterHost } from '@nestjs/core';
 import { corsOrigins, csrfGuard } from './auth/session-cookie';
 import { requestLogger } from './logging/request-logger';
@@ -30,6 +31,16 @@ export function configureApp(app: INestApplication) {
   app.use(httpMetrics);
   app.useGlobalFilters(new ExceptionLoggerFilter(app.get(HttpAdapterHost).httpAdapter));
   app.use(helmet());
+  // Lagepläne werden als Ganzes gespeichert (bis 50.000 Punkte): mehr als die
+  // Standardgrenze von 100 kB, nur für diese Route
+  // (eingepackt: eine Middleware namens "jsonParser" hielte Nest davon ab,
+  // den globalen JSON-Parser für alle anderen Routen zu registrieren)
+  const planJson = json({ limit: '4mb' });
+  app.use(
+    '/plans',
+    (req: Parameters<typeof planJson>[0], res: Parameters<typeof planJson>[1], next: () => void) =>
+      planJson(req, res, next),
+  );
 
   // Global: Eingaben werden validiert und auf die erwartete Form
   // "whitelisted" (unbekannte Felder fliegen raus) – wichtig, damit z.B.

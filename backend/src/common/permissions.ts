@@ -35,6 +35,10 @@ export const PERMISSIONS = {
   AUDIT_READ: 'audit.read',
 
   FINANCE_READ: 'finance.read',
+
+  // Lagepläne am Projekt: ansehen (auch Mitarbeiter auf der Baustelle), zeichnen
+  PLAN_READ: 'plan.read',
+  PLAN_WRITE: 'plan.write',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -50,4 +54,12 @@ export const BOOKKEEPING_PERMISSIONS: PermissionKey[] = [
   PERMISSIONS.CUSTOMER_READ,
   PERMISSIONS.DOCUMENT_READ,
   PERMISSIONS.PRICE_SALE_READ,
+];
+
+// Standardrolle "Mitarbeiter": Kunden/Projekte und Lagepläne ansehen, KI nutzen –
+// keine Preise. Lagepläne per Migration 20260924130000_site_plans nachgetragen.
+export const EMPLOYEE_PERMISSIONS: PermissionKey[] = [
+  PERMISSIONS.CUSTOMER_READ,
+  PERMISSIONS.AI_USE,
+  PERMISSIONS.PLAN_READ,
 ];
