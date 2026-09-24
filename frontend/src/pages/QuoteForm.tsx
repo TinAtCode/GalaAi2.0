@@ -9,16 +9,30 @@ interface Service {
 
 // Position aus dem Leistungskatalog (Preis aus der Kalkulation) oder freie
 // Position mit eigenem Text und Preis (z.B. Pauschalen).
-type Line =
-  | { kind: 'service'; serviceId: string; quantity: string }
-  | {
-      kind: 'free';
-      description: string;
-      unit: string;
-      quantity: string;
-      unitPrice: string;
-      costPerUnit: string;
-    };
+// Rundung der Menge nur für diese Position: '' = automatisch (Leistung,
+// Einheit, Firma), sonst 0–3 Nachkommastellen; Art optional
+interface LineRounding {
+  roundingDecimals: string;
+  roundingMode: string;
+  // Schritt (z.B. 0,5) aus einem bestehenden Angebot; das Formular bietet
+  // ihn nicht zur Auswahl an, übernimmt ihn aber unverändert
+  roundingStep: string;
+}
+
+type Line = LineRounding &
+  (
+    | { kind: 'service'; serviceId: string; quantity: string }
+    | {
+        kind: 'free';
+        description: string;
+        unit: string;
+        quantity: string;
+        unitPrice: string;
+        costPerUnit: string;
+      }
+  );
+
+const NO_ROUNDING: LineRounding = { roundingDecimals: '', roundingMode: '', roundingStep: '' };
 
 const decimal = (value: string) => Number(value.replace(',', '.'));
 const text = (value: number | string | undefined) =>
@@ -36,22 +50,34 @@ export interface EditableQuote {
     quantity: number | string;
     unitPrice?: number | string;
     costPerUnit?: number | string;
+    quantityExact?: number | string;
+    roundingDecimals?: number | null;
+    roundingMode?: string | null;
+    roundingStep?: number | string | null;
   }[];
 }
 
+// Beim Bearbeiten die genaue Menge zeigen – gerundet wird beim Speichern neu
 const linesOf = (quote: EditableQuote): Line[] =>
-  quote.lineItems.map((li) =>
-    li.serviceId
-      ? { kind: 'service', serviceId: li.serviceId, quantity: text(li.quantity) }
+  quote.lineItems.map((li) => {
+    const rounding = {
+      roundingDecimals: li.roundingDecimals != null ? String(li.roundingDecimals) : '',
+      roundingMode: li.roundingMode ?? '',
+      roundingStep: li.roundingStep != null ? String(Number(li.roundingStep)) : '',
+    };
+    const quantity = text(li.quantityExact ?? li.quantity);
+    return li.serviceId
+      ? { kind: 'service', serviceId: li.serviceId, quantity, ...rounding }
       : {
           kind: 'free',
           description: li.description,
           unit: li.unit,
-          quantity: text(li.quantity),
+          quantity,
           unitPrice: text(li.unitPrice),
           costPerUnit: text(li.costPerUnit),
-        },
-  );
+          ...rounding,
+        };
+  });
 
 // Neues Angebot aus Leistungen des Katalogs und freien Positionen. Preise
 // der Katalog-Leistungen rechnet das Backend aus der Rezeptur (Kalkulation).
@@ -79,7 +105,7 @@ export function QuoteForm({
   const [busy, setBusy] = useState(false);
 
   const serviceLine = (list: Service[] | null): Line[] =>
-    list?.length ? [{ kind: 'service', serviceId: list[0].id, quantity: '' }] : [];
+    list?.length ? [{ kind: 'service', serviceId: list[0].id, quantity: '', ...NO_ROUNDING }] : [];
 
   useEffect(() => {
     if (!open || services) return;
@@ -115,10 +141,16 @@ export function QuoteForm({
       setError('Bitte mindestens eine Position anlegen.');
       return;
     }
+    const roundingOf = (l: LineRounding) => ({
+      ...(l.roundingDecimals !== '' ? { roundingDecimals: Number(l.roundingDecimals) } : {}),
+      ...(l.roundingMode ? { roundingMode: l.roundingMode } : {}),
+      ...(l.roundingStep ? { roundingStep: Number(l.roundingStep) } : {}),
+    });
     const lineItems = lines.map((l) =>
       l.kind === 'service'
-        ? { serviceId: l.serviceId, quantity: decimal(l.quantity) }
+        ? { serviceId: l.serviceId, quantity: decimal(l.quantity), ...roundingOf(l) }
         : {
+            ...roundingOf(l),
             description: l.description.trim(),
             unit: l.unit.trim(),
             quantity: decimal(l.quantity),
@@ -179,6 +211,38 @@ export function QuoteForm({
     );
   }
 
+  // Rundung nur für diese Position; automatisch = aus Leistung, Einheit bzw. Firma
+  const roundingSelect = (line: Line, index: number) => (
+    <label className="field" style={{ flex: '1 1 150px' }}>
+      <span>Rundung</span>
+      <select
+        value={
+          line.roundingStep
+            ? 'step'
+            : line.roundingDecimals === ''
+              ? ''
+              : `${line.roundingDecimals}|${line.roundingMode}`
+        }
+        onChange={(e) => {
+          if (e.target.value === 'step') return;
+          const [d, m] = e.target.value.split('|');
+          updateLine(index, { roundingDecimals: d ?? '', roundingMode: m ?? '', roundingStep: '' });
+        }}
+        data-testid="quote-line-rounding"
+      >
+        <option value="">automatisch</option>
+        {line.roundingStep && (
+          <option value="step">Schritt {line.roundingStep.replace('.', ',')} (bisher)</option>
+        )}
+        <option value="0|up">ganze, aufrunden</option>
+        <option value="0|half_up">ganze, kaufmännisch</option>
+        <option value="1|half_up">1 Nachkommastelle</option>
+        <option value="2|half_up">2 Nachkommastellen</option>
+        <option value="3|half_up">3 Nachkommastellen (genau)</option>
+      </select>
+    </label>
+  );
+
   const removeButton = (index: number) => (
     <button
       type="button"
@@ -238,6 +302,7 @@ export function QuoteForm({
                     data-testid="quote-line-quantity"
                   />
                 </label>
+                {roundingSelect(line, index)}
                 {lines.length > 1 && removeButton(index)}
               </div>
             ) : (
@@ -287,6 +352,7 @@ export function QuoteForm({
                     data-testid="quote-free-price"
                   />
                 </label>
+                {roundingSelect(line, index)}
                 {showCost && (
                   <label className="field" style={{ flex: '1 1 110px' }}>
                     <span>Kosten je Einheit (optional)</span>
@@ -319,7 +385,15 @@ export function QuoteForm({
               onClick={() =>
                 setLines([
                   ...lines,
-                  { kind: 'free', description: '', unit: '', quantity: '1', unitPrice: '', costPerUnit: '' },
+                  {
+                    kind: 'free',
+                    description: '',
+                    unit: '',
+                    quantity: '1',
+                    unitPrice: '',
+                    costPerUnit: '',
+                    ...NO_ROUNDING,
+                  },
                 ])
               }
               data-testid="quote-free-add"

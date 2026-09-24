@@ -4,8 +4,10 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatEuro } from '../format';
 import { DocumentsSection } from './DocumentsSection';
+import { PlansSection } from './plans/PlansSection';
 import { InvoicesSection } from './InvoicesSection';
 import { QuoteForm } from './QuoteForm';
+import { quantityText, SOURCE_LABELS } from '../rounding';
 
 interface Appointment {
   id: string;
@@ -20,6 +22,10 @@ interface QuoteLineItem {
   description: string;
   unit: string;
   quantity: number;
+  quantityExact?: number | string;
+  roundingDecimals?: number | null;
+  roundingMode?: 'half_up' | 'up' | 'down' | null;
+  roundingSource?: string | null;
   unitPrice?: number;
   costPerUnit?: number;
   lineTotal?: number;
@@ -300,8 +306,18 @@ export function ProjectDetailPage() {
             <tbody>
               {quote.lineItems.map((li) => (
                 <tr key={li.id}>
-                  <td>
-                    {li.description} ({li.quantity} {li.unit})
+                  <td data-testid="quote-line">
+                    {li.description} ({quantityText(li.quantity)} {li.unit})
+                    {li.quantityExact != null && Number(li.quantityExact) !== Number(li.quantity) && (
+                      <span
+                        className="list-item-meta"
+                        title={`Gerundet ${SOURCE_LABELS[li.roundingSource ?? ''] ?? ''}`}
+                        data-testid="quote-line-exact"
+                      >
+                        {' '}
+                        · genau {quantityText(li.quantityExact)} {li.unit}
+                      </span>
+                    )}
                   </td>
                   <td>{formatEuro(li.lineTotal)}</td>
                 </tr>
@@ -429,6 +445,10 @@ export function ProjectDetailPage() {
 
       {projectId && orders && orders.length > 0 && hasPermission('invoice.create') && (
         <InvoicesSection projectId={projectId} orderIds={orders.map((o) => o.id)} />
+      )}
+
+      {projectId && hasPermission('plan.read') && (
+        <PlansSection projectId={projectId} canEdit={hasPermission('plan.write')} />
       )}
 
       {projectId && hasPermission('document.read') && (

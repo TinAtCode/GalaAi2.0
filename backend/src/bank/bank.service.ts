@@ -5,6 +5,8 @@ import { writeAudit } from '../common/audit';
 import { PaymentsService, paidAmount } from '../invoices/payments.service';
 import { invoiceNumbersIn, parseCamt053 } from './camt053';
 import { BookBankTransactionDto } from './bank.dto';
+import { CategoriesService } from '../finance/categories.service';
+import { PayablesService } from '../finance/payables/payables.service';
 
 type OpenInvoice = { id: string; number: string; open: Prisma.Decimal; customer: string };
 
@@ -15,6 +17,8 @@ export class BankService {
   constructor(
     private prisma: PrismaService,
     private payments: PaymentsService,
+    private categories: CategoriesService,
+    private payables: PayablesService,
   ) {}
 
   // Offene Rechnungen der Firma mit Restbetrag (für Vorschläge)
@@ -48,36 +52,81 @@ export class BankService {
 
   async importStatement(companyId: string, userId: string, file: Express.Multer.File) {
     const xml = file.buffer.toString('utf8').replace(/^\uFEFF/, '');
-    const { credits, skipped } = parseCamt053(xml);
-    const { count } = await this.prisma.bankTransaction.createMany({
-      data: credits.map((c) => ({
-        companyId,
-        dedupeKey: c.dedupeKey,
-        accountIban: c.accountIban,
-        bookingDate: new Date(`${c.bookingDate}T00:00:00Z`),
-        amount: new Prisma.Decimal(c.amount),
-        debtorName: c.debtorName,
-        debtorIban: c.debtorIban,
-        remittance: c.remittance,
-        createdByUserId: userId,
-      })),
-      // bereits eingelesene Umsätze (gleicher dedupeKey) werden übersprungen
-      skipDuplicates: true,
-    });
+    const { entries, balances, skipped } = parseCamt053(xml);
+    // Schon eingelesene Umsätze (gleicher dedupeKey) zählen als Duplikat;
+    // skipDuplicates sichert zusätzlich gegen einen gleichzeitigen Import ab
+    const known = new Set(
+      (
+        await this.prisma.bankTransaction.findMany({
+          where: { companyId, dedupeKey: { in: entries.map((e) => e.dedupeKey) } },
+          select: { dedupeKey: true },
+        })
+      ).map((t) => t.dedupeKey),
+    );
+    const fresh = entries.filter((e) => !known.has(e.dedupeKey));
+    const insert = (list: typeof fresh) =>
+      this.prisma.bankTransaction.createMany({
+        data: list.map((e) => ({
+          companyId,
+          dedupeKey: e.dedupeKey,
+          direction: e.direction,
+          reversal: e.reversal,
+          accountIban: e.accountIban,
+          bookingDate: new Date(`${e.bookingDate}T00:00:00Z`),
+          amount: new Prisma.Decimal(e.amount),
+          counterpartyName: e.counterpartyName,
+          counterpartyIban: e.counterpartyIban,
+          remittance: e.remittance,
+          createdByUserId: userId,
+        })),
+        skipDuplicates: true,
+      });
+    // je Richtung zählen, was wirklich gespeichert wurde (auch bei doppelten
+    // Einträgen in der Datei oder einem gleichzeitigen Import)
+    const credits = (await insert(fresh.filter((e) => e.direction === 'credit'))).count;
+    const debits = (await insert(fresh.filter((e) => e.direction === 'debit'))).count;
+    const count = credits + debits;
+    // Kontostand je Konto und Tag; ein neuerer Auszug desselben Tages gewinnt
+    for (const b of balances) {
+      const date = new Date(`${b.date}T00:00:00Z`);
+      await this.prisma.bankBalance.upsert({
+        where: { companyId_accountIban_date: { companyId, accountIban: b.accountIban, date } },
+        create: { companyId, accountIban: b.accountIban, date, amount: new Prisma.Decimal(b.amount) },
+        update: { amount: new Prisma.Decimal(b.amount) },
+      });
+    }
+    // neue Abbuchungen gleich einer Kategorie zuordnen (Gelerntes, Regeln)
+    // und Eingangsrechnungen mit eindeutiger Abbuchung als bezahlt verbuchen
+    let payablesPaid = 0;
+    if (debits > 0) {
+      await this.categories.categorizeOpen(companyId);
+      // Fehler dabei machen den gespeicherten Import nicht ungültig
+      ({ paid: payablesPaid } = await this.payables.autoMatchSafely(companyId));
+    }
+    const result = {
+      imported: count,
+      credits,
+      debits,
+      payablesPaid,
+      duplicates: entries.length - count,
+      balances: balances.length,
+      skipped,
+    };
     await writeAudit(this.prisma, {
       companyId,
       userId,
       action: 'bank_import',
       entity: 'Company',
       entityId: companyId,
-      newData: { imported: count, duplicates: credits.length - count, ...skipped },
+      newData: { ...result, ...skipped },
     });
-    return { imported: count, duplicates: credits.length - count, skipped };
+    return result;
   }
 
   async list(companyId: string, status: 'open' | 'booked' | 'ignored' = 'open') {
+    // Bankabgleich: nur Zahlungseingänge; Abbuchungen stehen im Finanzbereich
     const transactions = await this.prisma.bankTransaction.findMany({
-      where: { companyId, status },
+      where: { companyId, status, direction: 'credit', reversal: false },
       include: {
         payments: {
           select: { id: true, amount: true, invoiceId: true, invoice: { select: { number: true } } },
@@ -102,8 +151,8 @@ export class BankService {
         amount: t.amount,
         booked,
         rest,
-        debtorName: t.debtorName,
-        debtorIban: t.debtorIban,
+        debtorName: t.counterpartyName,
+        debtorIban: t.counterpartyIban,
         remittance: t.remittance,
         status: t.status,
         payments: t.payments.map((p) => ({
@@ -134,7 +183,8 @@ export class BankService {
         where: { id, companyId },
         include: { payments: { select: { amount: true } } },
       });
-      if (!bank) throw new NotFoundException('Bankumsatz nicht gefunden.');
+      if (!bank || bank.direction !== 'credit' || bank.reversal)
+        throw new NotFoundException('Bankumsatz nicht gefunden.');
       if (bank.status !== 'open') {
         throw new ConflictException('Der Bankumsatz ist bereits gebucht oder ignoriert.');
       }
@@ -145,7 +195,7 @@ export class BankService {
           `Der Betrag ist höher als der noch nicht verteilte Rest des Bankumsatzes (${rest.toFixed(2).replace('.', ',')} €).`,
         );
       }
-      const note = ['Bank', bank.debtorName, bank.remittance].filter(Boolean).join(': ').slice(0, 500);
+      const note = ['Bank', bank.counterpartyName, bank.remittance].filter(Boolean).join(': ').slice(0, 500);
       const payment = await this.payments.recordIn(
         tx,
         companyId,
@@ -169,12 +219,12 @@ export class BankService {
   // Rest nach Teilbuchungen (z.B. Überzahlung, die mit dem Kunden geklärt wird)
   async setIgnored(companyId: string, id: string, ignored: boolean) {
     const { count } = await this.prisma.bankTransaction.updateMany({
-      where: { id, companyId, status: ignored ? 'open' : 'ignored' },
+      where: { id, companyId, direction: 'credit', reversal: false, status: ignored ? 'open' : 'ignored' },
       data: { status: ignored ? 'ignored' : 'open' },
     });
     if (count === 0) {
       const exists = await this.prisma.bankTransaction.findFirst({
-        where: { id, companyId },
+        where: { id, companyId, direction: 'credit', reversal: false },
         select: { id: true },
       });
       if (!exists) throw new NotFoundException('Bankumsatz nicht gefunden.');

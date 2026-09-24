@@ -1,4 +1,14 @@
-import { IsEmail, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
 
 export class CreateCustomerDto {
@@ -38,6 +48,12 @@ export class CreateCustomerDto {
   @IsString()
   @MaxLength(20)
   vatId?: string;
+
+  // Unternehmer (Geschäftskunde) statt Verbraucher – für Verzugszinsen und
+  // die Pauschale nach § 288 Abs. 5 BGB
+  @IsOptional()
+  @IsBoolean()
+  isBusiness?: boolean;
 
   // Debitorenkonto (DATEV-Bereich 10000–69999). Ohne Angabe wird beim
   // Anlegen die nächste freie Nummer vergeben.

@@ -1,5 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { RoundingEditor } from '../components/RoundingEditor';
+import { Rounding } from '../rounding';
 import { InlineEdit } from '../layout/InlineEdit';
 
 interface Component {
@@ -11,7 +13,7 @@ interface Component {
   machine: { name: string } | null;
 }
 
-interface Service {
+interface Service extends Rounding {
   id: string;
   name: string;
   unit: string;
@@ -126,6 +128,17 @@ export function ServicesTab({ canWrite }: { canWrite: boolean }) {
                   initial={service}
                   onSave={async (values) => {
                     await run(() => api.patch(`/services/${service.id}`, values));
+                  }}
+                />
+              )}
+              {canWrite && (
+                <RoundingEditor
+                  testId="service"
+                  value={service}
+                  onSave={async (rounding) => {
+                    if (!(await run(() => api.patch(`/services/${service.id}`, rounding)))) {
+                      throw new Error('Speichern fehlgeschlagen');
+                    }
                   }}
                 />
               )}

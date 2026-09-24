@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { sentForTests } from '../../src/mail/mail.service';
 import { createApp, createCompany, fetchPdfText, resetDatabase, TestCompany } from './helpers';
+import { addCalendarDays, localDayString } from '../../src/common/time-zone';
 
 // Mahnwesen: Zahlungserinnerung, 1. und 2. Mahnung zu überfälligen Rechnungen.
 describe('Mahnwesen', () => {
@@ -125,7 +126,7 @@ describe('Mahnwesen', () => {
     expect(first.body).toMatchObject({ level: 1 });
     expect(Number(first.body.openAmount)).toBe(238);
     // Frist = heute + 10 Tage (Firmeneinstellung)
-    const expected = new Date(Date.now() + 10 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const expected = addCalendarDays(localDayString(new Date(), 'Europe/Berlin'), 10);
     expect(first.body.deadline.slice(0, 10)).toBe(expected);
 
     const running = await dun(invoice.id).expect(400);
@@ -156,7 +157,7 @@ describe('Mahnwesen', () => {
     await api()
       .post(`/invoices/${invoice.id}/payments`)
       .set(auth)
-      .send({ amount: 19, paidOn: new Date().toISOString().slice(0, 10) })
+      .send({ amount: 19, paidOn: localDayString(new Date(), 'Europe/Berlin') })
       .expect(201);
     const notice = (await dun(invoice.id).expect(201)).body;
     expect(Number(notice.openAmount)).toBe(100);
@@ -226,7 +227,7 @@ describe('Mahnwesen', () => {
     await api()
       .post(`/invoices/${invoice.id}/payments`)
       .set(auth)
-      .send({ amount: 1, paidOn: new Date().toISOString().slice(0, 10) })
+      .send({ amount: 1, paidOn: localDayString(new Date(), 'Europe/Berlin') })
       .expect(201);
     expect((await send(second.id).expect(400)).body.message).toContain('Zahlung eingegangen');
     await api().post(`/invoices/${invoice.id}/cancel`).set(auth).send({ reason: 'Kulanz' }).expect(201);
@@ -240,7 +241,7 @@ describe('Mahnwesen', () => {
     await api()
       .post(`/invoices/${paid.id}/payments`)
       .set(auth)
-      .send({ amount: Number(paid.totalGross), paidOn: new Date().toISOString().slice(0, 10) })
+      .send({ amount: Number(paid.totalGross), paidOn: localDayString(new Date(), 'Europe/Berlin') })
       .expect(201);
     expect((await dun(paid.id).expect(400)).body.message).toContain('bereits bezahlt');
 
@@ -261,5 +262,80 @@ describe('Mahnwesen', () => {
     const results = await Promise.all([dun(open.id), dun(open.id), dun(open.id)]);
     expect(results.filter((r) => r.status === 201)).toHaveLength(1);
     expect(await prisma.dunningNotice.count({ where: { invoiceId: open.id } })).toBe(1);
+  });
+
+  it('optional: Mahngebühren, Verzugszinsen und Pauschale (Geschäftskunde), in Mahnung und offenen Posten', async () => {
+    // Standard: aus
+    const settings = (await api().get('/company/settings').set(auth).expect(200)).body;
+    expect(settings).toMatchObject({ dunningInterest: false, dunningLumpSum: false, baseInterestRate: null });
+    await api()
+      .patch('/company/settings')
+      .set(auth)
+      .send({
+        dunningFee1: 2.5,
+        dunningFee2: 5,
+        dunningFee3: 7.5,
+        dunningInterest: true,
+        baseInterestRate: 1.27,
+        dunningLumpSum: true,
+      })
+      .expect(200);
+    await api().patch('/company/settings').set(auth).send({ baseInterestRate: 30 }).expect(400);
+    await api().patch('/company/settings').set(auth).send({ dunningFee1: null }).expect(400);
+    await api().patch('/company/settings').set(auth).send({ dunningInterest: null }).expect(400);
+    const customer = await prisma.customer.findFirstOrThrow({
+      where: { companyId: company.companyId, name: 'Familie Eiche' },
+    });
+    await api().patch(`/customers/${customer.id}`).set(auth).send({ isBusiness: true }).expect(200);
+
+    const invoice = await issuedPartial(10); // 119 brutto
+    await backdate(invoice.id, 60);
+    const item = await openItem(invoice.id);
+    // Geschäftskunde: Verzug 30 Tage nach Fälligkeit, Zinsen bis heute (einschließlich)
+    const today = localDayString(new Date(), 'Europe/Berlin');
+    const from = addCalendarDays(item.dueDate, 31);
+    const days = (Date.parse(today) - Date.parse(from)) / 86_400_000 + 1;
+    const expected = Math.round(((119 * 10.27) / 100) * (days / 365) * 100) / 100;
+
+    const first = (await dun(invoice.id).expect(201)).body;
+    expect(first).toMatchObject({ fee: '2.5', lumpSum: '40', interestRate: '10.27' });
+    expect(Number(first.interest)).toBeCloseTo(expected, 2);
+    expect(first.interestFrom.slice(0, 10)).toBe(from);
+
+    await expire(invoice.id);
+    const second = (await dun(invoice.id).expect(201)).body;
+    expect(second).toMatchObject({ fee: '5', lumpSum: '0' });
+    const pdf = await fetchPdfText(app, `/invoices/${invoice.id}/dunning/${second.id}/pdf`, company.token);
+    for (const text of [
+      'Offener Rechnungsbetrag',
+      'Mahngebühren',
+      '7,50 €',
+      'Verzugszinsen 10,27 % p. a.',
+      'Verzugspauschale',
+      '40,00 €',
+      'Zu zahlen',
+    ]) {
+      expect(pdf.text).toContain(text);
+    }
+    const entries = (await openItem(invoice.id)).dunning;
+    expect(entries.map((d: { fee: string; lumpSum: string }) => [d.fee, d.lumpSum])).toEqual([
+      ['2.5', '40'],
+      ['5', '0'],
+    ]);
+
+    // wieder aus: neue Mahnungen ohne Zusatzforderungen
+    await api()
+      .patch('/company/settings')
+      .set(auth)
+      .send({
+        dunningFee1: 0,
+        dunningFee2: 0,
+        dunningFee3: 0,
+        dunningInterest: false,
+        dunningLumpSum: false,
+        baseInterestRate: null,
+      })
+      .expect(200);
+    await api().patch(`/customers/${customer.id}`).set(auth).send({ isBusiness: false }).expect(200);
   });
 });

@@ -81,6 +81,9 @@ const euro = (value: string | number) =>
   Number(value).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 const amount = (value: string | number) =>
   Number(value).toLocaleString('de-DE', { maximumFractionDigits: 2 });
+// Mengen mit bis zu 3 Nachkommastellen (z.B. 0,125 m³), ohne überflüssige Nullen
+const quantityText = (value: string | number) =>
+  Number(value).toLocaleString('de-DE', { maximumFractionDigits: 3 });
 const addressLines = (p: PdfParty) =>
   [p.name, p.street, [p.postalCode, p.city].filter(Boolean).join(' ')].filter((l): l is string => !!l);
 
@@ -224,7 +227,7 @@ export function renderBusinessDocumentPdf(doc: BusinessDocumentPdf): Promise<Buf
     row([
       String(line.position),
       line.description,
-      amount(line.quantity),
+      quantityText(line.quantity),
       line.unit,
       euro(line.unitPrice),
       euro(line.lineTotal),
@@ -264,6 +267,8 @@ export interface LetterPdf {
   meta: [string, string][];
   paragraphs: string[];
   table: { header: string[]; rows: string[][]; widths: number[] };
+  // Aufstellung unter der Tabelle (Bezeichnung, Betrag); letzte Zeile fett
+  summary?: [string, string][];
   closing: string[];
 }
 
@@ -298,6 +303,20 @@ export function renderLetterPdf(doc: LetterPdf): Promise<Buffer> {
   };
   tableRow(doc.table.header, true);
   for (const r of doc.table.rows) tableRow(r, false);
+
+  if (doc.summary?.length) {
+    y += 10;
+    doc.summary.forEach(([label, amount], i) => {
+      const last = i === doc.summary!.length - 1;
+      pdf.font(last ? BOLD : REGULAR).fontSize(9);
+      const labelWidth = width * 0.5;
+      // lange Bezeichnungen (Zinszeitraum) brechen um: Höhe der Zeile danach
+      const height = Math.max(pdf.heightOfString(label, { width: labelWidth }), 12);
+      pdf.text(label, left + width * 0.3, y, { width: labelWidth });
+      pdf.text(amount, left + width * 0.8, y, { width: width * 0.2, align: 'right' });
+      y += height + 2;
+    });
+  }
 
   y += 14;
   pdf.font(REGULAR).fontSize(10);

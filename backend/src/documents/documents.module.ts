@@ -11,5 +11,6 @@ import { OcrModule } from '../ocr/ocr.module';
   imports: [OcrModule],
   controllers: [DocumentsController],
   providers: [DocumentsService, { provide: FILE_STORAGE, useClass: LocalDiskStorage }],
+  exports: [FILE_STORAGE],
 })
 export class DocumentsModule {}

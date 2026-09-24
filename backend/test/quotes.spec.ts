@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { QuotesService } from '../src/quotes/quotes.service';
 
@@ -89,12 +90,20 @@ function createCalculationsServiceMock(salePricePerUnit: number) {
   };
 }
 
+// Rundung wie bei einer Firma mit Standardeinstellungen (2 Nachkommastellen)
+const unitsMock = {
+  rounder: async () => (input: { quantity: number }) => ({
+    quantity: new Prisma.Decimal(input.quantity).toDecimalPlaces(2),
+    rule: { decimals: 2, mode: 'half_up', step: null, source: 'company' },
+  }),
+};
+
 describe('QuotesService – Preis-Snapshot', () => {
   it('speichert den Preis zum Erstellungszeitpunkt, unabhängig von späteren Änderungen', async () => {
     const prisma = createPrismaMock();
     // Erste Kalkulation: 20€/Einheit
     const calcV1 = createCalculationsServiceMock(20);
-    const service = new QuotesService(prisma as any, calcV1 as any);
+    const service = new QuotesService(prisma as any, calcV1 as any, unitsMock as any);
 
     const quote = await service.create('company-a', {
       projectId: 'proj-a',
@@ -117,7 +126,7 @@ describe('QuotesService – Statuswechsel', () => {
   async function createDraftQuote() {
     const prisma = createPrismaMock();
     const calc = createCalculationsServiceMock(20);
-    const service = new QuotesService(prisma as any, calc as any);
+    const service = new QuotesService(prisma as any, calc as any, unitsMock as any);
     const quote = await service.create('company-a', {
       projectId: 'proj-a',
       lineItems: [{ serviceId: 'service-1', quantity: 10 }],

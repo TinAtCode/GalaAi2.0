@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 22.09.2026 – Fundament (Schritt 1 aus BEWERTUNG.md): echte Migrationen, Integrationstests gegen PostgreSQL, companyId in allen Mandanten-Tabellen, Status-Enums, Dezimalrechnung, Firmen-Zeitzone
+Letzte Aktualisierung: 24.09.2026 – Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -24,11 +24,12 @@ Letzte Aktualisierung: 22.09.2026 – Fundament (Schritt 1 aus BEWERTUNG.md): ec
 | 13 | Datenwächter (Preislisten-Diff + Datei-Upload CSV/XLSX + zeilenweise Auswahl) | ✅ |
 | 14 | KI-Gateway | 🔶 Adapter-Grundgerüst fertig, kein aktiver Anbieter (Entscheidung folgt später) |
 | 15 | Nachkalkulation (Arbeitszeit + Material, Soll/Ist) | ✅ |
-| — | E2E-Tests (Playwright), Lint/Format (ESLint+Prettier), CI/CD (GitHub Actions) | 🔶 vollständig geschrieben, E2E-Ausführung hier nicht möglich (siehe Abschnitt 5) |
-| 16–18 | Mobile App, Schnittstellen, Admin-Auslagerung | ⬜ |
+| — | E2E-Tests (Playwright), Lint/Format (ESLint+Prettier), CI (GitHub Actions), Container-Rauchtest | ✅ laufen bei jedem Push |
+| — | Rechnungen, E-Rechnung, ZUGFeRD, Zahlungen, Mahnwesen, Bankabgleich, DATEV, Dokumente, Finanzen, Betrieb | ✅ siehe Nachträge in Abschnitt 5 |
+| 16–18 | Mobile App, weitere Schnittstellen (GAEB, DATANORM), Admin-Auslagerung | ⬜ |
 
-Backend: NestJS 11 (Express 5) + Prisma 5 + PostgreSQL. Frontend: React 18 + React Router 7 + Vite 8 + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
-Tests: `cd backend && npm test` (125 Unit-Tests, gemockter Prisma-Client bzw. reine Funktionen), `npm run test:integration` (76 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (16 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Lint: `npm run lint` in beiden Projekten (0 Fehler/Warnungen). Frontend-Build: `cd frontend && npm run build` (geprüft, läuft fehlerfrei durch).
+Backend: NestJS 11.2 (Express 5; bewusst noch nicht NestJS 12 – reines ESM, eigener Umbau) + Prisma 5 + PostgreSQL. Frontend: React 18 + React Router 7 + Vite 8 + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
+Tests: `cd backend && npm test` (167 Unit-Tests), `npm run test:integration` (160 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (31 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Dazu `bash ops/smoke-test.sh` für die Produktions-Container. Lint und Formatierung in beiden Projekten ohne Befund.
 
 ---
 
@@ -122,9 +123,11 @@ sind in Phase 5 umgesetzt: React + Vite, Theming-System per CSS-Variablen +
 Einstellungen-Seite mit Live-Farbwahl, responsive Navigation (Bottom-Bar mobil,
 Seitenleiste ab 900px, Punkte permission-abhängig ein-/ausgeblendet), Login gegen
 das Backend. Echte Datenseiten: Mein Tag (inkl. Zeiterfassungs-Start/Stopp-Widget),
-Kunden, Projekte, Projekt-Detail (Termine anlegen, Angebote/Aufträge mit
-Statuswechsel-Aktionen), Kalkulation, Stammdaten, Team (Mitarbeiter-Zeiteinträge
-ansehen und freigeben, nur mit `employee.data.read` sichtbar).
+Kunden, Projekte, Projekt-Detail (Termine, Angebote mit freien Positionen,
+Aufträge, Rechnungen mit Zahlungen, Dokumente mit Texterkennung), Kalkulation,
+Stammdaten, Offene Posten mit Mahnwesen, Bankabgleich, Finanzen, Team
+(Zeiteinträge ansehen und freigeben) und Einstellungen (Firma, DATEV, Nutzer,
+Rollen, Protokoll). Jeder Punkt erscheint nur mit dem passenden Recht.
 
 ---
 
@@ -323,6 +326,108 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   echte Erkennung. Das Prisma-CLI ist Laufzeitabhängigkeit (für `migrate deploy`). `ops/smoke-test.sh` startet
   den ganzen Stack und prüft ihn von außen; in der CI als eigener Workflow.
 
+- **Nachtrag – Finanzbereich** (Seite „Finanzen“, neues Recht `finance.read`): eine Übersicht für
+  Geschäftsführung und Buchhaltung, keine Buchführung (die bleibt bei DATEV). Der Kontoauszug-Import übernimmt
+  jetzt auch Abbuchungen (Gegenpartei = Empfänger; Spalten `counterpartyName`/`counterpartyIban` statt
+  `debtor…`) und den gebuchten Schlusssaldo (CLBD) je Konto und Tag (`BankBalance`). Der Bankabgleich zeigt
+  weiter nur Zahlungseingänge. `GET /finance/overview`: Kontostand je Konto mit Datum, offene Forderungen
+  (gesamt, überfällig, fällig in 30 Tagen), zwölf Monate mit Rechnungsbetrag (brutto, Stornos abgezogen,
+  Monat in der Zeitzone der Firma), Zahlungseingängen und Ausgaben. `GET /finance/transactions`: alle
+  Kontobewegungen mit Filter (Richtung, Zeitraum, Suche in Name, IBAN, Verwendungszweck), seitenweise.
+  Neue Rolle „Buchhaltung“ (per Migration für alle Firmen, auch bei Ersteinrichtung und Seed): Finanzen,
+  Rechnungen und Zahlungen, DATEV-Export, Kunden und Dokumente lesen, Verkaufspreise – keine Einkaufspreise,
+  keine Nutzer- oder Systemverwaltung. Die Geschäftsführung erhält `finance.read` automatisch.
+
+- **Nachtrag – Finanzen Schritt 2** (Reiter Kontobewegungen, Fixkosten, Jahresüberblick, Kategorien):
+  Ausgabenkategorien je Firma (Start: Material, Fahrzeuge, Maschinen, Miete, Personal, Versicherungen, Büro,
+  Steuern, Sonstiges – einmalig angelegt, gelöschte kommen nicht wieder) mit Stichwort-Regeln (Name oder
+  Verwendungszweck, nur Name, nur Verwendungszweck, IBAN genau; Satzzeichen zählen wie Leerzeichen). Neue
+  Abbuchungen werden beim Import zugeordnet: zuerst wie derselbe Empfänger (IBAN, sonst Name) zuletzt von Hand
+  zugeordnet wurde, sonst nach der neuesten passenden Regel; eigene Regeln gehen vor den Startregeln. Die
+  Quelle steht an der Buchung (Regel, gelernt, von Hand); „ohne Kategorie“ von Hand bleibt so. Ältere
+  Abbuchungen ordnet „Automatisch zuordnen“ nach. Fixkosten (`RecurringPayment`: monatlich, viertel-,
+  halbjährlich, jährlich, optional mit Enddatum und Kategorie, pausierbar); Vorschläge aus den Abbuchungen der
+  letzten 13 Monate (mind. drei gleichmäßige Buchungen, jährlich zwei; Beträge höchstens 10 % auseinander).
+  Jahresüberblick `GET /finance/year?year=`: je Monat Eingänge und Ausgaben je Kategorie laut Kontoauszug,
+  noch nicht abgebuchte Fixkosten als geplant (Abbuchung gilt als bezahlt bei gleichem Empfänger und Betrag
+  höchstens 10 % daneben), erwartete Zahlungseingänge aus offenen Rechnungen nach Fälligkeit; Fixkosten je
+  Monat im Schnitt. Monatsende-sicher (31.01. → 28.02. → 31.03.). Alles unter `finance.read`, mandantengetrennt
+  per Trigger.
+
+- **Nachtrag – Eingangsrechnungen** (Finanzen → Eingangsrechnungen, `IncomingInvoice`): Beleg einlesen per
+  `POST /finance/payables/extract` – E-Rechnungen (XRechnung/ZUGFeRD als CII oder UBL, auch als in die PDF
+  eingebettete factur-x.xml) werden exakt übernommen (Lieferant, IBAN, Nummer, Datum, Fälligkeit, Brutto,
+  Netto, USt, Skonto nach `#SKONTO#TAGE=…#PROZENT=…#`); Gutschriften werden abgelehnt. PDFs mit Textebene und
+  Fotos laufen über die Texterkennung; Betrag, Rechnungsnummer, Daten, Zahlungsziel, Skonto, IBAN (mit
+  Prüfsumme, nicht die eigene) und Lieferant (bekannte Lieferanten zuerst) werden vorgeschlagen, bei mehreren
+  Treffern als Auswahl. Kategorie: wie beim letzten Beleg des Lieferanten, sonst Gelerntes/Regeln. Doppelt
+  erfasste Rechnungen (Lieferant + Nummer) werden erkannt. Der Beleg liegt als Dokument (Typ
+  `incoming_invoice`, getrennt von Projektdokumenten). Abgleich mit Abbuchungen: Betrag genau oder abzüglich
+  Skonto (bis drei Tage nach der Frist) plus Rechnungsnummer im Verwendungszweck, IBAN oder Name; eindeutige
+  Treffer mit Rechnungsnummer werden nach dem Kontoauszug-Import automatisch verbucht, sonst als Vorschlag.
+  „Wieder öffnen“ merkt sich die falsche Abbuchung. Bezahlt auch von Hand (Datum, Betrag; Skonto innerhalb der
+  Frist automatisch). Offene Rechnungen gehen zum geplanten Zahltag (mit Skonto, solange möglich) in den
+  Jahresüberblick und in die **Liquiditätsvorschau** (`GET /finance/forecast`, 13 Wochen: Kontostand +
+  erwartete Eingänge − Eingangsrechnungen − Fixkosten; Rechnungen mit schon passender Abbuchung zählen nicht
+  doppelt). Alles unter `finance.read`, mandantengetrennt per Trigger.
+
+- **Nachtrag – Mahngebühren und Verzugszinsen** (Einstellungen → Firmendaten, Standard: aus): Gebühr je
+  Mahnstufe, Verzugszinsen nach § 288 BGB (Basiszinssatz, den die Firma pflegt, + 5 Prozentpunkte bzw. + 9 bei
+  Geschäftskunden; taggenau, Jahr = 365 Tage) und die Pauschale von 40 € bei Geschäftskunden (§ 288 Abs. 5,
+  einmal je Rechnung). Neues Merkmal am Kunden: „Geschäftskunde“. Verzugsbeginn: Tag nach der ersten Mahnung
+  (auch der Zahlungserinnerung), bei Geschäftskunden spätestens 30 Tage nach Fälligkeit (§ 286 Abs. 3).
+  Beträge werden beim Anlegen der Mahnung festgeschrieben (`fee`, `interest`, `interestRate`, `interestFrom`,
+  `lumpSum`), in der Mahnung als Aufstellung bis „Zu zahlen“ gezeigt und in den offenen Posten als „zzgl. …
+  Gebühren/Zinsen“. Sie sind eine eigene Forderung neben der Rechnung und werden nicht auf die Rechnung
+  gebucht.
+
+- **Nachtrag – Lagepläne (Zeichenmodul, Schritt 1)**: Am Projekt „Lagepläne“ anlegen und im Browser
+  zeichnen (Maus und Touch): Regenwasser, Schmutzwasser, Rinnen, Fallrohre, Gullies, Erdkabel, Zäune, Tore
+  und Türen (Breite), Pflaster-, Rasen- (optional mit Mähkante), Parkplatz- (mit Stellplätzen) und
+  Pflanzflächen, Piktogramme (Baum, Strauch, Leuchte, Schacht, Wasser-/Stromanschluss, Bank, Spielgerät),
+  Beschriftungen. Hintergrund: Foto, Luftbild oder Plan (PNG/JPEG, PDF → erste Seite als Bild, Exif-Drehung
+  berücksichtigt), liegt als Dokument am Projekt. Maßstab über eine bekannte Strecke; ohne Hintergrund
+  1-m-Raster. Längen, Flächen, Umfang/Mähkante und Stückzahlen live im Plan und als Mengenliste (auch vom
+  Server berechnet, `GET /plans/:id`). Auswählen, Verschieben, Punkte ziehen, Fangen an vorhandenen Punkten,
+  Umschalt = rechtwinklig, Rückgängig/Wiederholen, Drucken, Export als SVG. Speichern mit Versionsschutz
+  (gleichzeitiges Bearbeiten → 409). Rechte `plan.read` (auch Mitarbeiter) und `plan.write` (wer Kunden/
+  Projekte bearbeitet), mandantengetrennt per Trigger. **Schritt 2 – Mengen ins Angebot**: „Ins Angebot
+  übernehmen“ zeigt je Mengenzeile die Leistungen mit passender Einheit (Menge umgerechnet, z.B. m → cm,
+  `GET /plans/:id/quote-draft`), vorbelegt mit der gemerkten Zuordnung je Firma (`PlanServiceMapping`,
+  `PUT /plan-mappings/:key`); das Angebot entsteht über die normale Angebots-API, Kalkulation und Rundung der
+  Leistung gelten wie immer. Leitungen liegen immer über den Flächen (auch mitten in Rasen oder Pflaster
+  zeichenbar); Regenwasser, Schmutzwasser und Rinnen mit Nennweite (DN), Leitungen mit Verlegetiefe –
+  beides im Plan beschriftet, Mengen je DN getrennt (eigene Leistungen im Angebot). Ebenen (Entwässerung,
+  Leitungen & Grenzen, Flächen, Symbole) ein- und ausblenden, „Flächen blass“. **Exakte Maße:** beim Zeichnen
+  die Länge der nächsten Strecke eintippen (Richtung zur Maus, Umschalt = rechtwinklig); beim ausgewählten
+  Objekt alle Kanten (A–B, B–C …) mit Länge im Plan und als Eingabefeld – eine neue Länge verschiebt den
+  Endpunkt und die folgenden Punkte bis zum nächsten fixierten (bei Flächen höchstens bis vor die Kante am
+  Anfangspunkt, ein Rechteck bleibt rechteckig). Einzelne Punkte oder das ganze Objekt lassen sich fixieren
+  (nicht verschiebbar). **Rundungen und Kreise:** beliebig viele Punkte je Fläche oder Leitung („+“ auf
+  einer Kante fügt einen Punkt ein, „×“ löscht ihn); jede Ecke mit Radius (an Außenecken Außenrundung, an
+  einspringenden Ecken Innenrundung, bei Leitungen Bögen im Knick); jede Kante als Kreisbogen nach außen oder
+  innen (bei Leitungen links/rechts) mit Radius; Flächen als Kreis mit Durchmesser. Neues Objekt „Schacht“
+  (Entwässerung, standardmäßig rund), gezählt je Durchmesser (`manhole:d100` = Ø 1,00 m, eigene Leistung im
+  Angebot). Fläche, Umfang, Mähkante und Leitungslänge rechnen mit den echten Rundungen (Kreis exakt πr²);
+  der Umriss (`plans/outline.ts`) ist in Backend und Frontend dieselbe Datei, ein Test hält beide gleich.
+  Nächste Schritte: Aufmaß-App offline, DXF-Import.
+
+- **Nachtrag – Einheiten und Rundung** (Stammdaten → Einheiten): Einheitenkatalog in `common/units.ts`
+  (mm, cm, m, km, cm², m², ha, l, m³, g, kg, t, Stk, Sack, Palette, h, min, psch) mit Dimension,
+  Umrechnungsfaktor und E-Rechnungs-Code; Schreibweisen wie „qm“, „m2“, „Stück“ werden vereinheitlicht (auch
+  bestehende Leistungen und Artikel per Migration; Angebote und Rechnungen bleiben unverändert). Umrechnung
+  innerhalb einer Dimension (cm → m, t → kg) als Funktion für Aufmaß und Rezepturen vorbereitet. Mengen haben
+  jetzt bis zu 3 Nachkommastellen. Rundung der Mengen in vier Stufen – Position → Leistung (später auch Artikel) → Einheit
+  → Firma: die erste Stufe mit einer Genauigkeit (0–3 Nachkommastellen oder Schritt, z.B. 0,5) bestimmt
+  sie, die Rundungsart (kaufmännisch, aufrunden, abrunden) kommt von der ersten Stufe, die eine festlegt.
+  Katalog-Vorgaben: Stück, Sack, Palette ganzzahlig (Sack und Palette aufrunden). Am Angebot stehen die
+  gerundete Menge (Summe, PDF, Rechnung, E-Rechnung) und die genaue Menge (Nachkalkulation) samt Quelle der
+  Rundung. Geldbeträge bleiben centgenau. `GET/PUT/DELETE /units` für Anpassungen je Einheit und eigene
+  Einheiten (Ändern mit `masterdata.write`). Die Rundungsfelder am Artikel sind angelegt, werden aber erst
+  mit Aufmaß und Materiallisten genutzt (Angebotspositionen hängen an Leistungen); in der Oberfläche sind sie
+  deshalb noch nicht einstellbar. Bestehende Angebotspositionen behalten ihre Menge unverändert (eigene Regel
+  „3 Nachkommastellen“ per Migration), damit ein altes Angebot beim Speichern nicht neu gerundet wird.
+
 - **Nachtrag – Belege ohne Umsatzsteuer**: `vatTreatment` an Angebot und Rechnung. Kleinunternehmer
   (§ 19 UStG, Firmeneinstellung) stellen immer ohne USt aus; § 13b UStG wird am Angebot gewählt
   (`vatTreatment: "reverse_charge"`). Die Rechnung übernimmt die Behandlung vom Angebot, das Storno vom
@@ -336,30 +441,23 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
 
 ---
 
-## 6. Optimierungsdurchgang (dieser Arbeitsschritt)
+## 6. Qualitätssicherung
 
-Auf ausdrücklichen Wunsch wurde der gesamte bisherige Code systematisch auf Lücken geprüft:
-- **Gefunden und behoben:** fehlende DB-Indizes auf allen Fremdschlüsseln (21 ergänzt), kein Rate-Limiting (ergänzt, real getestet), keine Security-Header (Helmet ergänzt, real getestet), `.gitignore` fehlte in beiden Projekten (ergänzt), CORS war nicht einschränkbar (jetzt über `CORS_ORIGIN` konfigurierbar).
-- **Geprüft und für in Ordnung befunden:** Guards/Mandantenprüfungen sind über alle Module hinweg konsistent, DTO-Validierung ist durchgängig, keine zirkulären Modul-Abhängigkeiten.
-- Schema samt neuer Indizes wurde erneut komplett gegen eine echte PostgreSQL angewendet (siehe Abschnitt 5) – fehlerfrei. Alle 86 Tests weiterhin grün, kompletter DI-Graph erneut real gebootet.
+Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review), bevor er committet wird; gefundene Fehler werden mit einem Test belegt und behoben. Die CI prüft bei jedem Push Lint, Formatierung, Unit-, Integrations- und E2E-Tests, alle erzeugten E-Rechnungen und PDFs (KoSIT, veraPDF, Mustang), die Alarmregeln und die Produktions-Container.
 
 ---
 
 ## 7. Offene Punkte
 
-- Dokumente: Upload/Download auf dem lokalen Dateisystem; am Projekt mit optionaler Texterkennung (siehe Nachtrag). Bei gescannten PDFs werden maximal die ersten 10 Seiten per Bild-OCR gelesen (Deckel gegen sehr lange Scans).
-- KI-Gateway ohne aktiven Anbieter (bewusst zurückgestellt).
-- E2E-Tests (Playwright) und CI-Workflows (GitHub Actions) laufen bei jedem Push, dazu ein Rauchtest der Produktions-Container (siehe `BETRIEB.md`). Ein automatisches Ausrollen auf einen Server fehlt noch – das hängt vom Zielserver ab.
-- Mobile App (React Native/Expo), DATANORM, Admin-Auslagerung: noch nicht begonnen.
-- GAEB-Import (X83 → Angebot mit freien Positionen): vorgemerkt. Echte GAEB-Beispieldateien kommen später vom Auftraggeber; ohne sie wird nicht gebaut, damit gegen echte Ausschreibungen getestet werden kann. DATEV: Buchungsstapel der Ausgangsrechnungen fertig (siehe Nachtrag).
-- Es existieren separate, umfassendere Projekt-Planungsdokumente (README.md, STATUS.md, DEVELOPMENT_GUIDE.md, TESTING_GUIDE.md, SECURITY_CHECKLIST.md, CICD_GUIDE.md, SKILLS_REFERENCE.md im Projekt-Root), die teils einen größeren, teamartigen Rahmen beschreiben (Mobile-Team, DevOps-Rolle, Security-Officer). Diese hier vorliegende STATUS.md beschreibt ausschließlich den tatsächlichen Code-Stand.
+- **Wartet auf Eingaben:** GAEB-Import (echte Beispieldateien vom Auftraggeber), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Hero-Vergleich (später), KI-Anbieter (Entscheidung; bestimmt die Qualität bei Screenshots, Fotos und freien PDFs).
+- **In Arbeit bzw. als Nächstes:** Lagepläne: Aufmaß-App offline, DXF-Import; Zahlungseingänge auf Mahngebühren und Zinsen buchen.
+- **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Aufmaß-App, Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, automatischer Bankabruf, Peppol, OCR über mehrere Server-Instanzen, automatisches Ausrollen auf einen Server.
+- Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 
 ---
 
 ## 8. Nächste sinnvolle Schritte
 
-1. **Dein Test** (siehe `TESTANLEITUNG.md`) – danach mit echten Ergebnissen/Feedback weiterplanen. Dabei auch `npx playwright install chromium` + `npm run test:e2e` im Frontend ausprobieren.
-2. KI-Anbieter festlegen, sobald relevant → echter Adapter + erster KI-Agent.
-3. Weitere E2E-Tests für die übrigen Module (Stammdaten, Team) nach demselben Muster.
-
-Ohne weitere Vorgabe: nächster Ausbauschritt ist, was im Code noch als Lücke vermerkt ist (siehe Abschnitt 7).
+1. **Dein Test** mit einem echten Projekt (siehe `TESTANLEITUNG.md`, für einen Server `BETRIEB.md`) – danach mit echten Rückmeldungen weiterplanen.
+2. Die Punkte „In Arbeit bzw. als Nächstes“ aus Abschnitt 7 in dieser Reihenfolge.
+3. KI-Anbieter festlegen, sobald Screenshots, Fotos und freie PDFs zuverlässig gelesen werden sollen.

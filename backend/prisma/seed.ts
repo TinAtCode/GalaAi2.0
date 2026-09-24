@@ -1,6 +1,6 @@
 import { PrismaClient, Permission } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { PERMISSIONS } from '../src/common/permissions';
+import { BOOKKEEPING_PERMISSIONS, EMPLOYEE_PERMISSIONS, PERMISSIONS } from '../src/common/permissions';
 
 const prisma = new PrismaClient();
 
@@ -39,7 +39,7 @@ async function main() {
 
   // 4. Rolle "Mitarbeiter" mit eingeschränkten Rechten (keine Preise)
   const employeePermissions = allPermissions.filter((p: Permission) =>
-    ([PERMISSIONS.CUSTOMER_READ, PERMISSIONS.AI_USE] as string[]).includes(p.key),
+    (EMPLOYEE_PERMISSIONS as string[]).includes(p.key),
   );
   await prisma.role.upsert({
     where: { companyId_name: { companyId: company.id, name: 'Mitarbeiter' } },
@@ -50,6 +50,23 @@ async function main() {
       isSystem: true,
       permissions: {
         create: employeePermissions.map((p: Permission) => ({ permissionId: p.id })),
+      },
+    },
+  });
+
+  // 4b. Rolle "Buchhaltung": Finanzen, Rechnungen, DATEV – ohne Einkaufspreise
+  const bookkeepingPermissions = allPermissions.filter((p: Permission) =>
+    (BOOKKEEPING_PERMISSIONS as string[]).includes(p.key),
+  );
+  await prisma.role.upsert({
+    where: { companyId_name: { companyId: company.id, name: 'Buchhaltung' } },
+    update: {},
+    create: {
+      companyId: company.id,
+      name: 'Buchhaltung',
+      isSystem: true,
+      permissions: {
+        create: bookkeepingPermissions.map((p: Permission) => ({ permissionId: p.id })),
       },
     },
   });
@@ -146,7 +163,7 @@ async function main() {
       id: 'demo-service-id',
       companyId: company.id,
       name: '1 m² Terrasse verlegen',
-      unit: 'm2',
+      unit: 'm²',
     },
   });
 

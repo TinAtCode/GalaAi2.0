@@ -9,6 +9,8 @@ import { buyerFromProject, sellerFromCompany } from '../pdf/pdf-data';
 import { BusinessDocumentPdf, PdfParty } from '../pdf/business-document.pdf';
 import { invoiceDueDay, MAX_DUNNING_LEVEL, paidAmount } from './payments.service';
 import { SendDunningDto } from './dto/invoice.dto';
+import { dunningCharges } from './dunning-charges';
+import { Prisma } from '@prisma/client';
 
 export const DUNNING_TITLES: Record<number, string> = {
   1: 'Zahlungserinnerung',
@@ -23,8 +25,9 @@ const day = (iso: string) => iso.split('-').reverse().join('.');
 const dateOnly = (d: Date) => d.toISOString().slice(0, 10);
 
 // Mahnwesen: Zahlungserinnerung, 1. und 2. Mahnung zu überfälligen
-// Rechnungen, jeweils mit neuer Frist. Mahngebühren und Verzugszinsen werden
-// (noch) nicht berechnet – sie wären eine eigene Forderung neben der Rechnung.
+// Rechnungen, jeweils mit neuer Frist. Optional (Firmeneinstellung) mit
+// Mahngebühren, Verzugszinsen und Verzugspauschale – eine eigene Forderung
+// neben der Rechnung, die in der Mahnung aufgeführt wird.
 @Injectable()
 export class DunningService {
   constructor(
@@ -42,7 +45,11 @@ export class DunningService {
       await tx.$queryRaw`SELECT id FROM "Invoice" WHERE id = ${invoiceId} AND "companyId" = ${companyId} FOR UPDATE`;
       const invoice = await tx.invoice.findFirst({
         where: { id: invoiceId, companyId },
-        include: { payments: true, dunningNotices: { orderBy: { level: 'asc' } } },
+        include: {
+          payments: true,
+          dunningNotices: { orderBy: { level: 'asc' } },
+          project: { select: { property: { select: { customer: { select: { isBusiness: true } } } } } },
+        },
       });
       if (!invoice) throw new NotFoundException('Rechnung nicht gefunden.');
       if (
@@ -72,6 +79,24 @@ export class DunningService {
       }
       const level = (last?.level ?? 0) + 1;
       const deadline = addCalendarDays(today, company.dunningDeadlineDays);
+      const charges = dunningCharges({
+        level,
+        today,
+        dueDay,
+        open,
+        isBusiness: invoice.project.property.customer.isBusiness,
+        previous: invoice.dunningNotices.map((n) => ({
+          level: n.level,
+          issuedOn: dateOnly(n.issuedOn),
+          lumpSum: n.lumpSum,
+        })),
+        settings: {
+          fees: [company.dunningFee1, company.dunningFee2, company.dunningFee3],
+          interest: company.dunningInterest,
+          baseInterestRate: company.baseInterestRate,
+          lumpSum: company.dunningLumpSum,
+        },
+      });
       const notice = await tx.dunningNotice.create({
         data: {
           companyId,
@@ -80,6 +105,11 @@ export class DunningService {
           issuedOn: new Date(`${today}T00:00:00Z`),
           deadline: new Date(`${deadline}T00:00:00Z`),
           openAmount: open,
+          fee: charges.fee,
+          interest: charges.interest,
+          interestRate: charges.interestRate,
+          interestFrom: charges.interestFrom ? new Date(`${charges.interestFrom}T00:00:00Z`) : null,
+          lumpSum: charges.lumpSum,
           createdByUserId: userId,
         },
       });
@@ -89,7 +119,14 @@ export class DunningService {
         action: 'dunning_create',
         entity: 'Invoice',
         entityId: invoiceId,
-        newData: { level, deadline, openAmount: open.toNumber() },
+        newData: {
+          level,
+          deadline,
+          openAmount: open.toNumber(),
+          fee: charges.fee.toNumber(),
+          interest: charges.interest.toNumber(),
+          lumpSum: charges.lumpSum.toNumber(),
+        },
       });
       return notice;
     });
@@ -136,6 +173,31 @@ export class DunningService {
       3: `trotz unserer Zahlungserinnerung und unserer Mahnung ist der folgende Betrag weiterhin offen. Bitte begleichen Sie ihn bis spätestens ${deadline}. Sollte bis dahin keine Zahlung eingehen, müssen wir weitere Schritte prüfen.`,
     };
 
+    // Forderung neben der Rechnung: Gebühren bis einschließlich dieser Stufe,
+    // Zinsen bis zum Mahndatum, Pauschale einmalig
+    const upTo = invoice.dunningNotices.filter((n) => n.level <= notice.level);
+    const fees = upTo.reduce((sum, n) => sum.plus(n.fee), new Prisma.Decimal(0));
+    const lumpSum = upTo.reduce((sum, n) => sum.plus(n.lumpSum), new Prisma.Decimal(0));
+    const extras = fees.plus(notice.interest).plus(lumpSum);
+    const summary: [string, string][] = extras.greaterThan(0)
+      ? [
+          ['Offener Rechnungsbetrag', euro(notice.openAmount)],
+          ...(fees.greaterThan(0) ? ([['Mahngebühren', euro(fees)]] as [string, string][]) : []),
+          ...(notice.interest.greaterThan(0)
+            ? ([
+                [
+                  `Verzugszinsen ${Number(notice.interestRate).toLocaleString('de-DE', { minimumFractionDigits: 2 })} % p. a. vom ${day(dateOnly(notice.interestFrom!))} bis ${day(dateOnly(notice.issuedOn))}`,
+                  euro(notice.interest),
+                ],
+              ] as [string, string][])
+            : []),
+          ...(lumpSum.greaterThan(0)
+            ? ([['Verzugspauschale (§ 288 Abs. 5 BGB)', euro(lumpSum)]] as [string, string][])
+            : []),
+          ['Zu zahlen', euro(notice.openAmount.plus(extras))],
+        ]
+      : [];
+
     const buffer = await renderLetterPdf({
       title,
       seller,
@@ -163,6 +225,7 @@ export class DunningService {
         ],
         widths: [22, 18, 16, 15, 14, 15],
       },
+      summary,
       closing: [
         ...(iban
           ? [`Bankverbindung: IBAN ${iban}${bic ? ` · BIC ${bic}` : ''} · Verwendungszweck ${invoice.number}`]

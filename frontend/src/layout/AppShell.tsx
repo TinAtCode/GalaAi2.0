@@ -22,6 +22,14 @@ const NAV_ITEMS = [
     permission: 'invoice.create',
     testId: 'nav-bank',
   },
+  // Geschäftsführung und Buchhaltung
+  {
+    to: '/finanzen',
+    label: 'Finanzen',
+    icon: '📊',
+    permission: 'finance.read',
+    testId: 'nav-finance',
+  },
   // Nur sichtbar mit employee.data.read (Vorgesetzte/Büro) – dieselbe
   // Berechtigung, die das Backend für diese Daten verlangt.
   { to: '/team', label: 'Team', icon: '🧑‍🤝‍🧑', permission: 'employee.data.read', testId: 'nav-team' },

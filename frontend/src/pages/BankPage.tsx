@@ -34,7 +34,10 @@ interface OpenItem {
 interface ImportResult {
   imported: number;
   duplicates: number;
-  skipped: { debits: number; notBooked: number; foreignCurrency: number };
+  credits: number;
+  debits: number;
+  balances: number;
+  skipped: { notBooked: number; foreignCurrency: number };
 }
 
 const TABS: { status: Status; label: string }[] = [
@@ -83,6 +86,12 @@ export function BankPage() {
   useEffect(() => {
     load();
   }, [load]);
+  // nach einer Aktion mit dem aktuellen Reiter/Filter neu laden (auch wenn er
+  // während der Aktion gewechselt wurde)
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
 
   // reload=false, wenn ein Reiterwechsel ohnehin neu lädt
   const run = async (action: () => Promise<string | void>, reload = true) => {
@@ -92,7 +101,7 @@ export function BankPage() {
     try {
       const message = await action();
       if (message) setNotice(message);
-      if (reload) await load();
+      if (reload) await loadRef.current();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Aktion fehlgeschlagen.');
     } finally {
@@ -108,9 +117,8 @@ export function BankPage() {
     const switchTab = status !== 'open';
     run(async () => {
       const result = await api.upload<ImportResult>('/bank/import', file);
-      const { debits, notBooked, foreignCurrency } = result.skipped;
+      const { notBooked, foreignCurrency } = result.skipped;
       const skipped = [
-        debits && `${debits} ${debits === 1 ? 'Abbuchung' : 'Abbuchungen'}`,
         notBooked && `${notBooked} vorgemerkt`,
         foreignCurrency && `${foreignCurrency} Fremdwährung`,
       ].filter(Boolean);
@@ -119,7 +127,10 @@ export function BankPage() {
         setStatus('open');
       }
       return (
-        `${result.imported} ${result.imported === 1 ? 'Zahlungseingang' : 'Zahlungseingänge'} eingelesen` +
+        `${result.credits} ${result.credits === 1 ? 'Zahlungseingang' : 'Zahlungseingänge'} eingelesen` +
+        (result.debits
+          ? `, dazu ${result.debits} ${result.debits === 1 ? 'Abbuchung' : 'Abbuchungen'} für die Finanzen`
+          : '') +
         (result.duplicates ? `, ${result.duplicates} schon vorhanden` : '') +
         (skipped.length ? ` – übersprungen: ${skipped.join(', ')}` : '') +
         '.'

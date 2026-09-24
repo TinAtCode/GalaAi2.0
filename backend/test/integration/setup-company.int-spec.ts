@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { setupCompany } from '../../src/cli/setup-company';
-import { PERMISSIONS } from '../../src/common/permissions';
+import { BOOKKEEPING_PERMISSIONS, EMPLOYEE_PERMISSIONS, PERMISSIONS } from '../../src/common/permissions';
 import { createApp, resetDatabase } from './helpers';
 
 // Ersteinrichtung für den Betrieb (node dist/cli/setup-company.js)
@@ -37,8 +37,9 @@ describe('Ersteinrichtung: Firma und erster Administrator', () => {
       orderBy: { name: 'asc' },
     });
     expect(roles.map((r) => [r.name, r.permissions.length])).toEqual([
+      ['Buchhaltung', BOOKKEEPING_PERMISSIONS.length],
       ['Geschäftsführung', Object.values(PERMISSIONS).length],
-      ['Mitarbeiter', 2],
+      ['Mitarbeiter', EMPLOYEE_PERMISSIONS.length],
     ]);
     expect(await prisma.employee.count({ where: { userId: result.userId } })).toBe(1);
     // keine Demo-Daten

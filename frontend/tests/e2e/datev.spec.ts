@@ -40,8 +40,8 @@ test.describe('DATEV-Export', () => {
     await section.getByTestId('datev-submit').click();
     await expect(section.getByTestId('datev-message')).toHaveText('DATEV-Einstellungen gespeichert.');
 
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    // "heute" in der Zeitzone der Firma (wie das Backend), nicht in der des Test-Rechners
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(new Date());
     await section.getByTestId('datev-from').fill(today);
     await section.getByTestId('datev-to').fill(today);
     const [download] = await Promise.all([

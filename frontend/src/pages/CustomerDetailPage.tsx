@@ -29,6 +29,7 @@ interface Customer {
   buyerReference: string | null;
   vatId: string | null;
   debtorNumber: number | null;
+  isBusiness: boolean;
   properties: Property[];
 }
 
@@ -73,6 +74,7 @@ export function CustomerDetailPage() {
   const [newProjectTitle, setNewProjectTitle] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isBusiness, setIsBusiness] = useState(false);
   // Hat jemand schon getippt, überschreibt eine (spät eintreffende) Ladeantwort
   // die Eingaben nicht mehr – erst nach dem Speichern gilt wieder der Serverstand.
   const edited = useRef(false);
@@ -85,6 +87,7 @@ export function CustomerDetailPage() {
           setCustomer(c);
           if (!edited.current) {
             setForm(Object.fromEntries(CUSTOMER_FIELDS.map((f) => [f.key, String(c[f.key] ?? '')])));
+            setIsBusiness(c.isBusiness);
           }
         })
         .catch((err) =>
@@ -117,6 +120,7 @@ export function CustomerDetailPage() {
       await api.patch(`/customers/${customerId}`, {
         ...rest,
         ...(debtorNumber ? { debtorNumber: Number(debtorNumber) } : {}),
+        isBusiness,
       });
       edited.current = false;
     });
@@ -172,6 +176,19 @@ export function CustomerDetailPage() {
               />
             </label>
           ))}
+          <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={isBusiness}
+              onChange={(e) => {
+                edited.current = true;
+                setIsBusiness(e.target.checked);
+              }}
+              disabled={!canWrite}
+              data-testid="customer-isBusiness"
+            />
+            <span>Geschäftskunde (Unternehmer) – für Verzugszinsen und -pauschale bei Mahnungen</span>
+          </label>
           {saved && (
             <p className="list-item-meta" data-testid="customer-saved">
               Gespeichert.

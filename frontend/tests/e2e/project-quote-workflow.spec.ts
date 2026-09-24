@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { SEED, API_BASE_URL, loginViaUi, apiLogin, createDraftQuote } from './fixtures';
 
-// Kritische User Journey (siehe TESTING_GUIDE.md): Angebot → Freigeben →
+// Kritische User Journey: Angebot → Freigeben →
 // Versenden → Kunde nimmt an → Auftrag erzeugen. Das Angebot wird per API
 // vorbereitet (Arrange-Schritt); das Formular prüft quote-create.spec.ts,
 // hier geht es um die Statuswechsel-Aktionen in der UI.

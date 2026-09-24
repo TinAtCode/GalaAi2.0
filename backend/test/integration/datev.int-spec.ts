@@ -4,6 +4,7 @@ import * as iconv from 'iconv-lite';
 import request from 'supertest';
 import { EXTF_COLUMNS } from '../../src/datev/extf-columns';
 import { createApp, createCompany, resetDatabase, TestCompany } from './helpers';
+import { localDayString } from '../../src/common/time-zone';
 
 // DATEV-Buchungsstapel (EXTF) der Ausgangsrechnungen für den Steuerberater.
 describe('DATEV-Export', () => {
@@ -13,8 +14,10 @@ describe('DATEV-Export', () => {
   let auth: { Authorization: string };
   let customerId: string;
   const api = () => request(app.getHttpServer());
-  const year = new Date().getFullYear();
-  const today = new Date().toISOString().slice(0, 10);
+  // "heute" in der Zeitzone der Firma (wie die App), nicht in UTC – sonst
+  // schlagen die Tests zwischen Mitternacht Berlin und Mitternacht UTC fehl
+  const today = localDayString(new Date(), 'Europe/Berlin');
+  const year = Number(today.slice(0, 4));
   const range = `from=${year}-01-01&to=${year}-12-31`;
 
   const download = (query: string, token = company.token) =>

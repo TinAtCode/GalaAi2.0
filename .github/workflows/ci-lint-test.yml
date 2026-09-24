@@ -1,10 +1,8 @@
 name: CI - Lint & Unit Tests
 
-# Deckt nur ab, was tatsächlich im Repo existiert (Backend/Frontend Unit-
-# Tests, Lint, Backend-Integrationstests gegen PostgreSQL). Playwright-E2E-Tests laufen bewusst in einem eigenen
-# Workflow (ci-e2e.yml), da sie einen echten Browser + laufende Server
-# brauchen. Kein Docker-Build/Deploy hier – siehe STATUS.md für den
-# tatsächlichen Umsetzungsstand gegenüber dem größeren CICD_GUIDE.md-Plan.
+# Lint, Formatierung und Unit-Tests (Backend, Frontend) sowie die
+# Integrationstests gegen PostgreSQL. E2E-Tests (ci-e2e.yml) und der
+# Container-Rauchtest (ci-docker.yml) laufen in eigenen Workflows.
 
 on:
   push:

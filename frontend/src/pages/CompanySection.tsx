@@ -1,5 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { parseAmount } from '../format';
+
+// "2.50" -> "2,5"
+const germanNumber = (value: string | number) => String(Number(value)).replace('.', ',');
 
 interface CompanySettings {
   name: string;
@@ -15,6 +19,12 @@ interface CompanySettings {
   bic: string | null;
   paymentTermDays: number;
   dunningDeadlineDays: number;
+  dunningFee1: string;
+  dunningFee2: string;
+  dunningFee3: string;
+  dunningInterest: boolean;
+  baseInterestRate: string | null;
+  dunningLumpSum: boolean;
   smallBusiness: boolean;
   defaultVatRate: string | number;
 }
@@ -41,6 +51,8 @@ export function CompanySection() {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [smallBusiness, setSmallBusiness] = useState(false);
+  const [dunningInterest, setDunningInterest] = useState(false);
+  const [dunningLumpSum, setDunningLumpSum] = useState(false);
 
   useEffect(() => {
     api
@@ -51,11 +63,18 @@ export function CompanySection() {
         setForm((current) => {
           if (current) return current;
           setSmallBusiness(settings.smallBusiness);
+          setDunningInterest(settings.dunningInterest);
+          setDunningLumpSum(settings.dunningLumpSum);
           return {
             ...Object.fromEntries(FIELDS.map((f) => [f.key, String(settings[f.key] ?? '')])),
             defaultVatRate: String(Number(settings.defaultVatRate)),
             paymentTermDays: String(settings.paymentTermDays),
             dunningDeadlineDays: String(settings.dunningDeadlineDays),
+            dunningFee1: germanNumber(settings.dunningFee1),
+            dunningFee2: germanNumber(settings.dunningFee2),
+            dunningFee3: germanNumber(settings.dunningFee3),
+            baseInterestRate:
+              settings.baseInterestRate === null ? '' : germanNumber(settings.baseInterestRate),
           };
         });
       })
@@ -67,7 +86,7 @@ export function CompanySection() {
     setBusy(true);
     setMessage(null);
     try {
-      const body: Record<string, string | number | boolean> = {};
+      const body: Record<string, string | number | boolean | null> = {};
       for (const field of FIELDS) {
         if (form?.[field.key]?.trim()) body[field.key] = form[field.key].trim();
       }
@@ -75,6 +94,29 @@ export function CompanySection() {
       body.paymentTermDays = Number(form?.paymentTermDays ?? '14');
       body.dunningDeadlineDays = Number(form?.dunningDeadlineDays ?? '7');
       body.smallBusiness = smallBusiness;
+      for (const key of ['dunningFee1', 'dunningFee2', 'dunningFee3'] as const) {
+        const fee = parseAmount(form?.[key] || '0');
+        if (!Number.isFinite(fee) || fee < 0) {
+          setMessage({ ok: false, text: 'Bitte die Mahngebühren als Betrag angeben, z. B. 2,50.' });
+          setBusy(false);
+          return;
+        }
+        body[key] = fee;
+      }
+      body.dunningInterest = dunningInterest;
+      body.dunningLumpSum = dunningLumpSum;
+      const rate = form?.baseInterestRate?.trim();
+      body.baseInterestRate = rate ? parseAmount(rate) : null;
+      if (typeof body.baseInterestRate === 'number' && !Number.isFinite(body.baseInterestRate)) {
+        setMessage({ ok: false, text: 'Bitte den Basiszinssatz als Zahl angeben, z. B. 1,27.' });
+        setBusy(false);
+        return;
+      }
+      if (dunningInterest && body.baseInterestRate === null) {
+        setMessage({ ok: false, text: 'Für Verzugszinsen bitte den aktuellen Basiszinssatz eintragen.' });
+        setBusy(false);
+        return;
+      }
       await api.patch('/company/settings', body);
       setMessage({ ok: true, text: 'Firmendaten gespeichert.' });
     } catch (err) {
@@ -132,6 +174,59 @@ export function CompanySection() {
               data-testid="company-dunningDeadlineDays"
             />
           </label>
+          <fieldset className="settings-fieldset" data-testid="company-dunning-charges">
+            <legend>Mahngebühren und Verzugszinsen (optional)</legend>
+            <p className="list-item-meta" style={{ marginTop: 0 }}>
+              Gebühren nur in angemessener Höhe (tatsächliche Kosten). Verzugszinsen nach §&nbsp;288 BGB:
+              Basiszinssatz + 5 Prozentpunkte, bei Geschäftskunden + 9; der Basiszinssatz ändert sich zum 1.1.
+              und 1.7. (Bundesbank).
+            </p>
+            {(
+              [
+                ['dunningFee1', 'Gebühr Zahlungserinnerung (€)'],
+                ['dunningFee2', 'Gebühr 1. Mahnung (€)'],
+                ['dunningFee3', 'Gebühr 2. Mahnung (€)'],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="field">
+                <span>{label}</span>
+                <input
+                  value={form[key] ?? ''}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  inputMode="decimal"
+                  data-testid={`company-${key}`}
+                />
+              </label>
+            ))}
+            <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={dunningInterest}
+                onChange={(e) => setDunningInterest(e.target.checked)}
+                data-testid="company-dunningInterest"
+              />
+              <span>Verzugszinsen in Mahnungen berechnen</span>
+            </label>
+            <label className="field">
+              <span>Basiszinssatz (%)</span>
+              <input
+                value={form.baseInterestRate ?? ''}
+                onChange={(e) => setForm({ ...form, baseInterestRate: e.target.value })}
+                inputMode="decimal"
+                placeholder="z. B. 1,27"
+                data-testid="company-baseInterestRate"
+              />
+            </label>
+            <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={dunningLumpSum}
+                onChange={(e) => setDunningLumpSum(e.target.checked)}
+                data-testid="company-dunningLumpSum"
+              />
+              <span>Pauschale 40 € bei Geschäftskunden (§&nbsp;288 Abs. 5 BGB)</span>
+            </label>
+          </fieldset>
           <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <input
               type="checkbox"

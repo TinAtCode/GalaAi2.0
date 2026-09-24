@@ -28,6 +28,14 @@ export const TENANT_MODELS = new Set([
   'InvoicePayment',
   'DunningNotice',
   'BankTransaction',
+  'BankBalance',
+  'UnitSetting',
+  'ExpenseCategory',
+  'CategoryRule',
+  'RecurringPayment',
+  'IncomingInvoice',
+  'SitePlan',
+  'PlanServiceMapping',
 ]);
 
 const GUARDED_ACTIONS = new Set([

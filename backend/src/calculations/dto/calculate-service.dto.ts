@@ -4,8 +4,8 @@ export class CalculateServiceDto {
   @IsString()
   serviceId!: string;
 
-  @IsNumber()
-  @Min(0.01)
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0.001)
   @Max(1_000_000)
   quantity!: number;
 

@@ -30,6 +30,9 @@ import { HealthModule } from './health/health.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { DatevModule } from './datev/datev.module';
 import { BankModule } from './bank/bank.module';
+import { FinanceModule } from './finance/finance.module';
+import { PlansModule } from './plans/plans.module';
+import { UnitsModule } from './units/units.module';
 import { UsersModule } from './users/users.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
@@ -74,6 +77,9 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     MetricsModule,
     DatevModule,
     BankModule,
+    FinanceModule,
+    PlansModule,
+    UnitsModule,
     UsersModule,
     InvoicesModule,
     AuditLogModule,

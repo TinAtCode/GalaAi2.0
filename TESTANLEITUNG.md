@@ -150,6 +150,42 @@ Rechnungsnummer im Verwendungszweck zeigen den Vorschlag, „Buchen“ erfasst d
 Zum Ausprobieren ohne Bank eignet sich `backend/test/fixtures/camt/camt053-v08.xml` (Platzhalter
 `__NUMBER1__` durch eine eigene Rechnungsnummer und `__AMOUNT1__` durch einen Betrag ersetzen).
 
+**Einheiten und Rundung testen:** Unter Stammdaten → Einheiten den Standard der Firma und einzelne
+Einheiten anpassen oder eine eigene Einheit anlegen. Bei einer Leistung „Rundung“ setzen
+(z.B. ganze, aufrunden). Im Angebot lässt sich die Rundung je Position ändern; am Projekt steht dann die
+gerundete Menge und, falls abweichend, die genaue („genau 12,31 m²“).
+
+**Finanzen testen:** Im Bankabgleich einen Kontoauszug (CAMT.053) einlesen – jetzt werden auch Abbuchungen
+und der Kontostand übernommen. Unter „Finanzen“ (Geschäftsführung und Rolle „Buchhaltung“) stehen Kontostand,
+offene Forderungen, die letzten zwölf Monate als Grafik oder Tabelle und alle Kontobewegungen mit Suche.
+Unter „Kontobewegungen“ tragen Abbuchungen eine Kategorie (per Regel oder gelernt); eine andere wählen –
+künftige Abbuchungen desselben Empfängers bekommen sie automatisch, auf Wunsch als feste Regel. „Kategorien“:
+eigene anlegen und Stichwörter hinzufügen. „Fixkosten“: erkannte wiederkehrende Zahlungen übernehmen oder
+selbst anlegen; im „Jahresüberblick“ stehen sie als geplant, bis die Abbuchung im Kontoauszug steht.
+„Eingangsrechnungen“: „Beleg einlesen“ mit einer E-Rechnung (XML oder ZUGFeRD-PDF) übernimmt alle Angaben,
+bei einer normalen PDF oder einem Foto werden sie vorgeschlagen – prüfen, speichern. Danach einen Kontoauszug
+mit der Zahlung (Rechnungsnummer im Verwendungszweck) einlesen: die Rechnung steht unter „Bezahlt“. Die
+Übersicht zeigt die Liquiditätsvorschau der nächsten 13 Wochen.
+
+**Mahngebühren und Verzugszinsen testen:** Unter Einstellungen → Firmendaten Gebühren je Stufe, „Verzugszinsen
+berechnen“ mit dem aktuellen Basiszinssatz und ggf. die Pauschale einschalten; beim Kunden „Geschäftskunde“
+setzen. Die nächste Mahnung enthält dann die Aufstellung (Gebühren, Zinsen, Pauschale, zu zahlen).
+
+**Lagepläne testen:** Auf einer Projektseite unter „Lagepläne“ einen Plan anlegen. Werkzeug wählen (z.B.
+„Rasen“), Eckpunkte anklicken, mit Doppelklick schließen; Leitungen mit Enter beenden. Unter „Hintergrund …“
+ein Foto oder eine PDF laden, dann „Maßstab“: zwei Punkte einer bekannten Strecke anklicken und die Länge
+eingeben. Rechts stehen die Mengen (m, m², Stück); „Speichern“, „Drucken“ oder „Als SVG“. „Ins Angebot
+übernehmen“: je Menge eine Leistung wählen (die Wahl wird gemerkt) und „Angebot anlegen“ – das Angebot steht
+danach als Entwurf am Projekt. Leitungen lassen sich quer über Rasen- oder Pflasterflächen zeichnen; nach
+Auswahl der Leitung rechts Nennweite (DN) und Verlegetiefe setzen. Unter „Ebenen“ Gruppen ausblenden oder
+„Flächen blass“ schalten. Exakt zeichnen: nach dem ersten Punkt eine Länge eintippen und Enter (Umschalt
+halten = rechtwinklig). Beim ausgewählten Objekt unter „Maße“ Kantenlängen ändern; Punkte (A, B …) fixieren,
+z.B. A und B, dann ändert eine neue Länge von B–C nur die Tiefe. Rundungen: beim ausgewählten Objekt auf
+„+“ an einer Kante klicken (neuer Punkt), „×“ neben einem Punkt löscht ihn; im Feld neben dem Punkt einen
+Eckradius eintragen (z.B. 1), bei einer Kante „Bogen außen/innen“ wählen und den Radius anpassen. Kreise:
+beim Zeichnen einer Fläche „Kreis“ anhaken, Mittelpunkt und Rand anklicken oder den Durchmesser eintippen;
+„Schacht“ ist schon rund und erscheint in den Mengen je Durchmesser.
+
 **Dokumente testen:** Auf einer Projektseite unter „Dokumente“ die Art wählen und ein PDF oder Foto
 hochladen, „Text erkennen“ angehakt lassen. Nach wenigen Sekunden steht „Text erkannt“ mit einem Ausschnitt
 am Dokument; über das Suchfeld findet man es mit einem Wort aus dem Text. Für Fotos und gescannte PDFs braucht
