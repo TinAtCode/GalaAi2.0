@@ -25,6 +25,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { DataGuardianModule } from './data-guardian/data-guardian.module';
 import { AiGatewayModule } from './ai-gateway/ai-gateway.module';
 import { AbsencesModule } from './absences/absences.module';
+import { DemoModule } from './demo/demo.module';
 import { MaterialUsageModule } from './material-usage/material-usage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
@@ -76,6 +77,7 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     DataGuardianModule,
     AiGatewayModule,
     AbsencesModule,
+    DemoModule,
     MaterialUsageModule,
     OcrModule,
     HealthModule,

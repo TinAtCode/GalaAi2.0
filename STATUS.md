@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 28.09.2026 – Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 29.09.2026 – offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -22,7 +22,7 @@ Letzte Aktualisierung: 28.09.2026 – Prüfung aller neuen Module (Ladezeit, Off
 | 11 | Mitarbeiter / Selbstbedienungs-Zeiterfassung | ✅ |
 | 12 | Dokumente + OCR + Objektspeicher | ✅ echter Datei-Upload/-Download + Text-/Bild-OCR inkl. gescannter PDFs (Rasterisierung) |
 | 13 | Datenwächter (Preislisten-Diff + Datei-Upload CSV/XLSX + zeilenweise Auswahl) | ✅ |
-| 14 | KI-Gateway | 🔶 Adapter-Grundgerüst fertig; Entscheidung: bewusst offen für eigene APIs, eigene Agenten und selbst gehostete Modelle (in Arbeit) |
+| 14 | KI-Gateway | ✅ bewusst offen: OpenAI-kompatibel (auch selbst gehostet), Anthropic oder eigener Agent, je Firma einstellbar (`KI-ANBINDUNG.md`) |
 | 15 | Nachkalkulation (Arbeitszeit + Material, Soll/Ist) | ✅ |
 | — | E2E-Tests (Playwright), Lint/Format (ESLint+Prettier), CI (GitHub Actions), Container-Rauchtest | ✅ laufen bei jedem Push |
 | — | Rechnungen, E-Rechnung, ZUGFeRD, Zahlungen, Mahnwesen, Bankabgleich, DATEV, Dokumente, Finanzen, Betrieb | ✅ siehe Nachträge in Abschnitt 5 |
@@ -96,7 +96,7 @@ npm run dev
 - **Terminkollisionsprüfung**: verhindert, dass derselbe Mitarbeiter zwei sich überschneidende Termine bekommt; ohne `endTime` wird eine Standarddauer von 1h angenommen, geprüft wird nur derselbe Kalendertag (Überschneidungen über Mitternacht sind für dieses Geschäftsfeld irrelevant), stornierte Termine blockieren nichts mehr.
 - **Überstunden**: EINE konfigurierbare Regelarbeitszeit pro Tag pro Firma (`regularDailyHours`, Standard 8h) statt komplexer Schichtmodelle – bewusste Vereinfachung für V1. Nur abgeschlossene/freigegebene Zeiteinträge zählen mit, ein noch laufender Eintrag fließt nicht ein. `overtimeSurchargePercent` ist als Feld vorbereitet, aber noch nicht mit der Lohnvorbereitung verknüpft (Punkt 29 nennt das explizit als "später").
 - **Nachkalkulation** vergleicht Soll (aktuelle Rezeptur × Menge aus Auftrag/Angebot) gegen Ist (gebuchte Zeiten/Material) – kein Snapshot der Soll-Werte, daher können sich rückwirkend Soll-Werte leicht verschieben, wenn sich eine Rezeptur später ändert. Material wird zum aktuellen Einkaufspreis bewertet (keine Snapshot-Bewertung zum Buchungszeitpunkt).
-- **KI-Gateway**: reine `AiProvider`-Schnittstelle + Injection-Token, aktuell an `NoopAiProvider` gebunden. Anbieterwechsel = eine Zeile im Modul ändern, kein anderer Code betroffen. Jeder Aufruf wird im Audit-Log protokolliert.
+- **KI-Gateway**: eine `AiProvider`-Schnittstelle, die Anbieter richtet jede Firma selbst ein (Tabelle `AiProviderConfig`, Schlüssel verschlüsselt): OpenAI-kompatibel, Anthropic oder eigener Agent über einen festen HTTP-Vertrag. Ohne Einrichtung antwortet ein Platzhalter. Jeder Aufruf wird im Audit-Log protokolliert, der Kontext nach den Rechten des Fragenden gefiltert.
 - **Objektspeicher (Dokumente)**: dasselbe Muster wie beim KI-Gateway – eine `FileStorage`-Schnittstelle + Injection-Token, wahlweise `LocalDiskStorage` (Dateien unter `UPLOADS_DIR`, pro Firma in eigenem Unterordner) oder S3-kompatibler Objektspeicher (`STORAGE=s3`, siehe Nachtrag „Dokumente im Objektspeicher“). Datei-Upload/-Download real per HTTP getestet: Byte-für-Byte identischer Inhalt nach Upload+Download-Roundtrip.
 - **Datenwächter**: Diff-Erkennung (neu/Preisänderung/Einheitenänderung) ist eine reine, getestete Funktion. `apply` unterstützt jetzt auch zeilenweise Auswahl über ein optionales `acceptedArticleNumbers`-Feld (Punkt 16: "teilweise übernehmen") – ohne dieses Feld bleibt das bisherige Verhalten (alles übernehmen) der Standard. Bewusst ohne eigene Staging-Tabelle: der Client ruft zuerst `analyze` auf und entscheidet selbst, welche Artikelnummern er übernehmen will. Datei-Import (CSV/XLSX) mit toleranter Spaltenerkennung (deutsche/englische Kopfzeilen, deutsches Zahlenformat) ist real per Datei-Upload möglich.
 - **OCR**: PDFs mit Textebene werden direkt und ohne Bild-OCR ausgelesen (`pdf-parse`). PDFs OHNE Textebene (gescannt) werden jetzt vollständig verarbeitet: `pdf-parse` rendert jede Seite als echtes Bild (`getScreenshot()`, keine zusätzliche Abhängigkeit nötig), jede Seite läuft durch dieselbe Bild-OCR-Engine wie direkt hochgeladene Fotos, Ergebnisse werden zusammengeführt (Deckel: max. 10 Seiten, siehe offene Punkte). Die OCR-Engine selbst ist wie beim KI-Gateway/Objektspeicher austauschbar (`ImageOcrEngine`-Interface + Token), aktuell `TesseractOcrEngine`. Dokumenttyp-Erkennung läuft über einfache Schlüsselwortsuche im extrahierten Text, keine KI nötig.
@@ -556,6 +556,26 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   - **Tests:** Die E2E-Tests laufen jetzt auch wiederholt gegen dieselbe Datenbank (eindeutige Namen je
     Lauf, Aufräumen auch bei Fehlern).
 
+- **Nachtrag – Offenes KI-Gateway**: Einstellungen → KI-Anbieter (Recht `system.settings.write`): beliebig
+  viele Anbieter je Firma, einer als Standard. Arten: OpenAI-kompatibel (Ollama, LM Studio, vLLM, LocalAI,
+  OpenRouter, OpenAI …; Adresse bis `/v1`), Anthropic, eigener Agent (POST mit Aufgabe, Frage, Kontext und
+  wer fragt; HMAC-Signatur über Zeitstempel und Inhalt; Antwort `{ text, data? }`). API-Schlüssel mit
+  AES-256-GCM verschlüsselt (`SECRET_KEY`, sonst aus `JWT_SECRET` abgeleitet), nie wieder ausgegeben.
+  Testen-Knopf, Frage an den Standard-Anbieter. Nutzen (`POST /ai/gateway/complete`, Recht `ai.use`):
+  Kontext zusätzlich nach Rechten gefiltert (Einkaufspreise, Margen, Löhne), jeder Aufruf im Audit-Log
+  (Quelle „ai“, auch Fehler; die Antwort selbst nicht). Adressen im eigenen Netz erlaubt, Metadaten-Dienste
+  gesperrt, keine Weiterleitungen; `AI_BLOCK_PRIVATE_NETWORKS=1` sperrt auch private Netze. Anleitung und
+  Agentenvertrag: `KI-ANBINDUNG.md`.
+
+- **Nachtrag – Demo-Paket**: `docker-compose.demo.yml` mit Start-, Stopp- und Rücksetz-Skripten für Windows
+  und macOS/Linux (`ops/demo`). Ein Laptop ohne Server; Handys im selben WLAN öffnen die App über die
+  Adresse des Laptops (QR-Code auf der Anmeldeseite im Demo-Modus, `GET /demo/info` nur mit `DEMO_MODE=1`).
+  Beispieldaten über die echte API (`src/cli/demo-data.ts`): Chef, Büro, Mitarbeiter, Kunden, Angebote,
+  Aufträge, Rechnungen (bezahlt, überfällig), Pflegevertrag, Termine dieser Woche, Baustellen-Nachrichten.
+  Optional HTTPS mit eigener Demo-Zertifizierungsstelle, damit die App auf dem Handy installierbar ist und
+  offline läuft. In der CI startet ein Rauchtest die Demo mit HTTPS wie auf einem Laptop. Anleitung:
+  `DEMO.md`.
+
 ---
 
 ## 6. Qualitätssicherung
@@ -567,7 +587,7 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 ## 7. Offene Punkte
 
 - **Zurückgestellt:** GAEB-Import (braucht echte Beispieldateien), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Ausrollen auf einen echten Server, Hero-Vergleich.
-- **KI-Anbieter (Entscheidung):** bewusst offen – eigene APIs (OpenAI-kompatibel, z.B. Ollama, LM Studio, vLLM), Anthropic und eigene Agenten, auch selbst gehostet. In Arbeit.
+- **Erledigt am 29.09.2026:** offenes KI-Gateway und Demo-Paket (siehe Nachträge, `KI-ANBINDUNG.md`, `DEMO.md`).
 - **Erledigt am 25.09.2026:** Zahlungen auf Mahngebühren und Zinsen, Kontoauszüge als MT940 und CSV, DXF-Import, Aufmaß offline (installierbare App, Lagepläne ohne Netz), OCR-Limit über mehrere Server (siehe Nachtrag unten).
 - **Nicht geplant (Entscheidung vom 24.09.2026):** automatischer Kontoabruf per EBICS/FinTS (Auszüge werden als CAMT.053, MT940 oder CSV hochgeladen), Versand der E-Rechnungen über Peppol (Versand per E-Mail mit PDF und XRechnung).
 - **Im Betrieb:** Schwellen der Alarmregeln nach einigen Wochen anpassen. Das Backend zeichnet die Werte dafür ab jetzt selbst auf; die Auswertung macht Vorschläge (siehe Nachtrag „Verlauf für die Alarmschwellen“ und BETRIEB.md).
@@ -581,7 +601,6 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 
 ## 8. Nächste sinnvolle Schritte
 
-1. **Offenes KI-Gateway:** eigene APIs und Agenten je Firma einstellbar, auch selbst gehostet.
-2. **Demo-Paket:** Einzelplatz ohne Server, Handys im selben WLAN verbinden (für Vorführungen).
-3. **Erweiterungen:** Abwesenheiten (Urlaub, Krankheit) in der Plantafel, Push-Nachrichten für die Baustelle, automatischer Test der Sicherung.
-4. **Dein Test** mit einem echten Projekt (siehe `TESTANLEITUNG.md`, für einen Server `BETRIEB.md`) – danach mit echten Rückmeldungen weiterplanen.
+1. **Erweiterungen:** Abwesenheiten (Urlaub, Krankheit) in der Plantafel, Push-Nachrichten für die Baustelle, automatischer Test der Sicherung.
+2. **KI in den Abläufen nutzen:** z.B. Angebotstexte, Zusammenfassungen von Baustellen-Nachrichten, Belege lesen – über das Gateway mit dem eingerichteten Anbieter.
+3. **Dein Test** mit einem echten Projekt (siehe `TESTANLEITUNG.md`, für einen Server `BETRIEB.md`) – danach mit echten Rückmeldungen weiterplanen.

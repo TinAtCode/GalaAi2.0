@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { ApiError } from '../api/client';
+import { DemoPanel } from './DemoPanel';
 
 export function LoginPage() {
   const { login, sessionExpired } = useAuth();
@@ -11,18 +12,22 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  const signIn = async (loginEmail: string, loginPassword: string) => {
     setError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(loginEmail, loginPassword);
       navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    void signIn(email, password);
   };
 
   return (
@@ -76,6 +81,13 @@ export function LoginPage() {
             {submitting ? 'Meldet an …' : 'Anmelden'}
           </button>
         </form>
+        <DemoPanel
+          onPick={(pickedEmail, pickedPassword) => {
+            setEmail(pickedEmail);
+            setPassword(pickedPassword);
+            void signIn(pickedEmail, pickedPassword);
+          }}
+        />
       </div>
     </div>
   );
