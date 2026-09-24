@@ -1,8 +1,15 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OcrService } from './ocr.service';
-import { OcrQueue } from './ocr-queue';
+import { INSTANCE_ID, LEASE_SECONDS, OcrQueue } from './ocr-queue';
 
 type UploadedFile = { originalname: string; buffer: Buffer; mimetype: string };
 
@@ -11,11 +18,15 @@ export const searchableText = (text: string) =>
 
 // Texterkennung als Auftrag: die Datei wird sofort angenommen, die Erkennung
 // läuft im Hintergrund (über die OcrQueue), das Ergebnis wird abgefragt.
-// Die Datei liegt nur bis zur Verarbeitung im Speicher; startet der Server
-// neu, werden unterbrochene Aufträge als fehlgeschlagen markiert.
+// Die Datei liegt nur bis zur Verarbeitung im Speicher des Servers, der sie
+// angenommen hat. Jeder Auftrag gibt alle 30 s ein Lebenszeichen; Aufträge
+// ohne Lebenszeichen (Server abgestürzt oder neu gestartet) markiert jeder
+// Server nach 2 Minuten als fehlgeschlagen – laufende Aufträge anderer Server
+// bleiben unberührt.
 @Injectable()
-export class OcrJobsService implements OnModuleInit {
+export class OcrJobsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OcrJobsService.name);
+  private sweeper?: NodeJS.Timeout;
 
   constructor(
     private prisma: PrismaService,
@@ -24,14 +35,38 @@ export class OcrJobsService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // Aufräumen für alle Firmen – bewusst ohne companyId-Filter über SQL.
-    const count = await this.prisma.$executeRaw`
+    await this.sweep();
+    clearInterval(this.sweeper);
+    this.sweeper = setInterval(() => void this.sweep().catch(() => undefined), 60_000);
+    this.sweeper.unref?.();
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.sweeper);
+  }
+
+  // Aufräumen für alle Firmen – bewusst ohne companyId-Filter über SQL
+  async sweep() {
+    const stale = await this.prisma.$queryRaw<{ documentId: string | null }[]>`
       UPDATE "OcrJob" SET status = 'failed', error = 'Abgebrochen: der Server wurde neu gestartet.',
         "finishedAt" = NOW()
-      WHERE status IN ('queued', 'running')`;
-    if (count > 0) this.logger.warn({ msg: 'Unterbrochene OCR-Aufträge als fehlgeschlagen markiert', count });
+      WHERE status IN ('queued', 'running')
+        AND COALESCE("heartbeatAt", "createdAt") < NOW() - make_interval(secs => ${LEASE_SECONDS})
+      RETURNING "documentId"`;
+    if (stale.length)
+      this.logger.warn({
+        msg: 'Unterbrochene OCR-Aufträge als fehlgeschlagen markiert',
+        count: stale.length,
+      });
+    // Dokumente, deren Texterkennung keinen laufenden Auftrag mehr hat
+    // (abgebrochen oder verwaist) – ein neu gestarteter Auftrag setzt den Stand wieder
     await this.prisma.$executeRaw`
-      UPDATE "Document" SET "ocrStatus" = 'failed' WHERE "ocrStatus" IN ('queued', 'running')`;
+      UPDATE "Document" d SET "ocrStatus" = 'failed'
+      WHERE d."ocrStatus" IN ('queued', 'running')
+        AND NOT EXISTS (
+          SELECT 1 FROM "OcrJob" j WHERE j."documentId" = d.id AND j.status IN ('queued', 'running')
+        )`;
+    return stale.length;
   }
 
   // Mit documentId: Texterkennung zu einem gespeicherten Dokument – Stand und
@@ -39,7 +74,14 @@ export class OcrJobsService implements OnModuleInit {
   async create(companyId: string, userId: string, file: UploadedFile, documentId?: string) {
     this.ocr.assertSupported(file);
     const job = await this.prisma.ocrJob.create({
-      data: { companyId, userId, fileName: file.originalname, documentId },
+      data: {
+        companyId,
+        userId,
+        fileName: file.originalname,
+        documentId,
+        worker: INSTANCE_ID,
+        heartbeatAt: new Date(),
+      },
     });
     // Nicht abwarten: die Antwort geht sofort raus.
     void this.process(companyId, job.id, file, documentId);
@@ -58,11 +100,18 @@ export class OcrJobsService implements OnModuleInit {
         ? this.prisma.document.updateMany({ where: { id: documentId, companyId }, data })
         : Promise.resolve();
     try {
-      const result = await this.queue.run(async () => {
-        await this.prisma.ocrJob.update({ where: { id }, data: { status: 'running' } });
-        await setDocument({ ocrStatus: 'running' });
-        return this.ocr.extractFromFile(file);
-      });
+      const result = await this.queue.run(
+        async () => {
+          await this.prisma.ocrJob.update({
+            where: { id },
+            data: { status: 'running', heartbeatAt: new Date() },
+          });
+          await setDocument({ ocrStatus: 'running' });
+          return this.ocr.extractFromFile(file);
+        },
+        // Lebenszeichen, solange der Auftrag wartet oder läuft
+        () => this.prisma.ocrJob.updateMany({ where: { id, companyId }, data: { heartbeatAt: new Date() } }),
+      );
       await this.prisma.ocrJob.update({
         where: { id },
         data: { status: 'done', result: result as unknown as Prisma.InputJsonValue, finishedAt: new Date() },
@@ -87,7 +136,12 @@ export class OcrJobsService implements OnModuleInit {
     return this.view(job);
   }
 
-  private view({ companyId: _companyId, ...job }: Prisma.OcrJobGetPayload<object>) {
+  private view({
+    companyId: _companyId,
+    worker: _worker,
+    heartbeatAt: _heartbeatAt,
+    ...job
+  }: Prisma.OcrJobGetPayload<object>) {
     return job;
   }
 }

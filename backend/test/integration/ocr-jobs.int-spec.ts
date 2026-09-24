@@ -73,8 +73,14 @@ describe('OCR-Aufträge', () => {
   });
 
   it('nach einem Neustart gelten unterbrochene Aufträge als fehlgeschlagen', async () => {
+    // ohne Lebenszeichen seit mehr als 2 Minuten (Server neu gestartet)
     const stuck = await prisma.ocrJob.create({
-      data: { companyId: company.companyId, fileName: 'scan.pdf', status: 'running' },
+      data: {
+        companyId: company.companyId,
+        fileName: 'scan.pdf',
+        status: 'running',
+        heartbeatAt: new Date(Date.now() - 5 * 60 * 1000),
+      },
     });
     await app.get(OcrJobsService).onModuleInit();
     const job = await api().get(`/ocr/jobs/${stuck.id}`).set(auth()).expect(200);

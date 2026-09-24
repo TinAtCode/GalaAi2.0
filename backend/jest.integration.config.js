@@ -13,5 +13,9 @@ module.exports = {
   testEnvironment: 'node',
   // Alle Suites teilen sich eine Datenbank und leeren sie – nacheinander laufen.
   maxWorkers: 1,
+  // Jede Suite startet eine eigene App; was davon hängen bleibt (Prisma,
+  // Module), summiert sich über alle Suites. Der Test-Prozess wird deshalb
+  // neu gestartet, sobald er nach einer Suite zu groß ist.
+  workerIdleMemoryLimit: '800MB',
   testTimeout: 30000,
 };

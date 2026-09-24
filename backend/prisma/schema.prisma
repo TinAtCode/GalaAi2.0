@@ -642,20 +642,32 @@ enum OcrJobStatus {
   failed
 }
 
+// Plätze für gleichzeitige Texterkennungen über alle Server-Instanzen
+// (OCR_CONCURRENCY). Ein Platz ist belegt, solange sein Halter ihn verlängert.
+model OcrSlot {
+  id          Int       @id
+  holder      String?
+  leasedUntil DateTime?
+}
+
 model OcrJob {
-  id         String       @id @default(uuid())
-  companyId  String
-  company    Company      @relation(fields: [companyId], references: [id])
-  userId     String?
-  fileName   String
+  id          String       @id @default(uuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  userId      String?
+  fileName    String
   // Auftrag zu einem hochgeladenen Dokument: das Ergebnis landet dort
-  documentId String?
-  document   Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
-  status     OcrJobStatus @default(queued)
-  result     Json?
-  error      String?
-  createdAt  DateTime     @default(now())
-  finishedAt DateTime?
+  documentId  String?
+  document    Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  status      OcrJobStatus @default(queued)
+  // Server, der den Auftrag bearbeitet, und dessen letztes Lebenszeichen –
+  // Aufträge ohne Lebenszeichen gelten nach 2 Minuten als abgebrochen
+  worker      String?
+  heartbeatAt DateTime?
+  result      Json?
+  error       String?
+  createdAt   DateTime     @default(now())
+  finishedAt  DateTime?
 
   @@index([companyId, createdAt])
   @@index([documentId])

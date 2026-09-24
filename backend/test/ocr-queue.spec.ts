@@ -1,4 +1,4 @@
-import { OcrQueue } from '../src/ocr/ocr-queue';
+import { MemorySlotStore, OcrQueue } from '../src/ocr/ocr-queue';
 import { registry } from '../src/metrics/metrics';
 
 const deferred = () => {
@@ -44,5 +44,40 @@ describe('OcrQueue', () => {
     const queue = new OcrQueue();
     await expect(queue.run(() => Promise.reject(new Error('kaputt')))).rejects.toThrow('kaputt');
     await expect(queue.run(async () => 'weiter')).resolves.toBe('weiter');
+  });
+
+  it('das Limit gilt über mehrere Server zusammen (gemeinsame Plätze)', async () => {
+    process.env.OCR_CONCURRENCY = '2';
+    process.env.OCR_SLOT_POLL_MS = '10';
+    const shared = new MemorySlotStore();
+    const a = new OcrQueue(shared);
+    const b = new OcrQueue(shared);
+    const gates = [deferred(), deferred(), deferred()];
+    const started: string[] = [];
+    const runs = [
+      a.run(async () => {
+        started.push('a1');
+        await gates[0].promise;
+      }),
+      b.run(async () => {
+        started.push('b1');
+        await gates[1].promise;
+      }),
+      b.run(async () => {
+        started.push('b2');
+        await gates[2].promise;
+      }),
+    ];
+    await new Promise((r) => setTimeout(r, 50));
+    // zwei Plätze insgesamt: der dritte Auftrag wartet, obwohl Server b nur einen hat
+    expect(started).toEqual(['a1', 'b1']);
+    expect(b.stats).toEqual({ running: 1, waiting: 1 });
+    gates[0].resolve();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(started).toEqual(['a1', 'b1', 'b2']);
+    gates[1].resolve();
+    gates[2].resolve();
+    await Promise.all(runs);
+    delete process.env.OCR_SLOT_POLL_MS;
   });
 });
