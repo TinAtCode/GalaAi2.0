@@ -65,8 +65,18 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://gartenai:demo@postgres:5432/gartenai?schema=public
-    command: ['node', 'dist/cli/demo-data.js', '--api', 'http://backend:3000']
+    command: ['node', 'dist/cli/demo-data.js', '--api', 'http://backend:3000', '--agent', 'http://demo-agent:8090/']
     restart: 'no'
+
+  # KI-Funktionen vorführen ohne echte KI und ohne Internet: beantwortet alle
+  # Aufgaben nach festen Regeln (Einstellungen → KI-Anbieter: „Demo-Agent“)
+  demo-agent:
+    image: gartenai-demo-backend
+    pull_policy: never
+    depends_on:
+      - backend
+    command: ['node', 'dist/cli/demo-agent.js']
+    restart: unless-stopped
 
   frontend:
     image: gartenai-demo-frontend

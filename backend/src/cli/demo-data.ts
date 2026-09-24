@@ -66,6 +66,8 @@ export async function createDemo(
   prisma: PrismaClient,
   base: string,
   log: (line: string) => void = console.log,
+  // Demo-Agent (docker-compose.demo.yml): KI-Funktionen ohne echte KI vorführen
+  agentUrl?: string,
 ) {
   await seedBase(prisma);
   const company = await prisma.company.findUniqueOrThrow({ where: { id: 'demo-company-id' } });
@@ -114,6 +116,17 @@ export async function createDemo(
     phone: '+49 221 1234567',
     iban: 'DE89370400440532013000',
   });
+  if (agentUrl) {
+    log('Demo-Agent als KI-Anbieter …');
+    await chef.post('/ai/providers', {
+      name: 'Demo-Agent (ohne echte KI)',
+      kind: 'agent',
+      baseUrl: agentUrl,
+      capabilities: ['text', 'vision', 'image'],
+      isDefault: true,
+      timeoutSeconds: 10,
+    });
+  }
   const office = await chef.post<{ id: string }>('/users', {
     email: 'buero@musterbetrieb.de',
     firstName: 'Birgit',
@@ -340,10 +353,12 @@ async function main() {
   const base =
     (apiIndex >= 0 ? args[apiIndex + 1] : process.env.DEMO_API_URL) ||
     `http://localhost:${process.env.PORT ?? 3000}`;
+  const agentIndex = args.indexOf('--agent');
+  const agentUrl = agentIndex >= 0 ? args[agentIndex + 1] : process.env.DEMO_AGENT_URL;
   const prisma = new PrismaClient();
   try {
     await waitForApi(base);
-    await createDemo(prisma, base);
+    await createDemo(prisma, base, console.log, agentUrl || undefined);
     console.log('\nAnmeldungen (Passwort jeweils demo12345):');
     for (const login of DEMO_LOGINS) console.log(`  ${login.role.padEnd(12)} ${login.email}`);
   } finally {

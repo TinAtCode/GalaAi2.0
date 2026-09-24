@@ -41,7 +41,9 @@ describe('Demo', () => {
 
   it('legt die Demo an, einmal', async () => {
     const lines: string[] = [];
-    expect(await createDemo(prisma, base, (line) => lines.push(line))).toMatchObject({ created: true });
+    expect(
+      await createDemo(prisma, base, (line) => lines.push(line), 'http://127.0.0.1:8090/'),
+    ).toMatchObject({ created: true });
     const companyId = 'demo-company-id';
     expect(await prisma.customer.count({ where: { companyId } })).toBe(5);
     expect(await prisma.invoice.count({ where: { companyId, status: 'issued' } })).toBe(2);
@@ -49,6 +51,12 @@ describe('Demo', () => {
     expect(await prisma.maintenanceContract.count({ where: { companyId } })).toBe(1);
     expect(await prisma.projectMessage.count({ where: { companyId } })).toBe(2);
     expect(await prisma.absence.count({ where: { companyId } })).toBe(1);
+    // Demo-Agent als Standard-Anbieter für alle KI-Aufgaben
+    expect(await prisma.aiProviderConfig.findFirst({ where: { companyId } })).toMatchObject({
+      kind: 'agent',
+      isDefault: true,
+      capabilities: ['text', 'vision', 'image'],
+    });
     expect(await prisma.appointment.count({ where: { companyId } })).toBeGreaterThan(6);
 
     // alle drei Zugänge melden sich an; der Mitarbeiter hat heute Termine auf der Baustelle
