@@ -17,10 +17,10 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
@@ -67,10 +67,10 @@ jobs:
       # sofort auf, unabhängig von der CPU-Zahl des Runners.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gartenai_test?schema=public&connection_limit=2
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
@@ -104,7 +104,7 @@ jobs:
           scripts/validate-xrechnung.sh "$XRECHNUNG_OUT"
       # Die in den Tests erzeugten PDFs: PDF/A-3b (veraPDF), Rechnungen
       # zusätzlich als ZUGFeRD mit eingebetteter XRechnung (Mustang).
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/verapdf
           key: verapdf-${{ hashFiles('backend/scripts/validate-pdfa.sh') }}
@@ -122,10 +122,10 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci

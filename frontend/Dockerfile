@@ -1,7 +1,7 @@
 # Frontend: statischer Build, ausgeliefert von nginx. nginx leitet /api an
 # das Backend weiter – Frontend und API haben so dieselbe Adresse (kein CORS,
 # Sitzungs-Cookie SameSite=Lax genügt).
-FROM node:20-bookworm-slim AS build
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
