@@ -132,6 +132,89 @@ describe('Lageplan: Geometrie', () => {
       expect(isQuantityKey(key)).toBe(false);
   });
 
+  it('Leitungen je Nennweite; Tiefe und DN geprüft', () => {
+    const rows = planQuantities(
+      [
+        obj({
+          type: 'rainwater',
+          points: [
+            [0, 0],
+            [500, 0],
+          ],
+          props: { dn: 110, depth: 0.8 },
+        }),
+        obj({
+          type: 'rainwater',
+          points: [
+            [0, 0],
+            [250, 0],
+          ],
+          props: { dn: 110 },
+        }),
+        obj({
+          type: 'rainwater',
+          points: [
+            [0, 0],
+            [100, 0],
+          ],
+          props: { dn: 160 },
+        }),
+        obj({
+          type: 'rainwater',
+          points: [
+            [0, 0],
+            [50, 0],
+          ],
+        }),
+        obj({
+          type: 'cable',
+          points: [
+            [0, 0],
+            [100, 0],
+          ],
+          props: { depth: 0.6 },
+        }),
+      ],
+      50,
+    );
+    expect(rows).toEqual([
+      { key: 'rainwater:dn110', label: 'Regenwasserleitung DN 110', unit: 'm', quantity: 15 },
+      { key: 'rainwater:dn160', label: 'Regenwasserleitung DN 160', unit: 'm', quantity: 2 },
+      { key: 'rainwater', label: 'Regenwasserleitung', unit: 'm', quantity: 1 },
+      { key: 'cable', label: 'Erdkabel', unit: 'm', quantity: 2 },
+    ]);
+    const line = (props: object, type = 'rainwater') => [
+      {
+        id: 'a',
+        type,
+        points: [
+          [0, 0],
+          [1, 1],
+        ],
+        props,
+      },
+    ];
+    expect(validateObjects(line({ dn: 110, depth: 0.8 }))).toBeNull();
+    expect(validateObjects(line({ dn: 5 }))).toMatch(/Nennweite/);
+    expect(validateObjects(line({ dn: 110.5 }))).toMatch(/Nennweite/);
+    expect(validateObjects(line({ dn: 110 }, 'cable'))).toMatch(/keine Nennweite/);
+    expect(validateObjects(line({ depth: -1 }))).toMatch(/Verlegetiefe/);
+    expect(
+      validateObjects([
+        {
+          id: 'a',
+          type: 'lawn',
+          points: [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+          ],
+          props: { depth: 1 },
+        },
+      ]),
+    ).toMatch(/keine Verlegetiefe/);
+  });
+
   it('prüft Objekte', () => {
     expect(
       validateObjects([

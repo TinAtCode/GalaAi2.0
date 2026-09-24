@@ -26,7 +26,7 @@ export interface PlanObject {
   type: ObjectType;
   points: Point[];
   label?: string;
-  props?: { mowingEdge?: boolean; spaces?: number; icon?: Pictogram };
+  props?: { mowingEdge?: boolean; spaces?: number; icon?: Pictogram; dn?: number; depth?: number };
 }
 
 interface TypeInfo {
@@ -89,6 +89,11 @@ export const PICTOGRAMS: Record<Pictogram, string> = {
 };
 
 export const GROUPS = ['Entwässerung', 'Leitungen & Grenzen', 'Flächen', 'Symbole'] as const;
+export type Group = (typeof GROUPS)[number];
+
+// Leitungen mit Nennweite (wie PIPE_TYPES im Backend); übliche DN im GaLaBau
+export const PIPE_TYPES: ObjectType[] = ['rainwater', 'wastewater', 'drain_channel'];
+export const DN_OPTIONS = [50, 70, 100, 110, 125, 150, 160, 200, 250, 300, 400];
 
 // Muster für Flächen (in Bildschirmgröße, unabhängig vom Zoom)
 export function PatternDefs({ zoom }: { zoom: number }) {

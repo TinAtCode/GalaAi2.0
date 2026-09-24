@@ -13,7 +13,10 @@ import { api, ApiError } from '../../api/client';
 import { QuoteFromPlan } from './QuoteFromPlan';
 import { useAuth } from '../../auth/AuthContext';
 import {
+  DN_OPTIONS,
+  Group,
   GROUPS,
+  PIPE_TYPES,
   labelAnchor,
   PatternDefs,
   PICTOGRAMS,
@@ -90,6 +93,9 @@ export function PlanEditorPage() {
   // Kalibrieren mitskalieren (ihre Maße bleiben), sonst bleiben sie am Bild
   const [keepSizes, setKeepSizes] = useState(false);
   const [showMeasures, setShowMeasures] = useState(true);
+  // Ebenen: ausgeblendete Gruppen; Flächen blass, damit Leitungen darunter lesbar sind
+  const [hidden, setHidden] = useState<Group[]>([]);
+  const [paleAreas, setPaleAreas] = useState(false);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [background, setBackground] = useState<{ id: string; url: string } | null>(null);
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.7);
@@ -540,7 +546,11 @@ export function PlanEditorPage() {
     };
     for (const o of objects) {
       const t = TYPES[o.type];
-      if (t.kind === 'line') add(o.type, t.label, 'm', toMeters(polylineLength(o.points)));
+      if (t.kind === 'line') {
+        const dn = PIPE_TYPES.includes(o.type) ? o.props?.dn : undefined;
+        if (dn) add(`${o.type}:dn${dn}`, `${t.label} DN ${dn}`, 'm', toMeters(polylineLength(o.points)));
+        else add(o.type, t.label, 'm', toMeters(polylineLength(o.points)));
+      }
       if (t.kind === 'opening') {
         add(o.type, t.label, 'Stk', 1);
         add(`${o.type}:w`, `${t.label} (Breite gesamt)`, 'm', toMeters(polylineLength(o.points)));
@@ -578,6 +588,8 @@ export function PlanEditorPage() {
     return null;
   };
 
+  const visible = objects.filter((o) => !hidden.includes(TYPES[o.type].group));
+
   const renderObject = (o: PlanObject) => {
     const t = TYPES[o.type];
     const isSelected = o.id === selectedId;
@@ -613,7 +625,7 @@ export function PlanEditorPage() {
             <path
               d={d}
               fill={t.fill}
-              fillOpacity={0.85}
+              fillOpacity={paleAreas ? 0.3 : 0.85}
               stroke={o.type === 'lawn' && o.props?.mowingEdge ? '#555' : t.color}
               strokeWidth={(o.type === 'lawn' && o.props?.mowingEdge ? 4 : 1.5) * px}
             />
@@ -666,6 +678,8 @@ export function PlanEditorPage() {
       o.type === 'parking' && o.props?.spaces ? `P ${o.props.spaces}` : o.type === 'parking' ? 'P' : null,
       t.kind === 'opening' ? t.label : null,
       t.kind !== 'text' ? o.label : null,
+      o.props?.dn ? `DN ${o.props.dn}` : null,
+      o.props?.depth !== undefined ? `${number(o.props.depth, 2)} m tief` : null,
       measure,
     ]
       .filter(Boolean)
@@ -965,8 +979,9 @@ export function PlanEditorPage() {
                 ))}
               </g>
             )}
-            {objects.filter((o) => TYPES[o.type].kind === 'area').map(renderObject)}
-            {objects.filter((o) => TYPES[o.type].kind !== 'area').map(renderObject)}
+            {/* Flächen unten, Leitungen und Symbole darüber */}
+            {visible.filter((o) => TYPES[o.type].kind === 'area').map(renderObject)}
+            {visible.filter((o) => TYPES[o.type].kind !== 'area').map(renderObject)}
             {preview.length > 0 && drawKind && (
               <path
                 data-ui
@@ -1068,12 +1083,18 @@ export function PlanEditorPage() {
                         value={selected.type}
                         onChange={(e) => {
                           const type = e.target.value as ObjectType;
+                          // Nennweite nur bei Leitungen mit DN, Tiefe nicht beim Zaun
+                          const { dn, depth, ...rest } = selected.props ?? {};
                           updateSelected({
                             type,
                             props:
                               type === 'pictogram'
                                 ? { icon: selected.props?.icon ?? 'tree' }
-                                : selected.props,
+                                : {
+                                    ...rest,
+                                    ...(dn !== undefined && PIPE_TYPES.includes(type) ? { dn } : {}),
+                                    ...(depth !== undefined && type !== 'fence' ? { depth } : {}),
+                                  },
                           });
                         }}
                       >
@@ -1098,6 +1119,54 @@ export function PlanEditorPage() {
                         data-testid="plan-mowing-edge"
                       />
                       mit Mähkante
+                    </label>
+                  )}
+                  {PIPE_TYPES.includes(selected.type) && (
+                    <label className="field">
+                      <span>Nennweite (DN)</span>
+                      <select
+                        value={selected.props?.dn ?? ''}
+                        onChange={(e) =>
+                          updateSelected({
+                            props: {
+                              ...selected.props,
+                              dn: e.target.value ? Number(e.target.value) : undefined,
+                            },
+                          })
+                        }
+                        data-testid="plan-dn"
+                      >
+                        <option value="">– ohne –</option>
+                        {DN_OPTIONS.map((dn) => (
+                          <option key={dn} value={dn}>
+                            DN {dn}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {TYPES[selected.type].kind === 'line' && selected.type !== 'fence' && (
+                    <label className="field">
+                      <span>Verlegetiefe (m)</span>
+                      <input
+                        key={selected.id}
+                        defaultValue={
+                          selected.props?.depth !== undefined ? number(selected.props.depth, 2) : ''
+                        }
+                        onBlur={(e) => {
+                          const raw = e.target.value.trim().replace(',', '.');
+                          const depth = raw ? Number(raw) : undefined;
+                          if (depth !== undefined && (!Number.isFinite(depth) || depth < 0 || depth > 20)) {
+                            setError('Verlegetiefe bitte in Metern zwischen 0 und 20 angeben.');
+                            return;
+                          }
+                          if (depth !== selected.props?.depth)
+                            updateSelected({ props: { ...selected.props, depth } });
+                        }}
+                        inputMode="decimal"
+                        placeholder="z. B. 0,80"
+                        data-testid="plan-depth"
+                      />
                     </label>
                   )}
                   {selected.type === 'parking' && (
@@ -1164,6 +1233,38 @@ export function PlanEditorPage() {
               )}
             </div>
           )}
+
+          <div className="job-card no-print" style={{ display: 'block' }} data-testid="plan-layers">
+            <strong>Ebenen</strong>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', marginTop: 6 }}>
+              {GROUPS.map((group) => (
+                <label
+                  key={group}
+                  className="list-item-meta"
+                  style={{ display: 'flex', gap: 4, alignItems: 'center' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!hidden.includes(group)}
+                    onChange={(e) =>
+                      setHidden(e.target.checked ? hidden.filter((g) => g !== group) : [...hidden, group])
+                    }
+                    data-testid={`plan-layer-${group}`}
+                  />
+                  {group}
+                </label>
+              ))}
+              <label className="list-item-meta" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={paleAreas}
+                  onChange={(e) => setPaleAreas(e.target.checked)}
+                  data-testid="plan-pale-areas"
+                />
+                Flächen blass
+              </label>
+            </div>
+          </div>
 
           <div className="job-card" style={{ display: 'block' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>

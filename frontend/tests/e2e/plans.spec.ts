@@ -92,4 +92,62 @@ test.describe('Lagepläne', () => {
     await item.getByRole('button', { name: 'Löschen' }).click();
     await expect(item).toHaveCount(0);
   });
+
+  test('Leitung unter der Rasenfläche: DN, Tiefe, Auswahl, Ebenen', async ({ page }) => {
+    const run = String(Date.now()).slice(-6);
+    await loginViaUi(page);
+    await page.goto(`/projekte/${SEED.projectId}`);
+    await page.getByTestId('plan-new-name').fill(`Leitungen ${run}`);
+    await page.getByTestId('plan-create').click();
+    await expect(page.getByTestId('plan-editor')).toBeVisible();
+
+    await page.getByTestId('plan-tool-lawn').click();
+    await clickAt(page, 100, 100);
+    await clickAt(page, 400, 100);
+    await clickAt(page, 400, 300);
+    await clickAt(page, 100, 300, { dblclick: true });
+
+    // Leitung quer durch den Rasen: Klicks innerhalb der Fläche setzen Punkte
+    await page.getByTestId('plan-tool-rainwater').click();
+    await clickAt(page, 150, 200);
+    await clickAt(page, 350, 200);
+    await page.keyboard.press('Enter');
+    const pipe = page.locator('[data-testid="plan-object"][data-type="rainwater"]');
+    await expect(pipe).toHaveCount(1);
+    await page.getByTestId('plan-dn').selectOption('110');
+    await page.getByTestId('plan-depth').fill('0,8');
+    await page.getByTestId('plan-depth').blur();
+    await expect(pipe).toContainText('DN 110 · 0,80 m tief');
+    await expect(page.getByTestId('plan-quantities')).toContainText('Regenwasser DN 110');
+
+    // Klick auf die Leitung (über dem Rasen) wählt die Leitung
+    await page.getByTestId('plan-tool-select').click();
+    await page.keyboard.press('Escape');
+    await clickAt(page, 250, 200);
+    await expect(page.getByTestId('plan-selection')).toContainText('Regenwasser');
+
+    // Ebenen: Flächen ausblenden, Leitung bleibt sichtbar; Flächen blass
+    await page.getByTestId('plan-layer-Flächen').uncheck();
+    await expect(page.locator('[data-testid="plan-object"][data-type="lawn"]')).toHaveCount(0);
+    await expect(pipe).toHaveCount(1);
+    await page.getByTestId('plan-layer-Flächen').check();
+    await page.getByTestId('plan-pale-areas').check();
+    await expect(page.locator('[data-testid="plan-object"][data-type="lawn"] path').first()).toHaveAttribute(
+      'fill-opacity',
+      '0.3',
+    );
+
+    await page.getByTestId('plan-save').click();
+    await expect(page.getByTestId('plan-state')).toHaveText('gespeichert');
+    await page.reload();
+    await expect(page.locator('[data-testid="plan-object"][data-type="rainwater"]')).toContainText(
+      'DN 110 · 0,80 m tief',
+    );
+
+    await page.goto(`/projekte/${SEED.projectId}`);
+    page.on('dialog', (dialog) => dialog.accept());
+    const item = page.getByTestId('plan-item').filter({ hasText: `Leitungen ${run}` });
+    await item.getByRole('button', { name: 'Löschen' }).click();
+    await expect(item).toHaveCount(0);
+  });
 });

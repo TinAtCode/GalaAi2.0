@@ -26,6 +26,9 @@ export const PLAN_OBJECT_TYPES = {
 
 export type PlanObjectType = keyof typeof PLAN_OBJECT_TYPES;
 
+// Leitungen mit Nennweite: Mengen je DN getrennt (eigene Leistungen im Angebot)
+export const PIPE_TYPES: PlanObjectType[] = ['rainwater', 'wastewater', 'drain_channel'];
+
 export const PICTOGRAMS = {
   tree: 'Baum',
   shrub: 'Strauch',
@@ -49,5 +52,7 @@ export interface PlanObject {
     mowingEdge?: boolean; // Rasen: Mähkante am Rand
     spaces?: number; // Parkplatz: Anzahl Stellplätze
     icon?: Pictogram; // Piktogramm
+    dn?: number; // Leitung/Rinne: Nennweite (DN)
+    depth?: number; // Leitung: Verlegetiefe in m
   };
 }

@@ -176,7 +176,9 @@ setzen. Die nächste Mahnung enthält dann die Aufstellung (Gebühren, Zinsen, P
 ein Foto oder eine PDF laden, dann „Maßstab“: zwei Punkte einer bekannten Strecke anklicken und die Länge
 eingeben. Rechts stehen die Mengen (m, m², Stück); „Speichern“, „Drucken“ oder „Als SVG“. „Ins Angebot
 übernehmen“: je Menge eine Leistung wählen (die Wahl wird gemerkt) und „Angebot anlegen“ – das Angebot steht
-danach als Entwurf am Projekt.
+danach als Entwurf am Projekt. Leitungen lassen sich quer über Rasen- oder Pflasterflächen zeichnen; nach
+Auswahl der Leitung rechts Nennweite (DN) und Verlegetiefe setzen. Unter „Ebenen“ Gruppen ausblenden oder
+„Flächen blass“ schalten.
 
 **Dokumente testen:** Auf einer Projektseite unter „Dokumente“ die Art wählen und ein PDF oder Foto
 hochladen, „Text erkennen“ angehakt lassen. Nach wenigen Sekunden steht „Text erkannt“ mit einem Ausschnitt

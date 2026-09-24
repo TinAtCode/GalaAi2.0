@@ -395,7 +395,11 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   übernehmen“ zeigt je Mengenzeile die Leistungen mit passender Einheit (Menge umgerechnet, z.B. m → cm,
   `GET /plans/:id/quote-draft`), vorbelegt mit der gemerkten Zuordnung je Firma (`PlanServiceMapping`,
   `PUT /plan-mappings/:key`); das Angebot entsteht über die normale Angebots-API, Kalkulation und Rundung der
-  Leistung gelten wie immer. Nächste Schritte: Aufmaß-App offline, DXF-Import.
+  Leistung gelten wie immer. Leitungen liegen immer über den Flächen (auch mitten in Rasen oder Pflaster
+  zeichenbar); Regenwasser, Schmutzwasser und Rinnen mit Nennweite (DN), Leitungen mit Verlegetiefe –
+  beides im Plan beschriftet, Mengen je DN getrennt (eigene Leistungen im Angebot). Ebenen (Entwässerung,
+  Leitungen & Grenzen, Flächen, Symbole) ein- und ausblenden, „Flächen blass“. Nächste Schritte: Aufmaß-App
+  offline, DXF-Import.
 
 - **Nachtrag – Einheiten und Rundung** (Stammdaten → Einheiten): Einheitenkatalog in `common/units.ts`
   (mm, cm, m, km, cm², m², ha, l, m³, g, kg, t, Stk, Sack, Palette, h, min, psch) mit Dimension,

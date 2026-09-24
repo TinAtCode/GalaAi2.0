@@ -1,4 +1,4 @@
-import { PICTOGRAMS, PLAN_OBJECT_TYPES, PlanObject, PlanObjectType } from './plan-catalog';
+import { PICTOGRAMS, PIPE_TYPES, PLAN_OBJECT_TYPES, PlanObject, PlanObjectType } from './plan-catalog';
 
 type Point = [number, number];
 
@@ -71,9 +71,19 @@ export function validateObjects(objects: unknown): string | null {
     if (type.kind === 'text' && !o.label?.trim()) return 'Beschriftung ohne Text.';
     if (o.props !== undefined) {
       if (typeof o.props !== 'object' || o.props === null) return 'Ungültige Eigenschaften.';
-      const { mowingEdge, spaces, icon, ...rest } = o.props;
+      const { mowingEdge, spaces, icon, dn, depth, ...rest } = o.props;
       if (Object.keys(rest).length) return 'Unbekannte Eigenschaft.';
       if (mowingEdge !== undefined && typeof mowingEdge !== 'boolean') return 'Ungültige Mähkante.';
+      if (dn !== undefined && (!Number.isInteger(dn) || dn < 10 || dn > 2000))
+        return 'Ungültige Nennweite (DN).';
+      if (dn !== undefined && !PIPE_TYPES.includes(o.type as PlanObjectType))
+        return `${type.label}: keine Nennweite.`;
+      if (
+        depth !== undefined &&
+        (typeof depth !== 'number' || !Number.isFinite(depth) || depth < 0 || depth > 20)
+      )
+        return 'Ungültige Verlegetiefe.';
+      if (depth !== undefined && type.kind !== 'line') return `${type.label}: keine Verlegetiefe.`;
       if (spaces !== undefined && (!Number.isInteger(spaces) || spaces < 0 || spaces > 10_000))
         return 'Ungültige Anzahl Stellplätze.';
       if (
@@ -111,7 +121,15 @@ export function planQuantities(objects: PlanObject[], unitsPerMeter: number): Qu
     const type = PLAN_OBJECT_TYPES[o.type];
     switch (type.kind) {
       case 'line':
-        add(o.type, type.label, 'm', m(polylineLength(o.points)));
+        // Leitungen mit Nennweite getrennt je DN
+        if (o.props?.dn && PIPE_TYPES.includes(o.type))
+          add(
+            `${o.type}:dn${o.props.dn}`,
+            `${type.label} DN ${o.props.dn}`,
+            'm',
+            m(polylineLength(o.points)),
+          );
+        else add(o.type, type.label, 'm', m(polylineLength(o.points)));
         break;
       case 'opening':
         add(o.type, type.label, 'Stk', 1);
@@ -146,5 +164,6 @@ export function isQuantityKey(key: string): boolean {
   if (base === 'parking') return extra === 'spaces';
   if (kind === 'opening') return extra === 'width';
   if (base === 'pictogram') return Object.prototype.hasOwnProperty.call(PICTOGRAMS, extra);
+  if (PIPE_TYPES.includes(base as PlanObjectType)) return /^dn[1-9]\d{1,3}$/.test(extra);
   return false;
 }
