@@ -33,48 +33,58 @@ test.describe('Baustelle', () => {
     });
     expect(created.ok()).toBeTruthy();
     const appointment = await created.json();
+    try {
+      await loginViaUi(page);
+      await page.getByTestId('nav-site').click();
+      await page.getByTestId('site-tomorrow').click();
+      const card = page.getByTestId('site-appointment').filter({ hasText: `Hecke ${run}` });
+      await expect(card).toBeVisible();
+      await expect(card.locator('.site-address')).toHaveAttribute('href', /google\.com\/maps\/dir/);
 
-    await loginViaUi(page);
-    await page.getByTestId('nav-site').click();
-    await page.getByTestId('site-tomorrow').click();
-    const card = page.getByTestId('site-appointment').filter({ hasText: `Hecke ${run}` });
-    await expect(card).toBeVisible();
-    await expect(card.locator('.site-address')).toHaveAttribute('href', /google\.com\/maps\/dir/);
+      // Fotos & Nachrichten
+      await card.getByTestId('site-open').click();
+      await page.getByTestId('site-text').fill(`Bin da ${run}`);
+      await page.getByTestId('site-send').click();
+      await expect(page.getByTestId('site-message').filter({ hasText: `Bin da ${run}` })).toBeVisible();
+      await page
+        .getByTestId('site-photo-input')
+        .setInputFiles({ name: 'hecke.png', mimeType: 'image/png', buffer: PNG });
+      await expect(page.getByTestId('site-photo').last()).toBeVisible();
 
-    // Fotos & Nachrichten
-    await card.getByTestId('site-open').click();
-    await page.getByTestId('site-text').fill(`Bin da ${run}`);
-    await page.getByTestId('site-send').click();
-    await expect(page.getByTestId('site-message').filter({ hasText: `Bin da ${run}` })).toBeVisible();
-    await page
-      .getByTestId('site-photo-input')
-      .setInputFiles({ name: 'hecke.png', mimeType: 'image/png', buffer: PNG });
-    await expect(page.getByTestId('site-photo').last()).toBeVisible();
+      // ohne Netz: wartet auf dem Gerät, danach automatisch übertragen
+      await context.setOffline(true);
+      await page.getByTestId('site-text').fill(`Offline ${run}`);
+      await page.getByTestId('site-send').click();
+      await expect(page.getByTestId('site-pending')).toContainText('wartet auf Netz');
+      await context.setOffline(false);
+      await expect(page.getByTestId('site-pending')).toHaveCount(0);
+      await expect(page.getByTestId('site-message').filter({ hasText: `Offline ${run}` })).toHaveCount(1);
 
-    // ohne Netz: wartet auf dem Gerät, danach automatisch übertragen
-    await context.setOffline(true);
-    await page.getByTestId('site-text').fill(`Offline ${run}`);
-    await page.getByTestId('site-send').click();
-    await expect(page.getByTestId('site-pending')).toContainText('wartet auf Netz');
-    await context.setOffline(false);
-    await expect(page.getByTestId('site-pending')).toHaveCount(0);
-    await expect(page.getByTestId('site-message').filter({ hasText: `Offline ${run}` })).toHaveCount(1);
+      // das Büro sieht alles am Projekt
+      await page.goto(`/projekte/${SEED.projectId}`);
+      const office = page.locator('#baustelle');
+      await expect(office.getByTestId('site-message').filter({ hasText: `Offline ${run}` })).toBeVisible();
 
-    // das Büro sieht alles am Projekt
-    await page.goto(`/projekte/${SEED.projectId}`);
-    const office = page.locator('#baustelle');
-    await expect(office.getByTestId('site-message').filter({ hasText: `Offline ${run}` })).toBeVisible();
-
-    // Termin erledigt
-    await page.goto('/baustelle');
-    await page.getByTestId('site-tomorrow').click();
-    await card.getByTestId('site-done').click();
-    await expect(card).toContainText('Erledigt');
-
-    // aufräumen
-    await request.patch(`${API_BASE_URL}/appointments/${appointment.id}/status`, {
-      headers,
-      data: { status: 'cancelled' },
-    });
+      // Termin erledigt. Die Antwort für heute kommt absichtlich zu spät: sie darf
+      // den inzwischen gewählten Tag (morgen) nicht überschreiben
+      const today = new Date();
+      const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      await page.route(`**/site/today?date=${todayKey}`, async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await route.continue();
+      });
+      const lateToday = page.waitForResponse((r) => r.url().includes(`/site/today?date=${todayKey}`));
+      await page.goto('/baustelle');
+      await page.getByTestId('site-tomorrow').click();
+      await lateToday;
+      await card.getByTestId('site-done').click();
+      await expect(card).toContainText('Erledigt');
+    } finally {
+      // aufräumen, auch wenn der Test scheitert (sonst überschneidet sich der Termin beim nächsten Versuch)
+      await request.patch(`${API_BASE_URL}/appointments/${appointment.id}/status`, {
+        headers,
+        data: { status: 'cancelled' },
+      });
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
@@ -60,21 +60,27 @@ export function SitePage() {
   });
   const cacheKey = `site-day:${user?.id}:${dateKey}`;
 
+  // nur die Antwort der letzten Anfrage zählt (Heute/Morgen schnell hintereinander)
+  const latest = useRef(0);
   const load = useCallback(() => {
+    const request = ++latest.current;
     api
       .get<SiteDay>(`/site/today?date=${dateKey}`)
       .then((result) => {
+        if (request !== latest.current) return;
         setDay(result);
         setFromCache(null);
         setError(null);
         void offlineDb.putCache(cacheKey, result).catch(() => undefined);
       })
       .catch(async (err) => {
+        if (request !== latest.current) return;
         if (!isNetworkError(err)) {
           setError(err instanceof ApiError ? err.message : 'Der Tag konnte nicht geladen werden.');
           return;
         }
         const cached = await offlineDb.getCache<SiteDay>(cacheKey).catch(() => undefined);
+        if (request !== latest.current) return;
         if (cached) {
           setDay(cached.value);
           setFromCache(cached.savedAt);
