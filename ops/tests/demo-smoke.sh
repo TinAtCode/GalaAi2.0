@@ -50,8 +50,8 @@ echo "✓ drei Zugänge, Mitarbeiter mit $count Terminen heute"
 # Demo-Agent als KI-Anbieter: Verbindungstest und Zeichnen im Lageplan
 agent=$(curl -fsS --cacert "$CA" -H "Authorization: Bearer $chef" "$BASE/ai/providers" | json 'v[0].id')
 tested=$(curl -fsS --cacert "$CA" -X POST -H "Authorization: Bearer $chef" -H 'X-Requested-With: fetch' \
-  "$BASE/ai/providers/$agent/test" | json 'v.ok')
-[ "$tested" = true ] || fail "Demo-Agent antwortet nicht"
+  "$BASE/ai/providers/$agent/test")
+[ "$(echo "$tested" | json 'v.ok')" = true ] || fail "Demo-Agent antwortet nicht: $tested"
 drawn=$(curl -fsS --cacert "$CA" -X POST -H "Authorization: Bearer $chef" -H 'Content-Type: application/json' \
   -d '{"prompt":"Auftrag: Rasen 10 x 5 m","task":"lageplan_zeichnen"}' "$BASE/ai/gateway/complete" | json 'v.data.objects.length')
 [ "$drawn" = 1 ] || fail "Demo-Agent zeichnet nicht"

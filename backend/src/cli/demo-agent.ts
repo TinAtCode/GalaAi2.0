@@ -3,7 +3,8 @@ import { answer } from '../demo-agent/demo-agent';
 
 // Demo-Agent als kleiner HTTP-Dienst (nur für docker-compose.demo.yml).
 // Ohne Schlüssel: er läuft nur im Docker-Netz der Demo, nicht nach außen.
-const port = Number(process.env.PORT ?? 8090);
+// eigene Variable: das Backend-Image setzt PORT=3000
+const port = Number(process.env.DEMO_AGENT_PORT ?? 8090);
 const MAX_BODY = 30 * 1024 * 1024;
 
 createServer((req, res) => {
