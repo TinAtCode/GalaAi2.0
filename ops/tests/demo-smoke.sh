@@ -22,7 +22,7 @@ json() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const 
 
 ops/demo/start.sh --https
 CA=ops/demo/certs/ca.crt
-IP=$(cat ops/demo/certs/ips | cut -d' ' -f1)
+IP=$(cut -d' ' -f1 < ops/demo/certs/ips)
 [ -n "$IP" ] || fail "keine Adresse im LAN erkannt"
 
 curl -fsS --retry 15 --retry-all-errors --retry-delay 2 --cacert "$CA" -o /dev/null "https://localhost:$DEMO_HTTPS_PORT/" || fail "HTTPS mit Demo-CA (localhost)"
