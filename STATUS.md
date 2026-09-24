@@ -233,7 +233,7 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   festgeschrieben. `backend/scripts/validate-xrechnung.sh` prüft XML-Schema, EN 16931 und XRechnung-Regeln
   und läuft in der CI auf allen in den Tests erzeugten E-Rechnungen. Versand per E-Mail (`POST /invoices/:id/send`, Button „Per E-Mail“): PDF und XRechnung im Anhang, an
   die Adresse des Kunden oder eine angegebene, protokolliert im Audit-Log; eingerichtet über `SMTP_URL`
-  und `MAIL_FROM`. Noch nicht unterstützt: Versand über Peppol.
+  und `MAIL_FROM`. Versand über Peppol ist nicht geplant (Entscheidung vom 24.09.2026).
 
 - **Nachtrag – ZUGFeRD**: Alle PDFs (Angebote, Rechnungen) sind PDF/A-3b: eingebettete Schrift Liberation
   Sans (maßgleich mit Helvetica, SIL OFL, `backend/assets/fonts`), sRGB-Farbprofil, XMP-Metadaten. Das PDF
@@ -303,7 +303,7 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Umsatz wieder offen. Umsätze ohne Rechnungsbezug (oder der Rest nach einer Überzahlung) lassen sich
   ignorieren und wieder öffnen. Ohne Bankreferenz bildet sich der Dublettenschlüssel aus Auszugskennung,
   Position und Merkmalen – nicht aus der vom Zahler gewählten EndToEndId. XML ohne DOCTYPE (Schutz vor
-  XXE), Datei höchstens 5 MB. Noch nicht: MT940 und CSV-Formate, automatische Abholung per EBICS/FinTS.
+  XXE), Datei höchstens 5 MB. MT940 und CSV siehe Nachtrag vom 25.09.2026. Automatische Abholung per EBICS/FinTS ist nicht geplant (Entscheidung vom 24.09.2026); Auszüge werden hochgeladen.
 
 - **Nachtrag – Dokumente am Projekt**: Abschnitt „Dokumente“ auf der Projektseite (Recht `document.read`):
   mehrere Dateien auf einmal hochladen mit Art (Foto, Lieferschein, Plan, Aufmaß …), herunterladen,
@@ -480,7 +480,8 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 
 - **Wartet auf Eingaben:** GAEB-Import (echte Beispieldateien vom Auftraggeber), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Hero-Vergleich (später), KI-Anbieter (Entscheidung; bestimmt die Qualität bei Screenshots, Fotos und freien PDFs).
 - **Erledigt am 25.09.2026:** Zahlungen auf Mahngebühren und Zinsen, Kontoauszüge als MT940 und CSV, DXF-Import, Aufmaß offline (installierbare App, Lagepläne ohne Netz), OCR-Limit über mehrere Server (siehe Nachtrag unten).
-- **Braucht eine Entscheidung oder Zugänge:** automatischer Kontoabruf (EBICS/FinTS: Bankzugang und ggf. FinTS-Produktregistrierung bei der Deutschen Kreditwirtschaft), Versand der E-Rechnungen über Peppol (Vertrag mit einem Peppol-Access-Point-Anbieter), Schwellen der Alarmregeln (erst nach einigen Wochen Betrieb sinnvoll).
+- **Nicht geplant (Entscheidung vom 24.09.2026):** automatischer Kontoabruf per EBICS/FinTS (Auszüge werden als CAMT.053, MT940 oder CSV hochgeladen), Versand der E-Rechnungen über Peppol (Versand per E-Mail mit PDF und XRechnung).
+- **Im Betrieb:** Schwellen der Alarmregeln nach einigen Wochen Betrieb an die echten Werte anpassen (`ops/prometheus`).
 - **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, Ablage der Dokumente im Objektspeicher, automatisches Ausrollen auf einen Server.
 - Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 
