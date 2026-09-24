@@ -732,6 +732,25 @@ enum OcrJobStatus {
 
 // Plätze für gleichzeitige Texterkennungen über alle Server-Instanzen
 // (OCR_CONCURRENCY). Ein Platz ist belegt, solange sein Halter ihn verlängert.
+// Verlauf der Betriebswerte: ein Messpunkt je Minute und Server, als
+// Grundlage für die Alarmschwellen (metrics/history). Nur Summen über alle
+// Firmen, keine Mandantendaten; wird nach METRICS_HISTORY_DAYS gelöscht.
+model MetricSample {
+  id                  String   @id @default(uuid())
+  at                  DateTime @default(now())
+  instance            String
+  requests            Int
+  serverErrors        Int
+  // Anfragen je Dauer-Bucket (nicht kumuliert), Grenzen wie LATENCY_BUCKETS, zuletzt +Inf
+  latencyBuckets      Int[]
+  eventLoopP99Seconds Float
+  rssBytes            Float
+  ocrWaiting          Int
+  mailFailures        Int
+
+  @@index([at])
+}
+
 model OcrSlot {
   id          Int       @id
   holder      String?

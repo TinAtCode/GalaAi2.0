@@ -14,11 +14,15 @@ const httpRequests = new Counter({
   registers: [registry],
 });
 
+// Grenzen der Dauer-Buckets; der Verlauf (metrics-history) speichert je Minute
+// die Anzahl je Bucket, plus einen letzten für alles darüber (+Inf)
+export const LATENCY_BUCKETS = [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
+
 const httpDuration = new Histogram({
   name: 'http_request_duration_seconds',
   help: 'Dauer der HTTP-Anfragen in Sekunden',
   labelNames: ['method', 'route'] as const,
-  buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  buckets: LATENCY_BUCKETS,
   registers: [registry],
 });
 
@@ -47,9 +51,42 @@ export function httpMetrics(req: Request, res: Response, next: NextFunction) {
   res.on('finish', () => {
     const pattern = (req.route as { path?: string } | undefined)?.path;
     const route = typeof pattern === 'string' ? `${req.baseUrl}${pattern}` : 'unmatched';
-    if (route === '/metrics' || route === '/health') return;
+    if (route.startsWith('/metrics') || route === '/health') return;
     httpRequests.inc({ method: req.method, route, status: String(res.statusCode) });
     stop({ method: req.method, route });
   });
   next();
+}
+
+export interface CounterSnapshot {
+  requests: number;
+  serverErrors: number;
+  // kumuliert wie in Prometheus: Anfragen bis zur jeweiligen Grenze, zuletzt alle
+  latencyCumulative: number[];
+  mailFailures: number;
+}
+
+// Zählerstände dieses Prozesses (über alle Routen) – der Verlauf speichert je
+// Minute die Differenz zweier Stände
+export async function snapshotCounters(): Promise<CounterSnapshot> {
+  const requests = (await httpRequests.get()).values;
+  const latencyCumulative = new Array<number>(LATENCY_BUCKETS.length + 1).fill(0);
+  for (const { metricName, labels, value } of (await httpDuration.get()).values) {
+    if (!metricName?.endsWith('_bucket')) continue;
+    const le = (labels as { le?: string | number }).le;
+    const index = le === '+Inf' ? LATENCY_BUCKETS.length : LATENCY_BUCKETS.indexOf(Number(le));
+    if (index >= 0) latencyCumulative[index] += value;
+  }
+  return {
+    requests: requests.reduce((sum, v) => sum + v.value, 0),
+    serverErrors: requests
+      .filter((v) => String(v.labels.status).startsWith('5'))
+      .reduce((sum, v) => sum + v.value, 0),
+    latencyCumulative,
+    mailFailures: (await mailSendFailures.get()).values.reduce((sum, v) => sum + v.value, 0),
+  };
+}
+
+export async function ocrWaitingNow() {
+  return (await ocrQueueWaiting.get()).values[0]?.value ?? 0;
 }

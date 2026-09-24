@@ -112,6 +112,12 @@ Internetzugang.
 `/metrics` abgeschaltet (404). Beispiel-Konfiguration und Alarmregeln für Prometheus liegen in
 `ops/prometheus`; `promtool test rules ops/prometheus/alerts.test.yml` prüft die Regeln.
 
+**Verlauf und Alarmschwellen testen:** Backend einige Minuten laufen lassen und dabei die App benutzen,
+dann `psql … -c 'SELECT * FROM "MetricSample"'` (eine Zeile je Minute) und
+`cd backend && npm run build && node dist/cli/alert-thresholds.js --days 1` → Bericht mit den gemessenen
+Werten und Vorschlägen (unter 14 Tagen als vorläufig markiert). Dasselbe als JSON:
+`curl -H "Authorization: Bearer <Token>" "http://localhost:3000/metrics/history?days=1"`.
+
 **Dokumente hochladen/herunterladen testen:** eine beliebige Datei als `multipart/form-data`-Feld
 `file` an `POST /documents/upload` schicken (optional `?projectId=...&documentType=invoice` als
 Query-Parameter) → legt die Datei unter `backend/uploads/<companyId>/...` ab und registriert die
