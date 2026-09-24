@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { api, ApiError, setUnauthorizedHandler, startNewSessionGeneration } from '../api/client';
 import { offlineDb } from '../offline/db';
+import { disablePush } from '../push/push';
 
 interface CurrentUser {
   id: string;
@@ -127,6 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = useCallback(async () => {
+    // Push-Nachrichten an diese Person nicht mehr auf dieses Gerät (geteilte Handys)
+    await disablePush().catch(() => undefined);
     await api.post('/auth/logout').catch(() => undefined);
     startNewSessionGeneration();
     // offline gespeicherte Pläne gehören zu dieser Anmeldung

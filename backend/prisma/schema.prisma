@@ -118,6 +118,7 @@ model Company {
   importSessions       ImportSession[]
   aiProviders          AiProviderConfig[]
   absences             Absence[]
+  pushSubscriptions    PushSubscription[]
   projectMessages      ProjectMessage[]
   projectMessageReads  ProjectMessageRead[]
 }
@@ -147,6 +148,7 @@ model User {
   projectMessages     ProjectMessage[]
   projectMessageReads ProjectMessageRead[]
   absences            Absence[]
+  pushSubscriptions   PushSubscription[]
 
   @@index([companyId])
 }
@@ -806,6 +808,34 @@ enum AbsenceKind {
   sick
   training
   other
+}
+
+// ─────────────────────────────────────────────
+// Push-Nachrichten (Web Push): ein Eintrag je Gerät/Browser eines Nutzers.
+// Die Schlüssel des Servers (VAPID) erzeugt GartenAI beim ersten Bedarf
+// selbst und legt sie verschlüsselt in AppSecret ab.
+// ─────────────────────────────────────────────
+model PushSubscription {
+  id         String    @id @default(uuid())
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id])
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastSentAt DateTime?
+
+  @@index([companyId, userId])
+}
+
+// Geheimnisse des Servers (nicht je Firma), verschlüsselt (common/secret-box.ts)
+model AppSecret {
+  name      String   @id
+  value     String
+  createdAt DateTime @default(now())
 }
 
 // ─────────────────────────────────────────────

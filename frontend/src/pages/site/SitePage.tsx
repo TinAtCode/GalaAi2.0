@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { offlineDb } from '../../offline/db';
 import { isNetworkError, subscribeOffline, useOnline } from '../../offline/sync';
 import { SiteThread } from './SiteThread';
+import { PushToggle } from '../../push/PushToggle';
 
 interface SiteAppointment {
   id: string;
@@ -146,6 +147,8 @@ export function SitePage() {
           </button>
         </div>
       </header>
+
+      <PushToggle />
 
       {fromCache && (
         <p className="site-offline-note" data-testid="site-cached">

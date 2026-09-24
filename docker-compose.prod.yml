@@ -36,6 +36,8 @@ services:
       # verschlüsselt gespeicherte Geheimnisse (API-Schlüssel der KI-Anbieter)
       SECRET_KEY: ${SECRET_KEY:-}
       AI_BLOCK_PRIVATE_NETWORKS: ${AI_BLOCK_PRIVATE_NETWORKS:-}
+      # Kontakt für die Push-Dienste (Google, Mozilla, Apple), z.B. mailto:it@firma.de
+      PUSH_CONTACT: ${PUSH_CONTACT:-}
       # laufende Version (GET /api/health), prüft ops/deploy.sh nach dem Start
       GARTENAI_VERSION: ${GARTENAI_VERSION:-local}
       # Anzahl Proxys vor dem Backend: 1 = nur nginx, 2 = HTTPS-Proxy + nginx

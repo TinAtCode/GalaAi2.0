@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { PushService } from '../push/push.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   BoardQueryDto,
@@ -21,7 +22,38 @@ const DEFAULT_DURATION_MS = 60 * 60 * 1000; // 1h Annahme, wenn kein endTime ges
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private push?: PushService,
+  ) {}
+
+  // Push an den Mitarbeiter: nur für Termine der nächsten 14 Tage (keine Flut
+  // bei Planungen weit voraus, nichts für Vergangenes)
+  private async announce(
+    companyId: string,
+    appointment: { id: string; title: string; startTime: Date; assignedUserId: string | null },
+    changed: boolean,
+  ) {
+    if (!this.push || !appointment.assignedUserId) return;
+    const now = Date.now();
+    const start = appointment.startTime.getTime();
+    if (start < now || start > now + 14 * 86_400_000) return;
+    const timeZone = await this.getTimeZone(companyId);
+    const when = appointment.startTime.toLocaleString('de-DE', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone,
+    });
+    this.push.notifyLater(companyId, [appointment.assignedUserId], {
+      title: changed ? 'Termin geändert' : 'Neuer Termin',
+      body: `${when} Uhr: ${appointment.title}`,
+      url: '/baustelle',
+      tag: `appointment-${appointment.id}`,
+    });
+  }
 
   private async assertProjectBelongsToCompany(companyId: string, projectId: string) {
     const project = await this.prisma.project.findFirst({
@@ -151,12 +183,17 @@ export class AppointmentsService {
     // Kollisionsprüfung und Anlegen unter einer Sperre pro Mitarbeiter –
     // sonst könnten zwei gleichzeitige Buchungen beide die Prüfung bestehen.
     const timeZone = await this.getTimeZone(companyId);
-    return this.prisma.$transaction(async (tx) => {
-      await lockFor(tx, 'appointment', assignedUserId);
-      const effectiveEnd = endTime ?? new Date(startTime.getTime() + DEFAULT_DURATION_MS);
-      await this.assertNoCollision(tx, companyId, timeZone, assignedUserId, startTime, effectiveEnd);
-      return tx.appointment.create({ data });
-    });
+    return this.prisma
+      .$transaction(async (tx) => {
+        await lockFor(tx, 'appointment', assignedUserId);
+        const effectiveEnd = endTime ?? new Date(startTime.getTime() + DEFAULT_DURATION_MS);
+        await this.assertNoCollision(tx, companyId, timeZone, assignedUserId, startTime, effectiveEnd);
+        return tx.appointment.create({ data });
+      })
+      .then(async (created) => {
+        await this.announce(companyId, created, false);
+        return created;
+      });
   }
 
   // Plantafel: alle nicht abgesagten Termine im Zeitraum, mit Baustelle und Kunde
@@ -235,12 +272,20 @@ export class AppointmentsService {
     const data = { title: dto.title ?? existing.title, startTime, endTime, assignedUserId };
     if (!assignedUserId) return this.prisma.appointment.update({ where: { id }, data });
     const timeZone = await this.getTimeZone(companyId);
-    return this.prisma.$transaction(async (tx) => {
-      await lockFor(tx, 'appointment', assignedUserId);
-      const effectiveEnd = endTime ?? new Date(startTime.getTime() + DEFAULT_DURATION_MS);
-      await this.assertNoCollision(tx, companyId, timeZone, assignedUserId, startTime, effectiveEnd, id);
-      return tx.appointment.update({ where: { id }, data });
-    });
+    return this.prisma
+      .$transaction(async (tx) => {
+        await lockFor(tx, 'appointment', assignedUserId);
+        const effectiveEnd = endTime ?? new Date(startTime.getTime() + DEFAULT_DURATION_MS);
+        await this.assertNoCollision(tx, companyId, timeZone, assignedUserId, startTime, effectiveEnd, id);
+        return tx.appointment.update({ where: { id }, data });
+      })
+      .then(async (updated) => {
+        // neu zugeteilt oder verschoben: Bescheid geben
+        const reassigned = updated.assignedUserId !== existing.assignedUserId;
+        const moved = updated.startTime.getTime() !== existing.startTime.getTime();
+        if (reassigned || moved) await this.announce(companyId, updated, !reassigned);
+        return updated;
+      });
   }
 
   async updateStatus(companyId: string, id: string, dto: UpdateAppointmentStatusDto) {

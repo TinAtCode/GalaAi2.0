@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 30.09.2026 – Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 01.10.2026 – Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -588,6 +588,15 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   beschädigte ab. Die CI sichert bei jedem Push, löscht alles samt Volumes, spielt zurück und prüft
   Anmeldung, Daten und Dokumente Byte für Byte (`ops/tests/backup-restore.sh`). Siehe BETRIEB.md.
 
+- **Nachtrag – Push-Nachrichten**: Web Push (Standard, ohne Google/Apple-Konto): Mitarbeiter schalten
+  auf der Baustellen-Seite „Benachrichtigungen“ ein (`POST /push/subscribe`, je Gerät, höchstens 10 je
+  Nutzer). Nachricht bei einem neu zugeteilten oder verschobenen Termin der nächsten 14 Tage und bei neuen
+  Baustellen-Nachrichten an alle, die dort eingeplant sind oder im Verlauf geschrieben haben – nie an den
+  Absender. Antippen öffnet die passende Seite. Die Schlüssel des Servers (VAPID) erzeugt GartenAI selbst
+  und legt sie verschlüsselt ab; abbestellte Geräte fallen automatisch raus, beim Abmelden meldet die App
+  das Gerät ab. Braucht HTTPS; auf dem iPhone ab iOS 16.4 aus der installierten App (BETRIEB.md). Der
+  Versand läuft im Hintergrund und bremst keine Aktion.
+
 ---
 
 ## 6. Qualitätssicherung
@@ -600,6 +609,7 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 
 - **Zurückgestellt:** GAEB-Import (braucht echte Beispieldateien), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Ausrollen auf einen echten Server, Hero-Vergleich.
 - **Erledigt am 29.09.2026:** offenes KI-Gateway und Demo-Paket (siehe Nachträge, `KI-ANBINDUNG.md`, `DEMO.md`).
+- **Erledigt am 01.10.2026:** Push-Nachrichten für die Baustelle (siehe Nachtrag).
 - **Erledigt am 30.09.2026:** Abwesenheiten in der Plantafel, Sicherung und Zurückspielen als Skripte mit echtem Test in der CI (siehe Nachträge).
 - **Erledigt am 25.09.2026:** Zahlungen auf Mahngebühren und Zinsen, Kontoauszüge als MT940 und CSV, DXF-Import, Aufmaß offline (installierbare App, Lagepläne ohne Netz), OCR-Limit über mehrere Server (siehe Nachtrag unten).
 - **Nicht geplant (Entscheidung vom 24.09.2026):** automatischer Kontoabruf per EBICS/FinTS (Auszüge werden als CAMT.053, MT940 oder CSV hochgeladen), Versand der E-Rechnungen über Peppol (Versand per E-Mail mit PDF und XRechnung).
@@ -614,6 +624,5 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 
 ## 8. Nächste sinnvolle Schritte
 
-1. **Push-Nachrichten** für die Baustelle (neue Termine, Nachrichten aus dem Büro).
-2. **KI in den Abläufen nutzen:** z.B. Angebotstexte, Zusammenfassungen von Baustellen-Nachrichten, Belege lesen – über das Gateway mit dem eingerichteten Anbieter.
-3. **Dein Test** mit einem echten Projekt (siehe `TESTANLEITUNG.md`, für einen Server `BETRIEB.md`) – danach mit echten Rückmeldungen weiterplanen.
+1. **KI in den Abläufen nutzen:** z.B. Angebotstexte, Zusammenfassungen von Baustellen-Nachrichten, Belege lesen – über das Gateway mit dem eingerichteten Anbieter.
+2. **Dein Test** mit einem echten Projekt (siehe `TESTANLEITUNG.md`, für einen Server `BETRIEB.md`) – danach mit echten Rückmeldungen weiterplanen.
