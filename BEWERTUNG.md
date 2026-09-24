@@ -8,6 +8,8 @@ Grundlage: der gesamte Code (Prisma-Schema mit 23 Modellen, alle Services und Co
 
 ## Kurzfassung
 
+> **Stand heute:** Die in dieser Bewertung genannten Lücken sind geschlossen (✅ in den Tabellen): Rechnungen mit E-Rechnung, Zahlungen, Mahnwesen, Bankabgleich, DATEV, Benutzerverwaltung, Bearbeiten, Betrieb, dazu Pflegeverträge, Plantafel, Baustellen-App und Import. Offen sind nur zurückgestellte Punkte (GAEB, DATEV-Stammdaten) und das offene KI-Gateway – siehe `STATUS.md`, Abschnitte 7 und 8. Der folgende Text beschreibt den Ausgangsstand vom 22.09.2026.
+
 Die technische Grundlage ist ordentlich. Als Geschäftssoftware für einen Garten- und Landschaftsbaubetrieb ist GartenAI aber **noch nicht einsetzbar**. Das liegt weniger an der Qualität des vorhandenen Codes als daran, was fehlt. Und die bisherige Arbeitsweise hat Fehler verdeckt statt sie zu finden.
 
 ---
