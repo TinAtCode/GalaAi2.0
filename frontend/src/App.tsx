@@ -1,24 +1,28 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { lazyPage } from './lazy-pages';
 import { useAuth } from './auth/AuthContext';
 import { LoginPage } from './auth/LoginPage';
 import { AppShell } from './layout/AppShell';
 import { MyDayPage } from './pages/MyDayPage';
-import { CustomersPage } from './pages/CustomersPage';
-import { CustomerDetailPage } from './pages/CustomerDetailPage';
-import { ProjectsPage } from './pages/ProjectsPage';
-import { PlanBoardPage } from './pages/PlanBoardPage';
 import { SitePage, SiteProjectPage } from './pages/site/SitePage';
-import { ContractsPage } from './pages/contracts/ContractsPage';
-import { OfflinePlansPage } from './pages/OfflinePlansPage';
-import { PlanEditorPage } from './pages/plans/PlanEditorPage';
-import { ProjectDetailPage } from './pages/ProjectDetailPage';
-import { CalculationPage } from './pages/CalculationPage';
-import { MasterDataPage } from './pages/MasterDataPage';
-import { TeamPage } from './pages/TeamPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { OpenItemsPage } from './pages/OpenItemsPage';
-import { BankPage } from './pages/BankPage';
-import { FinancePage } from './pages/FinancePage';
+
+// Seiten, die erst beim Aufruf geladen werden (kleinerer Start, siehe lazy-pages.ts).
+// Mein Tag und Baustelle bleiben im Hauptpaket: die ersten Seiten auf dem Handy.
+const CustomersPage = lazyPage(() => import('./pages/CustomersPage'), 'CustomersPage');
+const CustomerDetailPage = lazyPage(() => import('./pages/CustomerDetailPage'), 'CustomerDetailPage');
+const ProjectsPage = lazyPage(() => import('./pages/ProjectsPage'), 'ProjectsPage');
+const PlanBoardPage = lazyPage(() => import('./pages/PlanBoardPage'), 'PlanBoardPage');
+const ContractsPage = lazyPage(() => import('./pages/contracts/ContractsPage'), 'ContractsPage');
+const OfflinePlansPage = lazyPage(() => import('./pages/OfflinePlansPage'), 'OfflinePlansPage');
+const PlanEditorPage = lazyPage(() => import('./pages/plans/PlanEditorPage'), 'PlanEditorPage');
+const ProjectDetailPage = lazyPage(() => import('./pages/ProjectDetailPage'), 'ProjectDetailPage');
+const CalculationPage = lazyPage(() => import('./pages/CalculationPage'), 'CalculationPage');
+const MasterDataPage = lazyPage(() => import('./pages/MasterDataPage'), 'MasterDataPage');
+const TeamPage = lazyPage(() => import('./pages/TeamPage'), 'TeamPage');
+const SettingsPage = lazyPage(() => import('./pages/SettingsPage'), 'SettingsPage');
+const OpenItemsPage = lazyPage(() => import('./pages/OpenItemsPage'), 'OpenItemsPage');
+const BankPage = lazyPage(() => import('./pages/BankPage'), 'BankPage');
+const FinancePage = lazyPage(() => import('./pages/FinancePage'), 'FinancePage');
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();

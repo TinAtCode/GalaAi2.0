@@ -63,6 +63,16 @@ export function dayRangeInZone(instant: Date, timeZone: string): { start: Date; 
   };
 }
 
+// Uhrzeit (Minuten nach Mitternacht, Ortszeit) an einem Kalendertag als
+// UTC-Zeitpunkt. Nicht einfach Tagesbeginn + Minuten: am Tag der Zeitumstellung
+// wäre 8:00 Uhr sonst 7:00 bzw. 9:00 Uhr.
+export function localTimeInZone(day: string, minutes: number, timeZone: string): Date {
+  const [y, m, d] = day.split('-').map(Number);
+  const guess = Date.UTC(y, m - 1, d) + minutes * 60_000;
+  const first = guess - offsetMs(new Date(guess), timeZone);
+  return new Date(guess - offsetMs(new Date(first), timeZone));
+}
+
 export function formatTimeInZone(instant: Date, timeZone: string): string {
   return instant.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone });
 }

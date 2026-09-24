@@ -1,14 +1,17 @@
 // Service Worker: App ohne Netz starten (Seite, Skripte, Schriften aus dem
 // Cache). Daten vom Server (/api) gehen nie über diesen Cache – die Lagepläne
 // hält die App selbst im Offline-Speicher (src/offline).
-const CACHE = 'gartenai-app-v1';
+// Beim Build eingetragen (vite.config.ts): alle Dateien der Version und ihr Kennzeichen
+const PRECACHE = [];
+const BUILD = 'dev';
+const CACHE = `gartenai-app-${BUILD}`;
 const MAX_ASSETS = 80;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(['/', '/manifest.webmanifest', '/icon.svg']))
+      .then((cache) => cache.addAll(['/', '/manifest.webmanifest', '/icon.svg', ...PRECACHE]))
       .then(() => self.skipWaiting()),
   );
 });
@@ -22,17 +25,21 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ältere Dateien (neue Version = neue Namen) nicht endlos sammeln
+// nachträglich geladene Dateien nicht endlos sammeln (die der Version bleiben)
 async function trim(cache) {
   const keys = await cache.keys();
-  const assets = keys.filter((request) => new URL(request.url).pathname.startsWith('/assets/'));
+  const assets = keys.filter((request) => {
+    const path = new URL(request.url).pathname;
+    return path.startsWith('/assets/') && !PRECACHE.includes(path);
+  });
   for (const request of assets.slice(0, Math.max(0, assets.length - MAX_ASSETS))) await cache.delete(request);
 }
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
-  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/'))
+    return;
 
   // Seitenaufruf: zuerst Netz (neueste Version), ohne Netz die gespeicherte App
   if (request.mode === 'navigate') {
@@ -45,14 +52,16 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match('/')),
+        .catch(() => caches.match('/', { ignoreVary: true })),
     );
     return;
   }
 
-  // Dateien mit Hash im Namen ändern sich nie: aus dem Cache, sonst laden und merken
+  // Dateien mit Hash im Namen ändern sich nie: aus dem Cache, sonst laden und merken.
+  // ignoreVary: Module-Skripte senden „Origin“, die vorab gespeicherte Antwort
+  // (ohne) würde bei „Vary: Origin“ sonst nicht passen
   event.respondWith(
-    caches.match(request).then(
+    caches.match(request, { ignoreVary: true }).then(
       (cached) =>
         cached ||
         fetch(request).then((response) => {

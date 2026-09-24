@@ -15,7 +15,11 @@ describe('Pflegeverträge: Kalender', () => {
 
   it('kürzt am Vertragsende und endet danach', () => {
     const ending = { startDate: '2026-01-01', endDate: '2026-02-15', billingInterval: 'monthly' as const };
-    expect(nextBillingPeriod(ending, ['2026-01-31'])).toEqual({ start: '2026-02-01', end: '2026-02-15' });
+    expect(nextBillingPeriod(ending, ['2026-01-31'])).toEqual({
+      start: '2026-02-01',
+      end: '2026-02-15',
+      share: { days: 15, of: 28 },
+    });
     expect(nextBillingPeriod(ending, ['2026-02-15'])).toBeNull();
   });
 

@@ -268,6 +268,14 @@ Ablehnen-Pfad), Termin anlegen. Die Tests nutzen die Beispieldaten aus dem Seed
 (`demo-project-id`, `demo-service-id`) und legen sich bei jedem Lauf ein neues Angebot per
 API an – mehrfaches Ausführen ist unproblematisch.
 
+Start ohne Netz mit dem fertigen Build und echtem Service Worker (startet die Vorschau auf Port 4173
+selbst und stoppt sie mitten im Test; das Backend braucht dafür
+`CORS_ORIGIN=http://localhost:5173,http://localhost:4173`):
+```bash
+VITE_API_BASE_URL=http://localhost:3000 npm run build
+E2E_PWA=1 npx playwright test tests/e2e/pwa-offline.spec.ts
+```
+
 ## 7. Wenn etwas nicht passt
 
 - **`429 Too Many Requests` beim Login:** Rate-Limit (5 Versuche/Minute) greift – kurz warten. Für die übrigen Endpunkte liegt das Limit bei 300/Minute je angemeldetem Nutzer (anonym je IP).

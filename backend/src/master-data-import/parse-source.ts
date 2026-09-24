@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import * as Papa from 'papaparse';
 import * as iconv from 'iconv-lite';
 import { readSheet } from 'read-excel-file/node';
+import { assertZipWithinLimits } from '../common/zip-guard';
 
 // Stammdaten aus „beliebigen Quellen“ als Tabelle: Kopfzeile + Zeilen aus
 // Texten. Erkannt werden Excel (.xlsx), CSV/Text mit beliebigem Trennzeichen
@@ -110,6 +111,7 @@ export function parseVcard(text: string): SourceTable {
 }
 
 async function parseXlsx(buffer: Buffer): Promise<SourceTable> {
+  assertZipWithinLimits(buffer);
   let sheet: unknown[][];
   try {
     sheet = await readSheet(buffer);

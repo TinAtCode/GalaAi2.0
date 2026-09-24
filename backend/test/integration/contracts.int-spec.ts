@@ -192,6 +192,35 @@ describe('Pflegeverträge', () => {
     expect(audit.map((a) => a.action)).toEqual(['contract.create', 'contract.status']);
   });
 
+  it('rechnet den letzten, gekürzten Zeitraum anteilig ab', async () => {
+    // Monatsvertrag endet 15 Tage nach Beginn eines Zeitraums von 1.3. bis 31.3.
+    const created = await api()
+      .post('/contracts')
+      .set(auth)
+      .send(
+        body({
+          title: 'Kurzvertrag',
+          startDate: '2026-03-01',
+          endDate: '2026-03-15',
+          tasks: [],
+          lines: [{ description: 'Pflege pauschal', unit: 'psch', quantity: 2, unitPrice: 310 }],
+        }),
+      )
+      .expect(201);
+    const invoice = await api().post(`/contracts/${created.body.id}/invoice`).set(auth).expect(201);
+    // 310 € × 15/31 = 150,00 € je Einheit, 2 Einheiten
+    expect(invoice.body).toMatchObject({
+      totalNet: '300',
+      servicePeriodEnd: expect.stringMatching(/^2026-03-15/),
+    });
+    expect(invoice.body.lineItems[0]).toMatchObject({
+      description: 'Pflege pauschal (anteilig 15 von 31 Tagen)',
+      quantity: '2',
+      unitPrice: '150',
+    });
+    await api().post(`/contracts/${created.body.id}/invoice`).set(auth).expect(400);
+  });
+
   it('prüft Eingaben, Rechte und Mandanten', async () => {
     await api()
       .post('/contracts')

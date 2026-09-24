@@ -2005,3 +2005,7 @@ input[type='radio'] {
     bottom: calc(var(--nav-height) + var(--safe-bottom));
   }
 }
+.page-loading {
+  padding: 24px;
+  color: var(--color-ink-muted);
+}

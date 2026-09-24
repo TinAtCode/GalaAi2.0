@@ -1,7 +1,7 @@
 # Backend für den Betrieb: Build mit allen Abhängigkeiten, Laufzeit nur mit
 # den Produktionsabhängigkeiten (inkl. Prisma-CLI für migrate deploy und den
 # OCR-Sprachdaten), als unprivilegierter Nutzer.
-FROM node:20-bookworm-slim AS build
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
@@ -12,7 +12,7 @@ COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends openssl tini && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production \

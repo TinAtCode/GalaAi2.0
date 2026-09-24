@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { lockFor } from '../common/advisory-lock';
 import { writeAudit } from '../common/audit';
-import { addCalendarDays, dayRangeInZone, localDayString } from '../common/time-zone';
+import { addCalendarDays, localDayString, localTimeInZone } from '../common/time-zone';
 import { resolveVatTreatment } from '../common/vat-treatment';
 import { totals } from '../invoices/invoices.service';
 import { CreateContractDto, ScheduleDto, UpdateContractDto } from './contract.dto';
@@ -295,10 +295,7 @@ export class ContractsService {
             contract.endDate ? dayOf(contract.endDate) : null,
           );
           for (const day of days) {
-            const startTime = new Date(
-              dayRangeInZone(new Date(`${day}T12:00:00Z`), company.timeZone).start.getTime() +
-                task.startMinutes * 60_000,
-            );
+            const startTime = localTimeInZone(day, task.startMinutes, company.timeZone);
             const endTime = new Date(startTime.getTime() + task.durationMinutes * 60_000);
             let assignedUserId = task.assignedUserId;
             if (assignedUserId) {
@@ -363,13 +360,20 @@ export class ContractsService {
       );
       if (!period) throw new BadRequestException('Der Vertrag ist bis zu seinem Ende abgerechnet.');
       if (onlyDue && !isBillingDue(period, contract.billInAdvance, today)) return null;
-      const lines = contract.lines.map((l) => ({
-        description: l.description,
-        unit: l.unit,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        lineTotal: cents(l.quantity.times(l.unitPrice)),
-      }));
+      // letzter, gekürzter Zeitraum: Preis anteilig nach Tagen (auf Cent gerundet)
+      const share = period.share;
+      const lines = contract.lines.map((l) => {
+        const unitPrice = share ? cents(l.unitPrice.times(share.days).dividedBy(share.of)) : l.unitPrice;
+        return {
+          description: share
+            ? `${l.description} (anteilig ${share.days} von ${share.of} Tagen)`
+            : l.description,
+          unit: l.unit,
+          quantity: l.quantity,
+          unitPrice,
+          lineTotal: cents(l.quantity.times(unitPrice)),
+        };
+      });
       return tx.invoice.create({
         data: {
           companyId,

@@ -65,10 +65,12 @@ test.describe('Oberfläche und Querverbindungen', () => {
     await expect(order.getByTestId('order-cancelled')).toHaveCount(0);
 
     // Termin anlegen und erledigen
-    await page.getByTestId('appointment-title').fill('Abnahme');
-    await page.getByTestId('appointment-date').fill('2030-05-02');
+    // Tag je Lauf verschieden: ein Termin vom letzten Lauf stünde sonst im Weg (Überschneidung)
+    const day = new Date(Date.UTC(2030, 0, 1) + (Number(run) % 3000) * 86_400_000).toISOString().slice(0, 10);
+    await page.getByTestId('appointment-title').fill(`Abnahme ${run}`);
+    await page.getByTestId('appointment-date').fill(day);
     await page.getByTestId('appointment-submit').click();
-    const appointment = page.getByTestId('appointment-item').filter({ hasText: 'Abnahme' });
+    const appointment = page.getByTestId('appointment-item').filter({ hasText: `Abnahme ${run}` });
     await appointment.getByTestId('appointment-done').click();
     await expect(appointment).toContainText('Erledigt');
 
@@ -90,8 +92,8 @@ test.describe('Oberfläche und Querverbindungen', () => {
     await page.getByTestId('tab-pricelist').click();
     const csv = [
       'Artikelnummer;Bezeichnung;Einheit;EK;VK',
-      `PL-${run}-1;Kies 8/16;t;21,50;32,00`,
-      `PL-${run}-2;Rindenmulch;m³;18,00;29,90`,
+      `PL-${run}-1;Kies 8/16 ${run};t;21,50;32,00`,
+      `PL-${run}-2;Rindenmulch ${run};m³;18,00;29,90`,
     ].join('\n');
     await page.getByTestId('pricelist-file').setInputFiles({
       name: 'preisliste.csv',
@@ -100,7 +102,7 @@ test.describe('Oberfläche und Querverbindungen', () => {
     });
     const preview = page.getByTestId('pricelist-preview');
     await expect(preview).toContainText('Neue Artikel (2)');
-    await expect(preview).toContainText('Kies 8/16');
+    await expect(preview).toContainText(`Kies 8/16 ${run}`);
     // Rindenmulch auslassen
     await preview.getByTestId('pricelist-accept').nth(1).uncheck();
     await page.getByTestId('pricelist-apply').click();
@@ -108,8 +110,8 @@ test.describe('Oberfläche und Querverbindungen', () => {
       'Übernommen: 1 neu, 0 geändert, 1 ausgelassen.',
     );
     await page.getByTestId('tab-articles').click();
-    await expect(page.getByText('Kies 8/16')).toBeVisible();
-    await expect(page.getByText('Rindenmulch')).toHaveCount(0);
+    await expect(page.getByText(`Kies 8/16 ${run}`)).toBeVisible();
+    await expect(page.getByText(`Rindenmulch ${run}`)).toHaveCount(0);
   });
 
   test('Dunkelmodus', async ({ page }) => {

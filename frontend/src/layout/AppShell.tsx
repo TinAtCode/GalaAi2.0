@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { prefetchPages } from '../lazy-pages';
 import { Icon, IconName } from './icons';
 import { CommandPalette } from './CommandPalette';
 import { offlineDb } from '../offline/db';
@@ -138,6 +139,10 @@ export function AppShell() {
 
   // offline gespeicherte Änderungen übertragen, sobald Netz da ist
   useEffect(() => startOfflineSync(), []);
+  // übrige Seiten im Hintergrund laden, damit sie auch ohne Netz aufgehen
+  useEffect(() => {
+    if (online) prefetchPages();
+  }, [online]);
 
   // Abmelden löscht die Offline-Daten – vorher warnen, wenn noch etwas wartet
   const signOut = async () => {
@@ -313,7 +318,9 @@ export function AppShell() {
             <NavLink to="/offline">Offline-Pläne</NavLink>
           </div>
         )}
-        <Outlet />
+        <Suspense fallback={<p className="page-loading">Lädt …</p>}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 25.09.2026 – Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 28.09.2026 – Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -22,14 +22,15 @@ Letzte Aktualisierung: 25.09.2026 – Code-Review mit Korrekturen, modernisierte
 | 11 | Mitarbeiter / Selbstbedienungs-Zeiterfassung | ✅ |
 | 12 | Dokumente + OCR + Objektspeicher | ✅ echter Datei-Upload/-Download + Text-/Bild-OCR inkl. gescannter PDFs (Rasterisierung) |
 | 13 | Datenwächter (Preislisten-Diff + Datei-Upload CSV/XLSX + zeilenweise Auswahl) | ✅ |
-| 14 | KI-Gateway | 🔶 Adapter-Grundgerüst fertig, kein aktiver Anbieter (Entscheidung folgt später) |
+| 14 | KI-Gateway | 🔶 Adapter-Grundgerüst fertig; Entscheidung: bewusst offen für eigene APIs, eigene Agenten und selbst gehostete Modelle (in Arbeit) |
 | 15 | Nachkalkulation (Arbeitszeit + Material, Soll/Ist) | ✅ |
 | — | E2E-Tests (Playwright), Lint/Format (ESLint+Prettier), CI (GitHub Actions), Container-Rauchtest | ✅ laufen bei jedem Push |
 | — | Rechnungen, E-Rechnung, ZUGFeRD, Zahlungen, Mahnwesen, Bankabgleich, DATEV, Dokumente, Finanzen, Betrieb | ✅ siehe Nachträge in Abschnitt 5 |
-| 16–18 | Mobile App, weitere Schnittstellen (GAEB, DATANORM), Admin-Auslagerung | ⬜ |
+| 16 | Mobile App | ✅ als installierbare Web-App (PWA): Aufmaß offline, Baustelle mit Tagesplan, Zeiten, Fotos und Nachrichten |
+| 17–18 | weitere Schnittstellen (GAEB, DATANORM), Admin-Auslagerung | ⬜ GAEB zurückgestellt |
 
 Backend: NestJS 11.2 (Express 5; bewusst noch nicht NestJS 12 – reines ESM, eigener Umbau) + Prisma 5 + PostgreSQL. Frontend: React 18 + React Router 7 + Vite 8 + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
-Tests: `cd backend && npm test` (167 Unit-Tests), `npm run test:integration` (160 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`) und `cd frontend && npm run test:e2e` (31 Playwright-E2E-Tests, 1 davon bewusst übersprungen). Dazu `bash ops/smoke-test.sh` für die Produktions-Container. Lint und Formatierung in beiden Projekten ohne Befund.
+Tests: `cd backend && npm test` (263 Unit-Tests), `npm run test:integration` (über 200 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`), `cd frontend && npm test` (12 Unit-Tests) und `npm run test:e2e` (48 Playwright-E2E-Tests, 1 davon bewusst übersprungen, 1 nur mit fertigem Build: `E2E_PWA=1`). Dazu `bash ops/smoke-test.sh` für die Produktions-Container. Lint und Formatierung in beiden Projekten ohne Befund.
 
 ---
 
@@ -96,7 +97,7 @@ npm run dev
 - **Überstunden**: EINE konfigurierbare Regelarbeitszeit pro Tag pro Firma (`regularDailyHours`, Standard 8h) statt komplexer Schichtmodelle – bewusste Vereinfachung für V1. Nur abgeschlossene/freigegebene Zeiteinträge zählen mit, ein noch laufender Eintrag fließt nicht ein. `overtimeSurchargePercent` ist als Feld vorbereitet, aber noch nicht mit der Lohnvorbereitung verknüpft (Punkt 29 nennt das explizit als "später").
 - **Nachkalkulation** vergleicht Soll (aktuelle Rezeptur × Menge aus Auftrag/Angebot) gegen Ist (gebuchte Zeiten/Material) – kein Snapshot der Soll-Werte, daher können sich rückwirkend Soll-Werte leicht verschieben, wenn sich eine Rezeptur später ändert. Material wird zum aktuellen Einkaufspreis bewertet (keine Snapshot-Bewertung zum Buchungszeitpunkt).
 - **KI-Gateway**: reine `AiProvider`-Schnittstelle + Injection-Token, aktuell an `NoopAiProvider` gebunden. Anbieterwechsel = eine Zeile im Modul ändern, kein anderer Code betroffen. Jeder Aufruf wird im Audit-Log protokolliert.
-- **Objektspeicher (Dokumente)**: dasselbe Muster wie beim KI-Gateway – eine `FileStorage`-Schnittstelle + Injection-Token, aktuell an `LocalDiskStorage` gebunden (Dateien unter `UPLOADS_DIR`, pro Firma in eigenem Unterordner). Wechsel auf S3/MinIO später = neue Klasse + eine Zeile im Modul. Datei-Upload/-Download real per HTTP getestet: Byte-für-Byte identischer Inhalt nach Upload+Download-Roundtrip.
+- **Objektspeicher (Dokumente)**: dasselbe Muster wie beim KI-Gateway – eine `FileStorage`-Schnittstelle + Injection-Token, wahlweise `LocalDiskStorage` (Dateien unter `UPLOADS_DIR`, pro Firma in eigenem Unterordner) oder S3-kompatibler Objektspeicher (`STORAGE=s3`, siehe Nachtrag „Dokumente im Objektspeicher“). Datei-Upload/-Download real per HTTP getestet: Byte-für-Byte identischer Inhalt nach Upload+Download-Roundtrip.
 - **Datenwächter**: Diff-Erkennung (neu/Preisänderung/Einheitenänderung) ist eine reine, getestete Funktion. `apply` unterstützt jetzt auch zeilenweise Auswahl über ein optionales `acceptedArticleNumbers`-Feld (Punkt 16: "teilweise übernehmen") – ohne dieses Feld bleibt das bisherige Verhalten (alles übernehmen) der Standard. Bewusst ohne eigene Staging-Tabelle: der Client ruft zuerst `analyze` auf und entscheidet selbst, welche Artikelnummern er übernehmen will. Datei-Import (CSV/XLSX) mit toleranter Spaltenerkennung (deutsche/englische Kopfzeilen, deutsches Zahlenformat) ist real per Datei-Upload möglich.
 - **OCR**: PDFs mit Textebene werden direkt und ohne Bild-OCR ausgelesen (`pdf-parse`). PDFs OHNE Textebene (gescannt) werden jetzt vollständig verarbeitet: `pdf-parse` rendert jede Seite als echtes Bild (`getScreenshot()`, keine zusätzliche Abhängigkeit nötig), jede Seite läuft durch dieselbe Bild-OCR-Engine wie direkt hochgeladene Fotos, Ergebnisse werden zusammengeführt (Deckel: max. 10 Seiten, siehe offene Punkte). Die OCR-Engine selbst ist wie beim KI-Gateway/Objektspeicher austauschbar (`ImageOcrEngine`-Interface + Token), aktuell `TesseractOcrEngine`. Dokumenttyp-Erkennung läuft über einfache Schlüsselwortsuche im extrahierten Text, keine KI nötig.
 - **Datenbank-Indizes**: alle Fremdschlüssel-Spalten (`companyId`, `projectId`, `customerId`, etc.) haben jetzt einen `@@index` – ohne das würde jede Mandantentrennungs-Abfrage einen Full-Table-Scan machen, sobald Tabellen wachsen. Bereits `@unique`/`@@unique`-Felder wurden bewusst NICHT zusätzlich indiziert (redundant, da Unique-Constraints in Postgres automatisch einen Index erzeugen).
@@ -250,7 +251,7 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Zahlungen und ein gleichzeitiges Storno werden über Sperren serialisiert. `GET /open-items` bzw. die Seite
   „Offene Posten“ zeigt alle Rechnungen mit Restbetrag, Fälligkeit (Rechnungsdatum + Zahlungsziel in
   Kalendertagen der Firmen-Zeitzone) und Tagen im Verzug. Jede Zahlung und Korrektur steht im Audit-Log.
-  Zahlungsbuchungen optional im DATEV-Export (siehe dort). Noch nicht: Bankabgleich.
+  Zahlungsbuchungen optional im DATEV-Export (siehe dort). Bankabgleich: siehe Nachtrag „Bankabgleich“.
 
 - **Nachtrag – Mahnwesen**: Aus den offenen Posten heraus Zahlungserinnerung, 1. und 2. Mahnung
   (`POST /invoices/:id/dunning`, Tabelle `DunningNotice`). Nur für überfällige, offene Rechnungen; die
@@ -259,7 +260,7 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Layout der Rechnung (`GET …/dunning/:id/pdf`) mit Tabelle Betrag/bezahlt/offen und Bankverbindung;
   Versand per E-Mail (`POST …/dunning/:id/send`) nur für die neueste, noch gültige Mahnung – nicht nach
   einer Zahlung, nach Ablauf der Frist oder bei stornierter Rechnung. Erstellen und Versand im Audit-Log.
-  Bewusst noch nicht: Mahngebühren und Verzugszinsen (eigene Forderung neben der Rechnung).
+  Mahngebühren und Verzugszinsen kamen später dazu (optional, siehe Nachtrag „Mahngebühren“).
 
 - **Nachtrag – Freie Angebotspositionen**: Neben Leistungen aus dem Katalog kann ein Angebot freie
   Positionen enthalten (Text, Einheit, Menge, Preis je Einheit, optional Kosten je Einheit für die
@@ -530,6 +531,31 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   sie wie bisher lokal. In der CI: shellcheck für alle Betriebsskripte und ein Test von `ops/deploy.sh` mit
   Attrappen für docker und curl (Ausrollen, Sicherung, kaputte Version, Rollback, fehlende Images).
 
+- **Nachtrag – Prüfung nach dem Ausbau**: Durchsicht von Baustelle, Import, Verträgen, Objektspeicher
+  und Ausrollen. Ergebnisse:
+  - **Ladezeit:** Die Seiten außer „Mein Tag“, Baustelle und Anmeldung werden erst beim Aufruf geladen
+    (Hauptpaket rund 210 KB statt aller Seiten); kurz nach dem Start lädt die App sie im Hintergrund
+    vor, damit sie auch ohne Netz aufgehen – auch dort, wo es keinen Service Worker gibt (http im LAN).
+  - **Offline-Start (Fehler behoben):** Beim ersten Besuch lädt die Seite ihre Dateien, bevor der
+    Service Worker aktiv ist – sie landeten nie im Cache, ohne Netz blieb die App leer, bis sie einmal
+    mit Netz neu geöffnet wurde. Jetzt trägt der Build alle Dateien in den Service Worker ein
+    (`vite.config.ts`), er speichert sie bei der Installation; Cache-Name nach Inhalt. Neuer Test mit
+    dem fertigen Build: Server stoppen, App neu öffnen, auch eine vorher nie geöffnete Seite
+    (`tests/e2e/pwa-offline.spec.ts`, eigener CI-Schritt).
+  - **Plantafel und Team:** Beim schnellen Blättern überschrieb eine späte Antwort die zuletzt gewählte
+    Woche bzw. Person – behoben (nur die letzte Anfrage zählt).
+  - **Verträge:** Der letzte, am Vertragsende gekürzte Zeitraum wird nach Tagen anteilig berechnet
+    (bisher der volle Betrag), in der Position steht „anteilig 15 von 31 Tagen“. Terminzeiten der
+    Verträge sind echte Ortszeit; an den Tagen der Zeitumstellung lagen sie vorher eine Stunde daneben.
+  - **Sicherheit:** Excel-Dateien (Import, Preisliste) werden vor dem Einlesen auf ihre entpackte Größe
+    geprüft (ZIP-Bomben, höchstens 100 MB). Sonst ohne Befund: Rechte je Endpunkt, Mandantentrennung
+    bei Import-Sitzungen und Abgleich, Fotos nur als Bildtypen mit `nosniff`, Speicherpfade auf die
+    Firma begrenzt (lokal und S3), Ausrollen mit fest hinterlegtem Server-Fingerabdruck.
+  - **Aktualisierungen:** Node 22 in CI und Containern, aktuelle GitHub Actions, npm audit ohne Befund.
+    Bewusst nicht: NestJS 12, Prisma 7, React 19, ESLint 10 (größere Umbauten ohne Nutzen für jetzt).
+  - **Tests:** Die E2E-Tests laufen jetzt auch wiederholt gegen dieselbe Datenbank (eindeutige Namen je
+    Lauf, Aufräumen auch bei Fehlern).
+
 ---
 
 ## 6. Qualitätssicherung
@@ -540,19 +566,22 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 
 ## 7. Offene Punkte
 
-- **Wartet auf Eingaben:** GAEB-Import (echte Beispieldateien vom Auftraggeber), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Hero-Vergleich (später), KI-Anbieter (Entscheidung; bestimmt die Qualität bei Screenshots, Fotos und freien PDFs).
+- **Zurückgestellt:** GAEB-Import (braucht echte Beispieldateien), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Ausrollen auf einen echten Server, Hero-Vergleich.
+- **KI-Anbieter (Entscheidung):** bewusst offen – eigene APIs (OpenAI-kompatibel, z.B. Ollama, LM Studio, vLLM), Anthropic und eigene Agenten, auch selbst gehostet. In Arbeit.
 - **Erledigt am 25.09.2026:** Zahlungen auf Mahngebühren und Zinsen, Kontoauszüge als MT940 und CSV, DXF-Import, Aufmaß offline (installierbare App, Lagepläne ohne Netz), OCR-Limit über mehrere Server (siehe Nachtrag unten).
 - **Nicht geplant (Entscheidung vom 24.09.2026):** automatischer Kontoabruf per EBICS/FinTS (Auszüge werden als CAMT.053, MT940 oder CSV hochgeladen), Versand der E-Rechnungen über Peppol (Versand per E-Mail mit PDF und XRechnung).
 - **Im Betrieb:** Schwellen der Alarmregeln nach einigen Wochen anpassen. Das Backend zeichnet die Werte dafür ab jetzt selbst auf; die Auswertung macht Vorschläge (siehe Nachtrag „Verlauf für die Alarmschwellen“ und BETRIEB.md).
 - **Erledigt am 26.09.2026:** Pflege- und Wartungsverträge (Einsätze als Termine, Abrechnung je Zeitraum), Plantafel (siehe Nachträge).
 - **Erledigt am 27.09.2026:** Stammdaten-Import aus beliebigen Quellen mit Abgleich, Dokumente im S3-kompatiblen Objektspeicher (siehe Nachträge).
 - **Erledigt am 28.09.2026:** Baustelle auf dem Handy (Tagesplan, Zeiten, Fotos, Nachrichten) als Teil der installierbaren App, automatisches Ausrollen auf einen Server (siehe Nachträge).
-- Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
+- **Erledigt (Prüfung nach dem Ausbau):** Seiten werden nachgeladen, die App startet ohne Netz auch beim ersten Mal vollständig, anteilige Abrechnung am Vertragsende, Vertragstermine an den Tagen der Zeitumstellung, Schutz vor ZIP-Bomben, robustere Tests (siehe Nachtrag).
+- Bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 
 ---
 
 ## 8. Nächste sinnvolle Schritte
 
-1. **Dein Test** mit einem echten Projekt (siehe `TESTANLEITUNG.md`, für einen Server `BETRIEB.md`) – danach mit echten Rückmeldungen weiterplanen.
-2. Die Punkte „Braucht eine Entscheidung oder Zugänge“ aus Abschnitt 7, sobald die Zugänge da sind.
-3. KI-Anbieter festlegen, sobald Screenshots, Fotos und freie PDFs zuverlässig gelesen werden sollen.
+1. **Offenes KI-Gateway:** eigene APIs und Agenten je Firma einstellbar, auch selbst gehostet.
+2. **Demo-Paket:** Einzelplatz ohne Server, Handys im selben WLAN verbinden (für Vorführungen).
+3. **Erweiterungen:** Abwesenheiten (Urlaub, Krankheit) in der Plantafel, Push-Nachrichten für die Baustelle, automatischer Test der Sicherung.
+4. **Dein Test** mit einem echten Projekt (siehe `TESTANLEITUNG.md`, für einen Server `BETRIEB.md`) – danach mit echten Rückmeldungen weiterplanen.

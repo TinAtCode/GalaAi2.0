@@ -46,10 +46,12 @@ test.describe('Baustelle', () => {
       await page.getByTestId('site-text').fill(`Bin da ${run}`);
       await page.getByTestId('site-send').click();
       await expect(page.getByTestId('site-message').filter({ hasText: `Bin da ${run}` })).toBeVisible();
+      const photos = await page.getByTestId('site-photo').count();
       await page
         .getByTestId('site-photo-input')
         .setInputFiles({ name: 'hecke.png', mimeType: 'image/png', buffer: PNG });
-      await expect(page.getByTestId('site-photo').last()).toBeVisible();
+      await expect(page.getByTestId('site-photo')).toHaveCount(photos + 1);
+      await expect(page.getByTestId('site-pending')).toHaveCount(0);
 
       // ohne Netz: wartet auf dem Gerät, danach automatisch übertragen
       await context.setOffline(true);
