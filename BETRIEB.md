@@ -62,6 +62,31 @@ ohne HTTPS: `COOKIE_SECURE=0`.
 Beides gehört zusammen: Die Datenbank verweist auf die Dateien. Zurückspielen
 der Datenbank mit `pg_restore -U gartenai -d gartenai --clean`.
 
+### Dokumente im Objektspeicher (S3)
+
+Statt im Volume `uploads` können die Dokumente in einem S3-kompatiblen
+Objektspeicher liegen (AWS, Hetzner Object Storage, IONOS, Wasabi, MinIO …).
+Das entlastet den Server, wächst ohne Plattenplatz und erlaubt mehrere
+Backend-Server nebeneinander.
+
+1. Bucket anlegen (nicht öffentlich), Zugangsschlüssel nur für diesen Bucket.
+   Versionierung im Bucket einschalten: Sie ersetzt das Sichern der Dateien.
+2. In `.env.production` setzen: `STORAGE=s3`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`,
+   `S3_SECRET_ACCESS_KEY`, bei anderen Anbietern als AWS `S3_ENDPOINT`
+   (z.B. `https://fsn1.your-objectstorage.com`) und `S3_REGION`. Optional
+   `S3_PREFIX` (eigener Bereich in einem geteilten Bucket) und `S3_SSE=AES256`.
+3. Vorhandene Dateien umziehen – vorher als Probelauf:
+   ```bash
+   docker compose -f docker-compose.prod.yml exec backend node dist/cli/migrate-storage.js --dry-run
+   docker compose -f docker-compose.prod.yml exec backend node dist/cli/migrate-storage.js
+   ```
+   Der Umzug liest jede Datei nach dem Hochladen zurück und vergleicht sie; er
+   lässt sich beliebig oft wiederholen (Vorhandenes wird übersprungen). Die
+   Pfade in der Datenbank bleiben gleich, die lokalen Dateien bleiben als
+   Sicherung liegen.
+4. Backend neu starten. Im Log steht `Dokumente im Speicher „s3“`; bei falschem
+   Bucket oder Schlüssel `Objektspeicher nicht erreichbar`.
+
 ## Aktualisieren
 
 ```bash

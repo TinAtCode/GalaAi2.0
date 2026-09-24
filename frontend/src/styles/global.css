@@ -1775,3 +1775,59 @@ input[type='radio'] {
   box-shadow: var(--shadow-raised);
   padding: 20px;
 }
+
+/* Stammdaten-Import: Zuordnung der Spalten, Vorschau */
+.import-mapping {
+  display: grid;
+  gap: 12px 16px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.import-table td {
+  vertical-align: top;
+}
+
+.import-change {
+  font-size: 0.85rem;
+}
+
+.import-change s {
+  color: var(--color-ink-muted);
+}
+
+.import-table th {
+  text-align: left;
+}
+
+.import-segmented {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Handy: jede Zeile als Karte (Auswahl links, Eintrag und Abgleich untereinander) */
+@media (max-width: 699px) {
+  .import-table thead {
+    display: none;
+  }
+
+  .import-table tr {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 4px 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .import-table td {
+    border: none;
+    padding: 0;
+  }
+
+  .import-table td:nth-child(2) {
+    display: none;
+  }
+
+  .import-table td:nth-child(4) {
+    grid-column: 2;
+  }
+}

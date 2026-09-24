@@ -16,6 +16,8 @@ export interface FileStorage {
   read(companyId: string, storagePath: string): Promise<Buffer>;
   // Löschen; eine bereits fehlende Datei ist kein Fehler
   remove(companyId: string, storagePath: string): Promise<void>;
+  // Erreichbarkeit prüfen (beim Start); optional
+  check?(): Promise<void>;
 }
 
 export const FILE_STORAGE = Symbol('FILE_STORAGE');

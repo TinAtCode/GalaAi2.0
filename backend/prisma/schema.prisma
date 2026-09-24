@@ -115,6 +115,7 @@ model Company {
   planServiceMappings  PlanServiceMapping[]
   maintenanceContracts MaintenanceContract[]
   contractTasks        ContractTask[]
+  importSessions       ImportSession[]
 }
 
 // ─────────────────────────────────────────────
@@ -749,6 +750,22 @@ model MetricSample {
   mailFailures        Int
 
   @@index([at])
+}
+
+// Eingelesene Quelle des Stammdaten-Imports bis zur Übernahme (höchstens
+// einen Tag): Vorschau und Übernahme arbeiten mit derselben Tabelle, ohne
+// dass der Browser die Daten erneut schickt
+model ImportSession {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  userId    String
+  source    String
+  headers   Json
+  rows      Json
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
 }
 
 model OcrSlot {
