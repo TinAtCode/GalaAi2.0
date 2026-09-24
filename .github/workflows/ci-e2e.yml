@@ -61,6 +61,9 @@ jobs:
           MAIL_FROM: Musterbetrieb <rechnung@musterbetrieb.de>
           # Entwicklungsserver und fertiger Build (PWA-Test, Port 4173)
           CORS_ORIGIN: http://localhost:5173,http://localhost:4173
+          # Demo-Anmeldung auf der Anmeldeseite (demo.spec.ts)
+          DEMO_MODE: '1'
+          DEMO_URLS: http://192.168.1.20:8080
         run: |
           npm run build
           node dist/main.js &

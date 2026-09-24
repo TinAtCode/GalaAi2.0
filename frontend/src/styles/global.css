@@ -2009,3 +2009,25 @@ input[type='radio'] {
   padding: 24px;
   color: var(--color-ink-muted);
 }
+
+/* Demo: Anmeldungen und QR-Code auf der Anmeldeseite */
+.demo-panel {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+.demo-panel h2 {
+  font-size: 1rem;
+  margin: 0 0 4px;
+}
+.demo-phone {
+  margin-top: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.demo-phone img {
+  border-radius: 8px;
+  background: #fff;
+}

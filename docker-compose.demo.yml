@@ -1,0 +1,96 @@
+# Demo für Vorführungen auf einem Rechner (Laptop), ohne Server: Datenbank,
+# Backend und App in Docker, dazu ein Musterbetrieb mit Beispieldaten und drei
+# Anmeldungen. Handys im selben WLAN verbinden sich über die Adresse des
+# Rechners (QR-Code auf der Anmeldeseite).
+#
+# Start:  ops/demo/start.sh         (macOS/Linux)
+#         ops\demo\start.cmd        (Windows)
+# Mit HTTPS (App auf dem Handy installierbar, offline): Startskript mit --https
+#
+# NUR FÜR VORFÜHRUNGEN: feste Demo-Geheimnisse, Anmeldung ohne HTTPS-Pflicht,
+# Mails werden nicht verschickt. Nicht für echte Daten verwenden (dafür
+# docker-compose.prod.yml, siehe BETRIEB.md).
+name: gartenai-demo
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gartenai
+      POSTGRES_USER: gartenai
+      POSTGRES_PASSWORD: demo
+    volumes:
+      - demo_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U gartenai -d gartenai']
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  backend:
+    image: gartenai-demo-backend
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://gartenai:demo@postgres:5432/gartenai?schema=public
+      JWT_SECRET: nur-fuer-die-demo-nicht-im-betrieb-verwenden
+      TRUST_PROXY: 1
+      # über http im LAN: Sitzungs-Cookie ohne Secure (mit --https ohnehin sicher)
+      COOKIE_SECURE: ${DEMO_COOKIE_SECURE:-0}
+      # Mails nur im Speicher (Rechnung „senden“ klappt, verschickt aber nichts)
+      SMTP_URL: test
+      MAIL_FROM: Musterbetrieb GaLaBau <info@musterbetrieb.de>
+      DEMO_MODE: '1'
+      # vom Startskript: Adressen des Rechners im LAN (QR-Code auf der Anmeldeseite)
+      DEMO_URLS: ${DEMO_URLS:-}
+      # mehrere Personen melden sich in der Vorführung oft neu an
+      LOGIN_RATE_LIMIT: 100
+      LOGIN_IP_RATE_LIMIT: 300
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - demo_uploads:/data/uploads
+
+  # legt beim ersten Start die Beispieldaten an und beendet sich dann
+  demo-data:
+    image: gartenai-demo-backend
+    # dasselbe Image wie das Backend (lokal gebaut), nie aus einer Registry laden
+    pull_policy: never
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://gartenai:demo@postgres:5432/gartenai?schema=public
+    command: ['node', 'dist/cli/demo-data.js', '--api', 'http://backend:3000']
+    restart: 'no'
+
+  frontend:
+    image: gartenai-demo-frontend
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      # 0.0.0.0: auch von anderen Geräten im WLAN erreichbar
+      - '0.0.0.0:${DEMO_PORT:-8080}:8080'
+
+  # nur mit --https: HTTPS mit eigener Demo-Zertifizierungsstelle (ops/demo/certs)
+  https:
+    image: caddy:2-alpine
+    profiles: ['https']
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    ports:
+      - '0.0.0.0:${DEMO_HTTPS_PORT:-8443}:8443'
+    volumes:
+      - ./ops/demo/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./ops/demo/certs:/certs:ro
+
+volumes:
+  demo_db:
+  demo_uploads:
