@@ -135,3 +135,16 @@ export function planQuantities(objects: PlanObject[], unitsPerMeter: number): Qu
   }
   return [...rows.values()].map((r) => ({ ...r, quantity: round(r.quantity, r.unit === 'Stk' ? 0 : 2) }));
 }
+
+// Gültige Schlüssel einer Mengenzeile (wie planQuantities sie bildet)
+export function isQuantityKey(key: string): boolean {
+  const [base, extra, ...rest] = key.split(':');
+  if (rest.length || !Object.prototype.hasOwnProperty.call(PLAN_OBJECT_TYPES, base)) return false;
+  const kind = PLAN_OBJECT_TYPES[base as PlanObjectType].kind;
+  if (extra === undefined) return kind !== 'text' && base !== 'pictogram';
+  if (base === 'lawn') return extra === 'mowingEdge';
+  if (base === 'parking') return extra === 'spaces';
+  if (kind === 'opening') return extra === 'width';
+  if (base === 'pictogram') return Object.prototype.hasOwnProperty.call(PICTOGRAMS, extra);
+  return false;
+}

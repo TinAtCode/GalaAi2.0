@@ -170,6 +170,96 @@ describe('Lagepläne', () => {
     await api().get(`/plans/${plan.id}`).set(auth).expect(404);
   });
 
+  it('Mengen ins Angebot: passende Leistungen, Umrechnung, gemerkte Zuordnung, Rundung der Leistung', async () => {
+    const plan = (
+      await api().post(`/projects/${projectId}/plans`).set(auth).send({ name: 'Angebot' }).expect(201)
+    ).body;
+    // Rasen 10 × 4,01 m mit Mähkante, Leitung 5 m, Tor
+    const lawnOdd = {
+      ...lawn,
+      points: [
+        [0, 0],
+        [500, 0],
+        [500, 200.5],
+        [0, 200.5],
+      ],
+    };
+    await api()
+      .put(`/plans/${plan.id}`)
+      .set(auth)
+      .send({
+        version: 1,
+        objects: [
+          lawnOdd,
+          pipe,
+          {
+            id: 'g1',
+            type: 'gate',
+            points: [
+              [0, 0],
+              [175, 0],
+            ],
+          },
+        ],
+      })
+      .expect(200);
+    const service = async (name: string, unit: string, extra: object = {}) => {
+      const id = (
+        await api()
+          .post('/services')
+          .set(auth)
+          .send({ name, unit, ...extra })
+          .expect(201)
+      ).body.id;
+      await api().post(`/services/${id}/components`).set(auth).send({ laborMinutes: 6 }).expect(201);
+      return id;
+    };
+    const turf = await service('Rollrasen verlegen', 'qm', { quantityDecimals: 0, quantityRounding: 'up' });
+    const edge = await service('Mähkante setzen', 'm');
+    const edgeCm = await service('Mähkante (cm)', 'cm');
+    const gateService = await service('Tor montieren', 'Stk');
+
+    const draft = (await api().get(`/plans/${plan.id}/quote-draft`).set(auth).expect(200)).body;
+    const row = (key: string) => draft.rows.find((r: { key: string }) => r.key === key);
+    expect(row('lawn')).toMatchObject({ quantity: 40.1, unit: 'm²', serviceId: null });
+    // nur Leistungen derselben Dimension, umgerechnet
+    expect(row('lawn').candidates.map((c: { id: string }) => c.id)).toEqual([turf]);
+    expect(row('lawn:mowingEdge').candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: edge, quantity: 28.02 }),
+        expect.objectContaining({ id: edgeCm, quantity: 2802 }),
+      ]),
+    );
+    expect(row('gate').candidates.map((c: { id: string }) => c.id)).toEqual([gateService]);
+
+    // Zuordnung merken
+    await api().put('/plan-mappings/lawn').set(auth).send({ serviceId: turf }).expect(200);
+    await api().put('/plan-mappings/lawn:mowingEdge').set(auth).send({ serviceId: edge }).expect(200);
+    await api().put('/plan-mappings/pool').set(auth).send({ serviceId: turf }).expect(400);
+    await api().put('/plan-mappings/pictogram:toString').set(auth).send({ serviceId: turf }).expect(400);
+    const again = (await api().get(`/plans/${plan.id}/quote-draft`).set(auth).expect(200)).body;
+    expect(again.rows.find((r: { key: string }) => r.key === 'lawn').serviceId).toBe(turf);
+
+    // Angebot über die normale Angebots-API: Rasen auf ganze m² aufgerundet
+    const quote = await api()
+      .post('/quotes')
+      .set(auth)
+      .send({
+        projectId,
+        lineItems: [
+          { serviceId: turf, quantity: 40.1 },
+          { serviceId: edge, quantity: 28.02 },
+        ],
+      })
+      .expect(201);
+    expect(quote.body.lineItems.map((l: { quantity: string }) => Number(l.quantity))).toEqual([41, 28.02]);
+
+    // Zuordnung entfernen; gelöschte Leistung fällt aus der Zuordnung
+    await api().put('/plan-mappings/lawn:mowingEdge').set(auth).send({ serviceId: null }).expect(200);
+    const cleared = (await api().get(`/plans/${plan.id}/quote-draft`).set(auth).expect(200)).body;
+    expect(cleared.rows.find((r: { key: string }) => r.key === 'lawn:mowingEdge').serviceId).toBeNull();
+  });
+
   it('Mitarbeiter sehen Pläne, zeichnen nicht; fremde Firmen sehen nichts', async () => {
     const plan = (
       await api().post(`/projects/${projectId}/plans`).set(auth).send({ name: 'Baustelle' }).expect(201)
@@ -208,5 +298,12 @@ describe('Lagepläne', () => {
     await api().get(`/projects/${projectId}/plans`).set(foreign).expect(404);
     await api().post(`/projects/${projectId}/plans`).set(foreign).send({ name: 'Fremd' }).expect(404);
     await api().delete(`/plans/${plan.id}`).set(foreign).expect(404);
+    await api().get(`/plans/${plan.id}/quote-draft`).set(foreign).expect(404);
+    await api().get(`/plans/${plan.id}/quote-draft`).set(staff).expect(403);
+    // fremde Leistung zuordnen
+    const ownService = (
+      await api().post('/services').set(auth).send({ name: 'Zaun setzen', unit: 'm' }).expect(201)
+    ).body.id;
+    await api().put('/plan-mappings/fence').set(foreign).send({ serviceId: ownService }).expect(404);
   });
 });

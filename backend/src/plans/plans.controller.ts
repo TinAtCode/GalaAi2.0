@@ -19,7 +19,7 @@ import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { requiredFile } from '../common/required-file';
-import { CreatePlanDto, UpdatePlanDto } from './plans.dto';
+import { CreatePlanDto, PlanMappingDto, UpdatePlanDto } from './plans.dto';
 import { PlansService } from './plans.service';
 
 const upload = FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } });
@@ -86,5 +86,18 @@ export class PlansController {
   async background(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     const { content, contentType } = await this.plans.background(user.companyId, id);
     return new StreamableFile(content, { type: contentType });
+  }
+
+  // Mengen fürs Angebot mit passenden Leistungen
+  @Get('plans/:id/quote-draft')
+  @RequirePermissions(PERMISSIONS.PLAN_READ, PERMISSIONS.QUOTE_CREATE)
+  quoteDraft(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.plans.quoteDraft(user.companyId, id);
+  }
+
+  @Put('plan-mappings/:key')
+  @RequirePermissions(PERMISSIONS.QUOTE_CREATE)
+  setMapping(@CurrentUser() user: AuthenticatedUser, @Param('key') key: string, @Body() dto: PlanMappingDto) {
+    return this.plans.setMapping(user.companyId, key, dto.serviceId);
   }
 }

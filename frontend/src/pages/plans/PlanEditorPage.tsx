@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../../api/client';
+import { QuoteFromPlan } from './QuoteFromPlan';
 import { useAuth } from '../../auth/AuthContext';
 import {
   GROUPS,
@@ -70,6 +71,7 @@ export function PlanEditorPage() {
   const { planId } = useParams();
   const { hasPermission } = useAuth();
   const canEdit = hasPermission('plan.write');
+  const canQuote = hasPermission('quote.create');
   const [plan, setPlan] = useState<Plan | null>(null);
   const [objects, setObjects] = useState<PlanObject[]>([]);
   const [name, setName] = useState('');
@@ -88,6 +90,7 @@ export function PlanEditorPage() {
   // Kalibrieren mitskalieren (ihre Maße bleiben), sonst bleiben sie am Bild
   const [keepSizes, setKeepSizes] = useState(false);
   const [showMeasures, setShowMeasures] = useState(true);
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const [background, setBackground] = useState<{ id: string; url: string } | null>(null);
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.7);
   const [size, setSize] = useState<Point>([800, 560]);
@@ -1193,11 +1196,26 @@ export function PlanEditorPage() {
                 </tbody>
               </table>
             )}
+            {canQuote && quantities.length > 0 && !quoteOpen && (
+              <button
+                className="btn no-print"
+                disabled={dirty}
+                title={dirty ? 'Bitte zuerst speichern' : undefined}
+                onClick={() => setQuoteOpen(true)}
+                data-testid="plan-to-quote"
+              >
+                Ins Angebot übernehmen{dirty ? ' (erst speichern)' : ''}
+              </button>
+            )}
             <p className="list-item-meta">
               Maßstab: {number(unitsPerMeter, 1)} Einheiten je Meter
               {!plan.background && ' (Raster 1 m)'}
             </p>
           </div>
+
+          {quoteOpen && !dirty && (
+            <QuoteFromPlan planId={plan.id} projectId={plan.projectId} onClose={() => setQuoteOpen(false)} />
+          )}
 
           <div className="job-card no-print" style={{ display: 'block' }}>
             {plan.background && (

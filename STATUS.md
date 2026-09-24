@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 24.09.2026 – Lagepläne am Projekt (Zeichenmodul, Schritt 1); davor Eingangsrechnungen und Liquiditätsvorschau. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 24.09.2026 – Lagepläne am Projekt mit Übernahme der Mengen ins Angebot; davor Eingangsrechnungen und Liquiditätsvorschau. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -381,8 +381,11 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Server berechnet, `GET /plans/:id`). Auswählen, Verschieben, Punkte ziehen, Fangen an vorhandenen Punkten,
   Umschalt = rechtwinklig, Rückgängig/Wiederholen, Drucken, Export als SVG. Speichern mit Versionsschutz
   (gleichzeitiges Bearbeiten → 409). Rechte `plan.read` (auch Mitarbeiter) und `plan.write` (wer Kunden/
-  Projekte bearbeitet), mandantengetrennt per Trigger. Nächste Schritte: Mengenliste ins Angebot übernehmen
-  (Leistung je Objektart), Aufmaß-App offline, DXF-Import.
+  Projekte bearbeitet), mandantengetrennt per Trigger. **Schritt 2 – Mengen ins Angebot**: „Ins Angebot
+  übernehmen“ zeigt je Mengenzeile die Leistungen mit passender Einheit (Menge umgerechnet, z.B. m → cm,
+  `GET /plans/:id/quote-draft`), vorbelegt mit der gemerkten Zuordnung je Firma (`PlanServiceMapping`,
+  `PUT /plan-mappings/:key`); das Angebot entsteht über die normale Angebots-API, Kalkulation und Rundung der
+  Leistung gelten wie immer. Nächste Schritte: Aufmaß-App offline, DXF-Import.
 
 - **Nachtrag – Einheiten und Rundung** (Stammdaten → Einheiten): Einheitenkatalog in `common/units.ts`
   (mm, cm, m, km, cm², m², ha, l, m³, g, kg, t, Stk, Sack, Palette, h, min, psch) mit Dimension,
@@ -422,7 +425,7 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 ## 7. Offene Punkte
 
 - **Wartet auf Eingaben:** GAEB-Import (echte Beispieldateien vom Auftraggeber), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Hero-Vergleich (später), KI-Anbieter (Entscheidung; bestimmt die Qualität bei Screenshots, Fotos und freien PDFs).
-- **In Arbeit bzw. als Nächstes:** Lagepläne Schritt 2 (Mengenliste ins Angebot, Zuordnung Objektart → Leistung), Mahngebühren und Verzugszinsen (optional).
+- **In Arbeit bzw. als Nächstes:** Mahngebühren und Verzugszinsen (optional); Lagepläne: Aufmaß-App offline, DXF-Import.
 - **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Aufmaß-App, Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, automatischer Bankabruf, Peppol, OCR über mehrere Server-Instanzen, automatisches Ausrollen auf einen Server.
 - Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 

@@ -10,7 +10,8 @@ import { PDFParse } from 'pdf-parse';
 import { PrismaService } from '../prisma/prisma.service';
 import { FILE_STORAGE, FileStorage } from '../documents/storage/file-storage.interface';
 import { PlanObject } from './plan-catalog';
-import { planQuantities, validateObjects } from './plan-geometry';
+import { isQuantityKey, planQuantities, validateObjects } from './plan-geometry';
+import { convertQuantity, normalizeUnit } from '../common/units';
 import { imageSize } from './image-size';
 import { CreatePlanDto, UpdatePlanDto } from './plans.dto';
 
@@ -201,4 +202,59 @@ export class PlansService {
     const type = imageSize(content)?.type;
     return { content, contentType: type === 'jpeg' ? 'image/jpeg' : 'image/png' };
   }
+
+  // Angebotsentwurf aus den Mengen des Plans: je Zeile die passenden
+  // Leistungen (gleiche Dimension, Menge in deren Einheit umgerechnet) und
+  // die gemerkte Zuordnung. Das Angebot selbst legt POST /quotes an – dort
+  // gelten Kalkulation und Rundung der Leistung wie immer.
+  async quoteDraft(companyId: string, id: string) {
+    const plan = await this.plan(companyId, id);
+    const rows = planQuantities(plan.objects as unknown as PlanObject[], plan.unitsPerMeter);
+    const [services, mappings] = await Promise.all([
+      this.prisma.service.findMany({
+        where: { companyId },
+        select: { id: true, name: true, unit: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.planServiceMapping.findMany({ where: { companyId } }),
+    ]);
+    return {
+      planId: plan.id,
+      projectId: plan.projectId,
+      rows: rows.map((row) => {
+        const candidates = services
+          .map((service) => ({ ...service, quantity: convert(row.quantity, row.unit, service.unit) }))
+          .filter((c): c is typeof c & { quantity: number } => c.quantity !== null);
+        const mapped = mappings.find((m) => m.quantityKey === row.key)?.serviceId;
+        return {
+          ...row,
+          serviceId: candidates.some((c) => c.id === mapped) ? mapped! : null,
+          candidates,
+        };
+      }),
+    };
+  }
+
+  async setMapping(companyId: string, key: string, serviceId: string | null) {
+    if (!isQuantityKey(key)) throw new BadRequestException('Unbekannte Mengenzeile.');
+    if (!serviceId) {
+      await this.prisma.planServiceMapping.deleteMany({ where: { companyId, quantityKey: key } });
+      return { quantityKey: key, serviceId: null };
+    }
+    const service = await this.prisma.service.findFirst({ where: { id: serviceId, companyId } });
+    if (!service) throw new NotFoundException('Leistung nicht gefunden.');
+    await this.prisma.planServiceMapping.upsert({
+      where: { companyId_quantityKey: { companyId, quantityKey: key } },
+      create: { companyId, quantityKey: key, serviceId },
+      update: { serviceId },
+    });
+    return { quantityKey: key, serviceId };
+  }
+}
+
+// Menge in die Einheit der Leistung (3 Nachkommastellen); null = passt nicht
+function convert(quantity: number, from: string, to: string): number | null {
+  if (normalizeUnit(from) === normalizeUnit(to)) return quantity;
+  const converted = convertQuantity(quantity, from, to);
+  return converted ? Math.round(converted.toNumber() * 1000) / 1000 : null;
 }

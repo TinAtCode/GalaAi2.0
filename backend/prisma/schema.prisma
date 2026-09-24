@@ -81,26 +81,27 @@ model Company {
   auditLogs AuditLog[]
 
   // direkte Mandanten-Zuordnung (statt Join-Kette Projekt -> Objekt -> Kunde)
-  properties        Property[]
-  projects          Project[]
-  quotes            Quote[]
-  orders            Order[]
-  appointments      Appointment[]
-  timeEntries       TimeEntry[]
-  materialUsages    ProjectMaterialUsage[]
-  numberSequences   NumberSequence[]
-  invoices          Invoice[]
-  ocrJobs           OcrJob[]
-  invoicePayments   InvoicePayment[]
-  dunningNotices    DunningNotice[]
-  bankTransactions  BankTransaction[]
-  bankBalances      BankBalance[]
-  unitSettings      UnitSetting[]
-  expenseCategories ExpenseCategory[]
-  categoryRules     CategoryRule[]
-  recurringPayments RecurringPayment[]
-  incomingInvoices  IncomingInvoice[]
-  sitePlans         SitePlan[]
+  properties          Property[]
+  projects            Project[]
+  quotes              Quote[]
+  orders              Order[]
+  appointments        Appointment[]
+  timeEntries         TimeEntry[]
+  materialUsages      ProjectMaterialUsage[]
+  numberSequences     NumberSequence[]
+  invoices            Invoice[]
+  ocrJobs             OcrJob[]
+  invoicePayments     InvoicePayment[]
+  dunningNotices      DunningNotice[]
+  bankTransactions    BankTransaction[]
+  bankBalances        BankBalance[]
+  unitSettings        UnitSetting[]
+  expenseCategories   ExpenseCategory[]
+  categoryRules       CategoryRule[]
+  recurringPayments   RecurringPayment[]
+  incomingInvoices    IncomingInvoice[]
+  sitePlans           SitePlan[]
+  planServiceMappings PlanServiceMapping[]
 }
 
 // ─────────────────────────────────────────────
@@ -361,7 +362,8 @@ model Service {
   quantityRounding QuantityRounding?
   quantityStep     Decimal?          @db.Decimal(10, 3)
 
-  components ServiceComponent[]
+  components   ServiceComponent[]
+  planMappings PlanServiceMapping[]
 
   @@index([companyId])
 }
@@ -1004,4 +1006,18 @@ model SitePlan {
 
   @@index([companyId])
   @@index([projectId])
+}
+
+// Welche Leistung zu einer Menge aus dem Lageplan gehört (z.B. "lawn" ->
+// "Rasen anlegen", "lawn:mowingEdge" -> "Mähkante setzen"); je Firma,
+// gemerkt beim Übernehmen ins Angebot
+model PlanServiceMapping {
+  id          String  @id @default(uuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  quantityKey String
+  serviceId   String
+  service     Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, quantityKey])
 }

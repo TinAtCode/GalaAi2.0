@@ -1,5 +1,6 @@
 import { PlanObject } from '../src/plans/plan-catalog';
 import {
+  isQuantityKey,
   planQuantities,
   polygonArea,
   polygonPerimeter,
@@ -106,6 +107,29 @@ describe('Lageplan: Geometrie', () => {
       { key: 'downpipe', label: 'Fallrohr', unit: 'Stk', quantity: 2 },
       { key: 'pictogram:tree', label: 'Baum', unit: 'Stk', quantity: 1 },
     ]);
+  });
+
+  it('Schlüssel der Mengenzeilen', () => {
+    for (const key of [
+      'lawn',
+      'lawn:mowingEdge',
+      'parking:spaces',
+      'gate',
+      'gate:width',
+      'pictogram:tree',
+      'gully',
+    ])
+      expect(isQuantityKey(key)).toBe(true);
+    for (const key of [
+      'text',
+      'pictogram',
+      'pictogram:ufo',
+      'fence:width',
+      'lawn:x',
+      'constructor',
+      'lawn:mowingEdge:x',
+    ])
+      expect(isQuantityKey(key)).toBe(false);
   });
 
   it('prüft Objekte', () => {

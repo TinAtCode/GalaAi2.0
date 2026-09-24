@@ -35,6 +35,7 @@ export const TENANT_MODELS = new Set([
   'RecurringPayment',
   'IncomingInvoice',
   'SitePlan',
+  'PlanServiceMapping',
 ]);
 
 const GUARDED_ACTIONS = new Set([

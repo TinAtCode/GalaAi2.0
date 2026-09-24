@@ -71,9 +71,21 @@ test.describe('Lagepläne', () => {
     await page.reload();
     await expect(page.locator('[data-testid="plan-object"]')).toHaveCount(3);
     await expect(page.getByTestId('plan-quantities')).toContainText('Regenwasser10,00 m');
+    // Mengen ins Angebot: Rasen -> Leistung in m² (Menge 75 vorbelegt)
+    await page.getByTestId('plan-to-quote').click();
+    const lawnRow = page.getByTestId('plan-quote-row').filter({ hasText: 'Rasenfläche: 75 m²' });
+    await lawnRow.getByTestId('plan-quote-service').selectOption({ label: '1 m² Terrasse verlegen (m²)' });
+    await expect(lawnRow.getByTestId('plan-quote-quantity')).toHaveValue('75');
+    // eindeutige Menge je Testlauf, um das neue Angebot sicher zu finden
+    const quantity = String(100 + (Number(run) % 800));
+    await lawnRow.getByTestId('plan-quote-quantity').fill(quantity);
+    await page.getByTestId('plan-quote-create').click();
+    await expect(page).toHaveURL(new RegExp(`/projekte/${SEED.projectId}$`));
+    await expect(
+      page.getByTestId('quote-line').filter({ hasText: `1 m² Terrasse verlegen (${quantity} m²)` }),
+    ).toHaveCount(1);
 
     // in der Projektliste
-    await page.goto(`/projekte/${SEED.projectId}`);
     const item = page.getByTestId('plan-item').filter({ hasText: `Garten ${run}` });
     await expect(item).toContainText('3 Objekte');
     page.on('dialog', (dialog) => dialog.accept());

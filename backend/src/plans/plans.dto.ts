@@ -1,4 +1,5 @@
 import {
+  ValidateIf,
   IsArray,
   IsInt,
   IsNumber,
@@ -40,4 +41,11 @@ export class UpdatePlanDto {
   @IsOptional()
   @IsArray()
   objects?: unknown[];
+}
+
+// Leistung zu einer Mengenzeile merken (null = Zuordnung entfernen)
+export class PlanMappingDto {
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  serviceId!: string | null;
 }

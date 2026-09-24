@@ -42,7 +42,7 @@ test.describe('Mahnwesen (Offene Posten)', () => {
     const row = page.locator(`[data-testid="open-item"][data-invoice-id="${invoiceId}"]`);
     await expect(row.getByTestId('open-item-overdue')).toHaveText('22 Tage überfällig');
     await row.getByTestId('dunning-create').click();
-    expect(created).toEqual(['POST']);
+    await expect.poll(() => created).toEqual(['POST']);
     await expect(row.getByTestId('dunning-entry')).toContainText('Zahlungserinnerung vom 23.09.2026');
     await expect(row.getByTestId('dunning-entry')).toContainText('Frist 30.09.2026');
     // Frist läuft: keine weitere Mahnstufe anbieten
