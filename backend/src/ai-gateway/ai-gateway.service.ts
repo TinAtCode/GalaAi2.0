@@ -12,12 +12,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiCompletionResult, AiProvider, AiProviderError } from './ai-provider.interface';
 import { filterContext, MAX_CONTEXT_BYTES } from './context-filter';
 import { CompleteDto } from './dto/complete.dto';
-import { CreateAiProviderDto, UpdateAiProviderDto } from './dto/provider.dto';
+import { AssignTaskDto, CreateAiProviderDto, UpdateAiProviderDto } from './dto/provider.dto';
+import { AI_CAPABILITIES, AI_TASKS, AiCapability, findTask } from './tasks';
 import { AgentProvider, AnthropicProvider, OpenAiCompatibleProvider } from './providers/configured-providers';
 import { assertProviderUrl } from './providers/http';
 import { NoopAiProvider } from './providers/noop-provider';
 
-interface Caller {
+export interface Caller {
   companyId: string;
   userId: string;
   permissions: string[];
@@ -40,11 +41,11 @@ function decryptKey(sealed: string) {
   }
 }
 
-export function providerFor(config: AiProviderConfig): AiProvider {
+export function providerFor(config: AiProviderConfig, model?: string | null): AiProvider {
   const settings = {
     name: config.name,
     baseUrl: config.baseUrl,
-    model: config.model,
+    model: model || config.model,
     apiKey: config.apiKeyEncrypted ? decryptKey(config.apiKeyEncrypted) : null,
     timeoutSeconds: config.timeoutSeconds,
     maxTokens: config.maxTokens,
@@ -118,6 +119,7 @@ export class AiGatewayService {
           timeoutSeconds: dto.timeoutSeconds ?? 60,
           maxTokens: dto.maxTokens ?? 1024,
           systemPrompt: dto.systemPrompt?.trim() || null,
+          capabilities: dto.capabilities ?? ['text'],
         },
       });
       const { hasApiKey, ...logged } = publicConfig(created);
@@ -157,6 +159,7 @@ export class AiGatewayService {
       timeoutSeconds: dto.timeoutSeconds,
       maxTokens: dto.maxTokens,
       systemPrompt: dto.systemPrompt !== undefined ? dto.systemPrompt.trim() || null : undefined,
+      capabilities: dto.capabilities,
     };
     const apiKeyEncrypted = dto.clearApiKey ? null : dto.apiKey ? sealSecret(dto.apiKey.trim()) : undefined;
     return this.prisma.$transaction(async (tx) => {
@@ -245,18 +248,94 @@ export class AiGatewayService {
     return this.prisma.aiProviderConfig.findFirst({ where: { companyId, enabled: true, isDefault: true } });
   }
 
+  // Wer übernimmt die Aufgabe? Zugeordneter Anbieter (mit eigenem Modell),
+  // sonst der Standard-Anbieter – jeweils nur, wenn er kann, was die Aufgabe braucht.
+  private async resolve(companyId: string, task?: string, providerId?: string) {
+    if (providerId) return { config: await this.activeConfig(companyId, providerId), model: null };
+    const needs: AiCapability = findTask(task)?.needs ?? 'text';
+    if (task) {
+      const assigned = await this.prisma.aiTaskAssignment.findFirst({
+        where: { companyId, task },
+        include: { provider: true },
+      });
+      if (assigned?.provider.enabled && assigned.provider.capabilities.includes(needs)) {
+        return { config: assigned.provider, model: assigned.model };
+      }
+    }
+    const fallback = await this.activeConfig(companyId);
+    return { config: fallback?.capabilities.includes(needs) ? fallback : null, model: null };
+  }
+
   async status(companyId: string) {
     const config = await this.activeConfig(companyId);
+    // welche Aufgaben ein Anbieter übernehmen kann (für die Knöpfe in der App)
+    const tasks: Record<string, boolean> = {};
+    for (const task of AI_TASKS) tasks[task.key] = Boolean((await this.resolve(companyId, task.key)).config);
     return config
-      ? { activeProvider: config.name, kind: config.kind, model: config.model, configured: true }
-      : { activeProvider: this.none.name, kind: null, model: null, configured: false };
+      ? { activeProvider: config.name, kind: config.kind, model: config.model, configured: true, tasks }
+      : { activeProvider: this.none.name, kind: null, model: null, configured: false, tasks };
   }
 
   // Einziger Ort, an dem ein KI-Anbieter aufgerufen wird. Jeder Aufruf steht
   // im Audit-Log (Quelle "ai"), auch fehlgeschlagene.
   async complete(caller: Caller, dto: CompleteDto): Promise<AiCompletionResult> {
-    const config = await this.activeConfig(caller.companyId, dto.providerId);
-    return this.run(caller, config ? providerFor(config) : this.none, config, dto);
+    const { config, model } = await this.resolve(caller.companyId, dto.task, dto.providerId);
+    return this.run(caller, config ? providerFor(config, model) : this.none, config, dto, model);
+  }
+
+  // Für die Funktionen der App (Angebotstext, Zusammenfassung …): ohne
+  // passenden Anbieter eine klare Meldung statt der Platzhalter-Antwort
+  async runTask(caller: Caller, task: string, prompt: string, context?: Record<string, unknown>) {
+    const { config, model } = await this.resolve(caller.companyId, task);
+    if (!config) {
+      throw new BadRequestException(
+        'Für diese Aufgabe ist kein KI-Anbieter eingerichtet (Einstellungen → KI-Anbieter).',
+      );
+    }
+    return this.run(caller, providerFor(config, model), config, { prompt, task, context }, model);
+  }
+
+  // ── Aufgaben zuordnen (Einstellungen → KI-Anbieter) ───────────────────────
+
+  async listTasks(companyId: string) {
+    const assignments = await this.prisma.aiTaskAssignment.findMany({ where: { companyId } });
+    return {
+      capabilities: AI_CAPABILITIES,
+      tasks: AI_TASKS.map((task) => {
+        const a = assignments.find((x) => x.task === task.key);
+        return { ...task, providerId: a?.providerId ?? null, model: a?.model ?? null };
+      }),
+    };
+  }
+
+  async assignTask(caller: Caller, taskKey: string, dto: AssignTaskDto) {
+    const task = findTask(taskKey);
+    if (!task) throw new NotFoundException('Unbekannte Aufgabe.');
+    const { companyId } = caller;
+    if (!dto.providerId) {
+      await this.prisma.aiTaskAssignment.deleteMany({ where: { companyId, task: task.key } });
+    } else {
+      const provider = await this.find(companyId, dto.providerId);
+      if (!provider.capabilities.includes(task.needs)) {
+        const label = AI_CAPABILITIES.find((c) => c.key === task.needs)!.label;
+        throw new BadRequestException(`„${provider.name}“ kann nicht: ${label}.`);
+      }
+      const model = dto.model?.trim() || null;
+      await this.prisma.aiTaskAssignment.upsert({
+        where: { companyId_task: { companyId, task: task.key } },
+        create: { companyId, task: task.key, providerId: provider.id, model },
+        update: { providerId: provider.id, model },
+      });
+    }
+    await writeAudit(this.prisma, {
+      companyId,
+      userId: caller.userId,
+      action: 'ai_task_assigned',
+      entity: 'AiTaskAssignment',
+      entityId: task.key,
+      newData: { task: task.key, providerId: dto.providerId ?? null, model: dto.model ?? null },
+    });
+    return this.listTasks(companyId);
   }
 
   private async run(
@@ -264,6 +343,7 @@ export class AiGatewayService {
     provider: AiProvider,
     config: AiProviderConfig | null,
     dto: Pick<CompleteDto, 'prompt' | 'task' | 'context'>,
+    modelOverride?: string | null,
   ): Promise<AiCompletionResult> {
     const context = dto.context
       ? (filterContext(dto.context, caller.permissions) as Record<string, unknown>)
@@ -298,7 +378,7 @@ export class AiGatewayService {
             task: dto.task ?? null,
             provider: provider.name,
             kind: config?.kind ?? 'none',
-            model: result?.model ?? config?.model ?? null,
+            model: result?.model ?? modelOverride ?? config?.model ?? null,
             prompt: dto.prompt.slice(0, 2000),
             contextKeys: context ? Object.keys(context) : [],
             durationMs: Date.now() - started,

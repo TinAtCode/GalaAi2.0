@@ -27,6 +27,8 @@ export interface BusinessDocumentPdf {
   }[];
   totals: { net: string; vatRate: string; vat: string; gross: string };
   notes: string[];
+  // Anschreiben über den Positionen (Angebot)
+  intro?: string | null;
   // E-Rechnung (CII/XRechnung) zum Einbetten -> ZUGFeRD-PDF (Factur-X)
   eInvoiceXml?: Buffer;
 }
@@ -199,6 +201,11 @@ export function renderBusinessDocumentPdf(doc: BusinessDocumentPdf): Promise<Buf
     { key: 'lineTotal', label: 'Gesamt', w: 85, align: 'right' as const },
   ];
   let y = 240;
+  if (doc.intro?.trim()) {
+    // pdfkit bricht lange Texte selbst auf die nächste Seite um
+    pdf.font(REGULAR).fontSize(10).fillColor('#000000').text(doc.intro.trim(), left, y, { width });
+    y = pdf.y + 14;
+  }
   const row = (values: string[], bold = false) => {
     pdf.font(bold ? BOLD : REGULAR).fontSize(9);
     let x = left;

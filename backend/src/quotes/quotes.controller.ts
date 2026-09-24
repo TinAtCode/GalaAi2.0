@@ -27,6 +27,7 @@ function maskQuote(quote: QuoteWithLines, permissions: string[]) {
     createdAt: quote.createdAt,
     vatRate: quote.vatRate,
     vatTreatment: quote.vatTreatment,
+    introText: quote.introText,
     totalNet: canSale ? quote.totalNet : undefined,
     totalVat: canSale ? quote.totalVat : undefined,
     totalGross: canSale ? quote.totalGross : undefined,

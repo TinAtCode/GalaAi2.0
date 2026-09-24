@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createServer } from 'node:http';
 import { AddressInfo } from 'node:net';
-import { API_BASE_URL, apiLogin, loginViaUi } from './fixtures';
+import { API_BASE_URL, SEED, apiLogin, loginViaUi } from './fixtures';
 
 // Eigenen Agenten einrichten, testen und fragen: der „Agent“ ist ein kleiner
 // HTTP-Server in diesem Test (wie ein selbst gehosteter Dienst im LAN).
@@ -14,7 +14,12 @@ test.describe('KI-Anbieter', () => {
       req.on('end', () => {
         const { task, prompt } = JSON.parse(body);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ text: task === 'verbindungstest' ? 'OK' : `Antwort ${run}: ${prompt}` }));
+        const answers: Record<string, string> = {
+          verbindungstest: 'OK',
+          angebotstext: `Sehr geehrte Damen und Herren, Anschreiben ${run}`,
+          baustelle_zusammenfassung: `- Zusammenfassung ${run}`,
+        };
+        res.end(JSON.stringify({ text: answers[task] ?? `Antwort ${run}: ${prompt}` }));
       });
     });
     await new Promise<void>((resolve) => agent.listen(0, '127.0.0.1', resolve));
@@ -29,7 +34,7 @@ test.describe('KI-Anbieter', () => {
       await section.getByTestId('ai-name').fill(`Agent ${run}`);
       await section.getByTestId('ai-baseUrl').fill(url);
       await section.getByTestId('ai-apiKey').fill('geheim');
-      await section.locator('input[type="checkbox"]').check();
+      await section.getByTestId('ai-isDefault').check();
       await section.getByTestId('ai-save').click();
       const item = section.getByTestId('ai-provider').filter({ hasText: `Agent ${run}` });
       await expect(item).toContainText('Schlüssel hinterlegt');
@@ -43,6 +48,32 @@ test.describe('KI-Anbieter', () => {
       await expect(section.getByTestId('ai-answer')).toHaveText(
         `Agent ${run}: Antwort ${run}: Was steht an?`,
       );
+
+      // Aufgabe dem Agenten zuordnen (hier gleich dem Standard, mit eigenem Modell)
+      const task = section.getByTestId('ai-task-angebotstext');
+      await task.getByTestId('ai-task-provider').selectOption({ label: `Agent ${run}` });
+      await task.getByTestId('ai-task-model').fill('klein');
+      await task.getByTestId('ai-task-save').click();
+      await expect(section.getByTestId('ai-message')).toContainText('gespeichert');
+
+      // Anschreiben im Angebot: Vorschlag der KI
+      await page.goto(`/projekte/${SEED.projectId}`);
+      await page.getByTestId('quote-new').click();
+      const form = page.getByTestId('quote-form');
+      await form.getByTestId('quote-intro-ai').click();
+      await expect(form.getByTestId('quote-intro')).toHaveValue(
+        `Sehr geehrte Damen und Herren, Anschreiben ${run}`,
+      );
+      await form.getByRole('button', { name: 'Abbrechen' }).click();
+
+      // Baustellen-Verlauf zusammenfassen
+      await request.post(`${API_BASE_URL}/site/projects/${SEED.projectId}/messages`, {
+        headers,
+        data: { text: `Hinweis ${run}` },
+      });
+      await page.reload();
+      await page.getByTestId('site-summary').click();
+      await expect(page.getByTestId('site-summary-text')).toHaveText(`- Zusammenfassung ${run}`);
     } finally {
       const providers = await (await request.get(`${API_BASE_URL}/ai/providers`, { headers })).json();
       for (const p of providers.filter((p: { name: string }) => p.name === `Agent ${run}`)) {

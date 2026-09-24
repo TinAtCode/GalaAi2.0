@@ -10,6 +10,7 @@ import {
   useSiteOutbox,
 } from '../../offline/sync';
 import { compressPhoto } from './photo';
+import { useAiTask } from '../../ai/tasks';
 
 export interface SiteMessage {
   id: string;
@@ -60,6 +61,42 @@ function PendingPhoto({ blob }: { blob: Blob }) {
   const url = useMemo(() => URL.createObjectURL(blob), [blob]);
   useEffect(() => () => URL.revokeObjectURL(url), [url]);
   return <img className="site-photo" src={url} alt="Foto wartet auf Übertragung" />;
+}
+
+// Zusammenfassung des Verlaufs durch die KI (nur mit eingerichtetem Anbieter)
+function SiteSummary({ projectId }: { projectId: string }) {
+  const { hasPermission } = useAuth();
+  const available = useAiTask('baustelle_zusammenfassung');
+  const online = useOnline();
+  const [summary, setSummary] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!available || !hasPermission('ai.use')) return null;
+  const run = async () => {
+    setBusy(true);
+    try {
+      setSummary((await api.post<{ text: string }>('/ai/assist/site-summary', { projectId })).text);
+    } catch (err) {
+      setSummary(err instanceof ApiError ? err.message : 'Keine Zusammenfassung möglich.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="site-summary">
+      <button className="btn btn-sm" onClick={run} disabled={busy || !online} data-testid="site-summary">
+        {busy ? 'KI fasst zusammen …' : 'Verlauf zusammenfassen'}
+      </button>
+      {summary && (
+        <div
+          className="list-item-meta"
+          style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}
+          data-testid="site-summary-text"
+        >
+          {summary}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Nachrichten und Fotos eines Projekts zwischen Büro und Baustelle. Ohne Netz
@@ -136,6 +173,7 @@ export function SiteThread({ projectId, compact }: { projectId: string; compact?
 
   return (
     <div className={`site-thread${compact ? ' is-compact' : ''}`} data-testid="site-thread">
+      {!!messages?.length && <SiteSummary projectId={projectId} />}
       {error && <p className="field-error">{error}</p>}
       {messages?.length === 0 && outbox.length === 0 && (
         <p className="list-item-meta">
