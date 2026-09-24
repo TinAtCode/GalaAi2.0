@@ -1,9 +1,13 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { PlanObject } from '../plans/plan-catalog';
+import { validateObjects } from '../plans/plan-geometry';
+import { objectsFromAi, PLAN_AI_PROMPT, planForAi } from '../plans/plan-ai';
+import { jsonFromText } from '../finance/payables/ai-read';
 import { FILE_STORAGE, FileStorage } from '../documents/storage/file-storage.interface';
-import { imagesForAi } from './images';
+import { imageMediaType, imagesForAi } from './images';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiGatewayService, Caller } from './ai-gateway.service';
-import { PhotoDescriptionDto, QuoteTextDto, SiteSummaryDto } from './dto/assist.dto';
+import { PhotoDescriptionDto, PlanDrawingDto, QuoteTextDto, SiteSummaryDto } from './dto/assist.dto';
 
 // so viele Nachrichten gehen höchstens in eine Zusammenfassung
 const SUMMARY_MESSAGES = 100;
@@ -147,5 +151,55 @@ export class AiAssistService {
       images,
     );
     return { text: result.text.trim(), providerName: result.providerName, model: result.model ?? null };
+  }
+
+  // Lageplan zeichnen (Aufgabe „lageplan_zeichnen“, Anbieter mit „Bilder/
+  // Zeichnungen erzeugen“): Die KI liefert Objekte in Metern, GartenAI prüft
+  // und rechnet sie um. Gespeichert wird nichts – der Vorschlag landet im
+  // Editor und lässt sich rückgängig machen. Ein eigener Agent darf zusätzlich
+  // ein Bild liefern (data.image), das man als Hintergrund übernehmen kann.
+  async planDrawing(caller: Caller, planId: string, dto: PlanDrawingDto) {
+    const plan = await this.prisma.sitePlan.findFirst({
+      where: { id: planId, companyId: caller.companyId },
+      select: {
+        name: true,
+        unitsPerMeter: true,
+        objects: true,
+        backgroundWidth: true,
+        backgroundHeight: true,
+      },
+    });
+    if (!plan) throw new NotFoundException('Lageplan nicht gefunden.');
+    if (dto.objects !== undefined) {
+      const error = validateObjects(dto.objects);
+      if (error) throw new BadRequestException(error);
+    }
+    const unitsPerMeter = dto.unitsPerMeter ?? plan.unitsPerMeter;
+    const current = (dto.objects ?? plan.objects) as unknown as PlanObject[];
+    const extent: [number, number] =
+      plan.backgroundWidth && plan.backgroundHeight
+        ? [plan.backgroundWidth, plan.backgroundHeight]
+        : [2000, 1500];
+    const result = await this.ai.runTask(
+      caller,
+      'lageplan_zeichnen',
+      `${PLAN_AI_PROMPT}\n\nAuftrag: ${dto.instruction.trim()}`,
+      { plan: plan.name, ...planForAi(current, unitsPerMeter, extent) },
+    );
+    const data = result.data as
+      { objects?: unknown; image?: { mediaType?: unknown; data?: unknown } } | undefined;
+    const raw = Array.isArray(data?.objects) ? data.objects : jsonFromText(result.text)?.objects;
+    const { objects, dropped } = objectsFromAi(raw, unitsPerMeter);
+
+    let image: { mediaType: string; data: string } | null = null;
+    if (typeof data?.image?.data === 'string') {
+      const buffer = Buffer.from(data.image.data, 'base64');
+      const mediaType = imageMediaType(buffer);
+      if ((mediaType === 'image/png' || mediaType === 'image/jpeg') && buffer.length <= 10 * 1024 * 1024) {
+        image = { mediaType, data: data.image.data };
+      }
+    }
+    const note = jsonFromText(result.text) ? null : result.text.trim().slice(0, 500) || null;
+    return { objects, dropped, image, note, providerName: result.providerName };
   }
 }

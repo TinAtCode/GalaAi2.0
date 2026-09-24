@@ -19,7 +19,7 @@ import { AuthenticatedUser } from '../common/authenticated-request';
 import { AiGatewayService } from './ai-gateway.service';
 import { CompleteDto } from './dto/complete.dto';
 import { AssignTaskDto, CreateAiProviderDto, UpdateAiProviderDto } from './dto/provider.dto';
-import { PhotoDescriptionDto, QuoteTextDto, SiteSummaryDto } from './dto/assist.dto';
+import { PhotoDescriptionDto, PlanDrawingDto, QuoteTextDto, SiteSummaryDto } from './dto/assist.dto';
 import { AiAssistService } from './ai-assist.service';
 
 // Nutzen braucht "ai.use"; Anbieter einrichten die Systemeinstellungen.
@@ -112,5 +112,16 @@ export class AiGatewayController {
   @RequirePermissions(PERMISSIONS.AI_USE, PERMISSIONS.SITE_USE)
   photoDescription(@CurrentUser() user: AuthenticatedUser, @Body() dto: PhotoDescriptionDto) {
     return this.assist.photoDescription(user, dto);
+  }
+
+  // Lageplan: Vorschlag der Zeichnungs-KI (wird nicht gespeichert)
+  @Post('assist/plans/:planId/drawing')
+  @RequirePermissions(PERMISSIONS.AI_USE, PERMISSIONS.PLAN_WRITE)
+  planDrawing(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('planId') planId: string,
+    @Body() dto: PlanDrawingDto,
+  ) {
+    return this.assist.planDrawing(user, planId, dto);
   }
 }

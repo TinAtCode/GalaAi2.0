@@ -48,6 +48,13 @@ export const AI_TASKS: AiTaskDefinition[] = [
     description: 'Was ist auf dem Foto zu sehen: Stand der Arbeiten, Schäden, Material',
     needs: 'vision',
   },
+  {
+    key: 'lageplan_zeichnen',
+    label: 'Lageplan zeichnen',
+    description:
+      'Flächen, Leitungen und Symbole nach Auftrag in den Lageplan zeichnen (Vorschlag, rückgängig machbar)',
+    needs: 'image',
+  },
 ];
 
 export const findTask = (key: string | undefined) => AI_TASKS.find((t) => t.key === key);

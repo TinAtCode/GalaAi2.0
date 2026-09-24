@@ -32,6 +32,7 @@ verschiedene Anbieter an verschiedenen Stellen arbeiten.
 | Baustellen-Verlauf zusammenfassen | `baustelle_zusammenfassung` | Text | Projekt bzw. Baustelle → „Verlauf zusammenfassen“ |
 | Beleg lesen | `beleg_lesen` | Bilder verstehen | Finanzen → Eingangsrechnungen → Beleg einlesen → „Mit KI lesen“ |
 | Baustellenfoto beschreiben | `foto_beschreiben` | Bilder verstehen | Foto in den Baustellen-Nachrichten → „Foto beschreiben“ |
+| Lageplan zeichnen | `lageplan_zeichnen` | Bilder/Zeichnungen erzeugen | Lageplan → „KI zeichnen“ |
 
 Für jede Aufgabe gilt der Reihe nach:
 
@@ -60,6 +61,25 @@ Das Anschreiben steht im Angebots-PDF über den Positionen und bleibt bis zur Fr
     bleibt leer.
   - Das Ergebnis ist nur ein Vorschlag im Formular.
 - **Protokoll:** Das Audit-Log zählt die Bilder, speichert sie aber nicht.
+
+**Lageplan zeichnen (Zeichnungs-KI):**
+- **Auftrag:** Man beschreibt in Worten, was gezeichnet werden soll, z.B. „Terrasse 5 × 4 m links oben,
+  daneben Rasen mit Mähkante“.
+- **Was die KI bekommt:** den aktuellen Plan in Metern (Größe, vorhandene Objekte) und die erlaubten
+  Objektarten und Piktogramme.
+- **Was sie liefert:** JSON `{ "objects": [{ "type", "points": [[x, y], …] in Metern, "label"?,
+  "props"? }] }`. Ein eigener Agent darf das direkt in `data.objects` liefern.
+- **Was GartenAI daraus macht:**
+  - Die Punkte werden in Planeinheiten umgerechnet und jedes Objekt wie beim Speichern geprüft.
+  - Ungültige Objekte fallen weg und werden gezählt.
+  - Höchstens 200 Objekte je Vorschlag.
+- **Als Vektor:** Weil die KI Objekte statt Pixel zeichnet, stimmen Flächen und Längen, und die
+  Mengen gehen wie gewohnt ins Angebot.
+- **Speichern:** Der Vorschlag kommt in den Editor und lässt sich rückgängig machen. Gespeichert wird
+  erst mit „Speichern“.
+- **Bild als Hintergrund:** Ein eigener Agent darf zusätzlich `data.image` liefern (`{ mediaType:
+  "image/png" | "image/jpeg", data: Base64 }`, höchstens 10 MB). Es lässt sich dann als Hintergrund
+  übernehmen, z.B. für eine Skizze aus einem Bildmodell.
 
 Selbst gehostete Modelle, die Bilder verstehen, sind z.B. `llava`, `llama3.2-vision` oder `qwen2.5vl`
 in Ollama.
@@ -179,5 +199,7 @@ createServer((req, res) => {
   (Rechte `ai.use` und `quote.create`)
 - `POST /ai/assist/site-summary` – `{ projectId }` (Rechte `ai.use` und `site.use`)
 - `POST /ai/assist/photo-description` – `{ documentId }` eines Baustellenfotos (Rechte `ai.use` und `site.use`)
+- `POST /ai/assist/plans/:planId/drawing` – `{ instruction, objects?, unitsPerMeter? }` → `{ objects,
+  dropped, image, note }` (Rechte `ai.use` und `plan.write`; nichts wird gespeichert)
 - `POST /finance/payables/documents/:documentId/ai-read` – Vorschlag fürs Formular (Rechte
   `finance.read` und `ai.use`)

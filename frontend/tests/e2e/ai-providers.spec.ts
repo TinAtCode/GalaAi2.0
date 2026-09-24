@@ -20,6 +20,28 @@ test.describe('KI-Anbieter', () => {
           baustelle_zusammenfassung: `- Zusammenfassung ${run}`,
           foto_beschreiben: `Foto ${run}: ${attachments?.[0]?.mediaType}`,
         };
+        if (task === 'lageplan_zeichnen') {
+          // Zeichnungs-KI: Rasen 10 × 5 m in Metern
+          res.end(
+            JSON.stringify({
+              text: 'gezeichnet',
+              data: {
+                objects: [
+                  {
+                    type: 'lawn',
+                    points: [
+                      [1, 1],
+                      [11, 1],
+                      [11, 6],
+                      [1, 6],
+                    ],
+                  },
+                ],
+              },
+            }),
+          );
+          return;
+        }
         res.end(JSON.stringify({ text: answers[task] ?? `Antwort ${run}: ${prompt}` }));
       });
     });
@@ -38,6 +60,7 @@ test.describe('KI-Anbieter', () => {
       await section.getByTestId('ai-isDefault').check();
       // der Agent versteht auch Bilder
       await section.getByTestId('ai-cap-vision').check();
+      await section.getByTestId('ai-cap-image').check();
       await section.getByTestId('ai-save').click();
       const item = section.getByTestId('ai-provider').filter({ hasText: `Agent ${run}` });
       await expect(item).toContainText('Schlüssel hinterlegt');
@@ -94,6 +117,23 @@ test.describe('KI-Anbieter', () => {
       const message = page.getByTestId('site-message').filter({ hasText: `Foto-Hinweis ${run}` });
       await message.getByTestId('photo-describe').click();
       await expect(message.getByTestId('photo-description')).toHaveText(`KI: Foto ${run}: image/png`);
+
+      // Lageplan: Zeichnungs-KI zeichnet einen Rasen ein, Menge stimmt, rückgängig möglich
+      const plan = await (
+        await request.post(`${API_BASE_URL}/projects/${SEED.projectId}/plans`, {
+          headers,
+          data: { name: `KI-Plan ${run}` },
+        })
+      ).json();
+      await page.goto(`/projekte/${SEED.projectId}/plaene/${plan.id}`);
+      await page.getByTestId('plan-ai-open').click();
+      await page.getByTestId('plan-ai-instruction').fill('Rasen 10 × 5 m oben links');
+      await page.getByTestId('plan-ai-submit').click();
+      await expect(page.getByText(`1 Objekte von der KI (Agent ${run}) eingezeichnet`)).toBeVisible();
+      const lawnRow = page.getByRole('row', { name: 'Rasen 50,00 m²' });
+      await expect(lawnRow).toBeVisible();
+      await page.getByTestId('plan-undo').click();
+      await expect(lawnRow).toHaveCount(0);
     } finally {
       const providers = await (await request.get(`${API_BASE_URL}/ai/providers`, { headers })).json();
       for (const p of providers.filter((p: { name: string }) => p.name === `Agent ${run}`)) {
