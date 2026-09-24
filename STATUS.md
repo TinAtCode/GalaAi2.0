@@ -519,6 +519,16 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Nachrichten und Fotos in eine Warteschlange auf dem Gerät und werden übertragen, sobald Netz da ist; eine vom
   Gerät vergebene `clientId` verhindert Doppelte. Im Büro steht derselbe Verlauf auf der Projektseite. Über
   `/site` sind nur Fotos aus Nachrichten abrufbar, keine anderen Dokumente.
+- **Nachtrag – Automatisches Ausrollen**: Workflow „Ausrollen“ (`.github/workflows/deploy.yml`) bei einem
+  Versions-Tag `v*` oder von Hand: baut Backend- und Frontend-Image, legt sie in ghcr.io ab und startet per SSH
+  (fester Server-Fingerabdruck) auf dem Server `ops/deploy.sh <version>`. Das Skript holt den Code der Version,
+  lädt die Images, sichert Datenbank und Dokumente (`.deploy/backups`, die letzten 10), startet neu (Migrationen
+  beim Start) und prüft über `GET /api/health`, dass die neue Version antwortet (`version` im Health-Check);
+  sonst zurück auf die vorige Version mit Hinweis zum Zurückspielen der Sicherung. `ops/deploy.sh --rollback`
+  geht von Hand eine Version zurück. Nie zwei Läufe gleichzeitig (Sperre auf dem Server, `concurrency` im
+  Workflow). `docker-compose.prod.yml` nutzt fertige Images (`GARTENAI_IMAGE`, `GARTENAI_VERSION`), baut ohne
+  sie wie bisher lokal. In der CI: shellcheck für alle Betriebsskripte und ein Test von `ops/deploy.sh` mit
+  Attrappen für docker und curl (Ausrollen, Sicherung, kaputte Version, Rollback, fehlende Images).
 
 ---
 

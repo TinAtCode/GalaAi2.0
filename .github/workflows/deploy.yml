@@ -1,0 +1,119 @@
+name: Ausrollen
+
+# Baut die Produktions-Images einer Version, legt sie in der GitHub-Registry
+# (ghcr.io) ab und rollt sie per SSH auf dem Server aus (ops/deploy.sh:
+# Sicherung, Start, Health-Check, bei Fehler zurück auf die vorige Version).
+#
+# Auslöser: ein Versions-Tag (git tag v1.4.0 && git push origin v1.4.0) oder
+# von Hand unter Actions → Ausrollen → Run workflow (Tag oder Commit).
+# Einrichtung (Secrets, Umgebung „production“): siehe BETRIEB.md.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Tag (z.B. v1.4.0) oder Commit; leer = aktueller main'
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+# nie zwei Ausrollvorgänge gleichzeitig
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version || github.ref }}
+          fetch-depth: 0
+      - name: Version und Image-Namen
+        id: meta
+        env:
+          INPUT: ${{ inputs.version }}
+        run: |
+          # Tag -> Tag-Name, sonst die volle Commit-Kennung (die findet der Server per git)
+          if [ "${GITHUB_REF_TYPE}" = tag ] && [ -z "$INPUT" ]; then version="${GITHUB_REF_NAME}"
+          elif [ -n "$INPUT" ] && git rev-parse --verify --quiet "refs/tags/$INPUT" > /dev/null; then version="$INPUT"
+          else version=$(git rev-parse HEAD); fi
+          # geht in einen SSH-Befehl und einen Image-Namen: nur harmlose Zeichen
+          [[ "$version" =~ ^[A-Za-z0-9._-]{1,100}$ ]] || { echo "::error::Ungültige Version: $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Backend-Image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ${{ steps.meta.outputs.image }}-backend:${{ steps.meta.outputs.version }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+      - name: Frontend-Image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: ${{ steps.meta.outputs.image }}-frontend:${{ steps.meta.outputs.version }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  deploy:
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Freigabe und Secrets über die Umgebung „production“ (Settings → Environments)
+    environment: production
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+    steps:
+      - name: Einrichtung prüfen
+        id: check
+        run: |
+          if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ] || [ -z "$DEPLOY_PATH" ]; then
+            echo "::warning::Kein Server eingerichtet (DEPLOY_HOST, DEPLOY_USER, DEPLOY_PATH) – Images sind gebaut, ausgerollt wird nicht."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: SSH-Zugang
+        if: steps.check.outputs.ready == 'true'
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Fingerabdruck des Servers fest hinterlegt: kein „trust on first use“
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Auf dem Server ausrollen
+        if: steps.check.outputs.ready == 'true'
+        env:
+          VERSION: ${{ needs.images.outputs.version }}
+          IMAGE: ${{ needs.images.outputs.image }}
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Das Token gilt nur für diesen Lauf und nur zum Laden der Images
+          ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH' && printf '%s' '$REGISTRY_TOKEN' | docker login ghcr.io -u '$REGISTRY_USER' --password-stdin > /dev/null \
+             && GARTENAI_IMAGE='$IMAGE' ops/deploy.sh '$VERSION'; status=\$?; docker logout ghcr.io > /dev/null; exit \$status"
