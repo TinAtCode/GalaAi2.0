@@ -89,6 +89,16 @@ und werden von nginx ohne Cache-Header ausgeliefert. Installieren und offline nu
 - `GET /api/health`: Lebenszeichen ohne Anmeldung (für Uptime-Checks).
 - `GET /api/metrics`: Prometheus-Metriken, nur mit `METRICS_TOKEN` als Bearer-Token.
   Beispiel-Konfiguration und Alarmregeln liegen in `ops/prometheus`.
+- **Alarmschwellen anpassen:** Das Backend speichert jede Minute einen Messpunkt in der Datenbank
+  (Tabelle `MetricSample`): Anfragen, Serverfehler, Antwortzeiten, OCR-Warteschlange, Event-Loop,
+  Speicher, fehlgeschlagene E-Mails. Das läuft auch ohne Prometheus. Nach einigen Wochen (ab 14 Tagen)
+  zeigt die Auswertung, was normal ist, und schlägt Schwellen vor:
+  `docker compose -f docker-compose.prod.yml exec backend node dist/cli/alert-thresholds.js --days 28`
+  (`--json` für maschinenlesbar) oder `GET /api/metrics/history?days=28&format=text` mit `METRICS_TOKEN`.
+  Je Regel: gemessene Werte (Median, 95/99/99,9 %, Höchstwert), wie oft der Alarm mit der jetzigen und der
+  vorgeschlagenen Schwelle ausgelöst hätte, und welche Zeile in `ops/prometheus/alerts.yml` zu ändern ist
+  (Text und `alerts.test.yml` mit anpassen, dann `promtool test rules`). Messpunkte älter als
+  `METRICS_HISTORY_DAYS` (Standard 90) werden gelöscht; `METRICS_HISTORY=off` schaltet den Verlauf ab.
 - Logs: `docker compose -f docker-compose.prod.yml logs -f backend` (eine JSON-Zeile je Anfrage).
 
 ## Prüfen

@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
+import { MetricsHistoryService } from '../../src/metrics/metrics-history.service';
 import { createApp, createCompany, resetDatabase, TestCompany } from './helpers';
 
 // Prometheus-Metriken: nur mit METRICS_TOKEN, Routen als Muster statt
@@ -51,5 +52,57 @@ describe('Metriken', () => {
     expect(res.text).toContain('process_cpu_user_seconds_total');
     expect(res.text).not.toContain(customer.body.id);
     expect(res.text).not.toContain('route="/metrics"');
+  });
+
+  // Verlauf für die Alarmschwellen: ein Messpunkt je Minute in der Datenbank
+  it('speichert Messpunkte und wertet sie über /metrics/history aus', async () => {
+    process.env.METRICS_TOKEN = 'geheim-123';
+    const history = app.get(MetricsHistoryService);
+    const auth = { Authorization: `Bearer ${company.token}` };
+    // in Tests aus – der erste Aufruf setzt nur den Ausgangsstand
+    expect(await history.flush()).toBeNull();
+    await api().get('/customers').set(auth).expect(200);
+    await api().get('/customers').set(auth).expect(200);
+    await api().get('/gibt-es-nicht').expect(404);
+    const saved = await history.flush();
+    expect(saved).toMatchObject({ requests: 3, serverErrors: 0, mailFailures: 0 });
+    expect(saved!.latencyBuckets.reduce((sum, n) => sum + n, 0)).toBe(3);
+    expect(saved!.rssBytes).toBeGreaterThan(0);
+
+    // alte Messpunkte fallen nach METRICS_HISTORY_DAYS weg
+    await prisma.metricSample.create({
+      data: {
+        at: new Date(Date.now() - 100 * 86_400_000),
+        instance: 'alt',
+        requests: 1,
+        serverErrors: 0,
+        latencyBuckets: [],
+        eventLoopP99Seconds: 0,
+        rssBytes: 0,
+        ocrWaiting: 0,
+        mailFailures: 0,
+      },
+    });
+    await history.prune();
+    expect(await prisma.metricSample.count({ where: { instance: 'alt' } })).toBe(0);
+
+    await api().get('/metrics/history').expect(401);
+    await api().get('/metrics/history').set(auth).expect(401);
+    const report = await api()
+      .get('/metrics/history?days=7')
+      .set('Authorization', 'Bearer geheim-123')
+      .expect(200);
+    expect(report.body).toMatchObject({ samples: 1, instances: 1, enoughData: false });
+    expect(report.body.rules.map((r: { alert: string }) => r.alert)).toContain('LangsameAntworten');
+    const text = await api()
+      .get('/metrics/history?format=text')
+      .set('Authorization', 'Bearer geheim-123')
+      .expect(200);
+    expect(text.text).toContain('Alarmschwellen');
+
+    // die Auswertung zählt sich selbst nicht mit
+    await history.flush();
+    const metrics = await api().get('/metrics').set('Authorization', 'Bearer geheim-123').expect(200);
+    expect(metrics.text).not.toContain('route="/metrics/history"');
   });
 });

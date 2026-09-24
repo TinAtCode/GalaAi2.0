@@ -468,6 +468,16 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Netz übertragen, bei zwischenzeitlicher Änderung auf dem Server entscheidet der Nutzer (keine stille
   Überschreibung). Abmelden und Nutzerwechsel löschen die Offline-Daten.
 
+- **Nachtrag – Verlauf für die Alarmschwellen**: Das Backend speichert jede Minute je Server einen Messpunkt
+  (`MetricSample`: Anfragen, Serverfehler, Antwortzeiten je Bucket, OCR-Warteschlange, Event-Loop, Speicher,
+  fehlgeschlagene E-Mails; nur Summen über alle Firmen). Die Auswertung (`node dist/cli/alert-thresholds.js`
+  oder `GET /metrics/history` mit `METRICS_TOKEN`) rechnet wie die Alarmregeln (5-Minuten-Fenster, „am Stück“)
+  und schlägt je Regel eine Schwelle vor: der Wert, den 99,9 % der Minuten nicht überschreiten, mit Aufschlag
+  und Untergrenze, auf eine runde Zahl aufgerundet; dazu, wie oft der Alarm mit der alten und der neuen Schwelle
+  ausgelöst hätte. Unter 14 Tagen Daten gelten die Vorschläge als vorläufig. Aufbewahrung 90 Tage
+  (`METRICS_HISTORY_DAYS`), abschaltbar mit `METRICS_HISTORY=off`. Ein Test prüft, dass die bekannten
+  Schwellen zu `ops/prometheus/alerts.yml` passen.
+
 ---
 
 ## 6. Qualitätssicherung
@@ -481,7 +491,7 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 - **Wartet auf Eingaben:** GAEB-Import (echte Beispieldateien vom Auftraggeber), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Hero-Vergleich (später), KI-Anbieter (Entscheidung; bestimmt die Qualität bei Screenshots, Fotos und freien PDFs).
 - **Erledigt am 25.09.2026:** Zahlungen auf Mahngebühren und Zinsen, Kontoauszüge als MT940 und CSV, DXF-Import, Aufmaß offline (installierbare App, Lagepläne ohne Netz), OCR-Limit über mehrere Server (siehe Nachtrag unten).
 - **Nicht geplant (Entscheidung vom 24.09.2026):** automatischer Kontoabruf per EBICS/FinTS (Auszüge werden als CAMT.053, MT940 oder CSV hochgeladen), Versand der E-Rechnungen über Peppol (Versand per E-Mail mit PDF und XRechnung).
-- **Im Betrieb:** Schwellen der Alarmregeln nach einigen Wochen Betrieb an die echten Werte anpassen (`ops/prometheus`).
+- **Im Betrieb:** Schwellen der Alarmregeln nach einigen Wochen anpassen. Das Backend zeichnet die Werte dafür ab jetzt selbst auf; die Auswertung macht Vorschläge (siehe Nachtrag „Verlauf für die Alarmschwellen“ und BETRIEB.md).
 - **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, Ablage der Dokumente im Objektspeicher, automatisches Ausrollen auf einen Server.
 - Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 
