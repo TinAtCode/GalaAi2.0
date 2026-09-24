@@ -9,7 +9,7 @@ import { AiProviderConfig, AiProviderKind, Prisma } from '@prisma/client';
 import { changedFields, writeAudit } from '../common/audit';
 import { openSecret, sealSecret } from '../common/secret-box';
 import { PrismaService } from '../prisma/prisma.service';
-import { AiCompletionResult, AiProvider, AiProviderError } from './ai-provider.interface';
+import { AiCompletionResult, AiImage, AiProvider, AiProviderError } from './ai-provider.interface';
 import { filterContext, MAX_CONTEXT_BYTES } from './context-filter';
 import { CompleteDto } from './dto/complete.dto';
 import { AssignTaskDto, CreateAiProviderDto, UpdateAiProviderDto } from './dto/provider.dto';
@@ -285,14 +285,20 @@ export class AiGatewayService {
 
   // Für die Funktionen der App (Angebotstext, Zusammenfassung …): ohne
   // passenden Anbieter eine klare Meldung statt der Platzhalter-Antwort
-  async runTask(caller: Caller, task: string, prompt: string, context?: Record<string, unknown>) {
+  async runTask(
+    caller: Caller,
+    task: string,
+    prompt: string,
+    context?: Record<string, unknown>,
+    images?: AiImage[],
+  ) {
     const { config, model } = await this.resolve(caller.companyId, task);
     if (!config) {
       throw new BadRequestException(
         'Für diese Aufgabe ist kein KI-Anbieter eingerichtet (Einstellungen → KI-Anbieter).',
       );
     }
-    return this.run(caller, providerFor(config, model), config, { prompt, task, context }, model);
+    return this.run(caller, providerFor(config, model), config, { prompt, task, context, images }, model);
   }
 
   // ── Aufgaben zuordnen (Einstellungen → KI-Anbieter) ───────────────────────
@@ -342,7 +348,7 @@ export class AiGatewayService {
     caller: Caller,
     provider: AiProvider,
     config: AiProviderConfig | null,
-    dto: Pick<CompleteDto, 'prompt' | 'task' | 'context'>,
+    dto: Pick<CompleteDto, 'prompt' | 'task' | 'context'> & { images?: AiImage[] },
     modelOverride?: string | null,
   ): Promise<AiCompletionResult> {
     const context = dto.context
@@ -360,6 +366,7 @@ export class AiGatewayService {
         task: dto.task,
         context,
         caller: { companyId: caller.companyId, userId: caller.userId, permissions: caller.permissions },
+        images: dto.images,
       });
       return result;
     } catch (error) {
@@ -381,6 +388,8 @@ export class AiGatewayService {
             model: result?.model ?? modelOverride ?? config?.model ?? null,
             prompt: dto.prompt.slice(0, 2000),
             contextKeys: context ? Object.keys(context) : [],
+            // Bilder nur gezählt, nie gespeichert
+            ...(dto.images?.length ? { images: dto.images.length } : {}),
             durationMs: Date.now() - started,
             ...(failure ? { error: failure } : { answerChars: result?.text.length ?? 0 }),
           },

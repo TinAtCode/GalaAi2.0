@@ -12,12 +12,13 @@ test.describe('KI-Anbieter', () => {
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => {
-        const { task, prompt } = JSON.parse(body);
+        const { task, prompt, attachments } = JSON.parse(body);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         const answers: Record<string, string> = {
           verbindungstest: 'OK',
           angebotstext: `Sehr geehrte Damen und Herren, Anschreiben ${run}`,
           baustelle_zusammenfassung: `- Zusammenfassung ${run}`,
+          foto_beschreiben: `Foto ${run}: ${attachments?.[0]?.mediaType}`,
         };
         res.end(JSON.stringify({ text: answers[task] ?? `Antwort ${run}: ${prompt}` }));
       });
@@ -35,6 +36,8 @@ test.describe('KI-Anbieter', () => {
       await section.getByTestId('ai-baseUrl').fill(url);
       await section.getByTestId('ai-apiKey').fill('geheim');
       await section.getByTestId('ai-isDefault').check();
+      // der Agent versteht auch Bilder
+      await section.getByTestId('ai-cap-vision').check();
       await section.getByTestId('ai-save').click();
       const item = section.getByTestId('ai-provider').filter({ hasText: `Agent ${run}` });
       await expect(item).toContainText('Schlüssel hinterlegt');
@@ -74,6 +77,23 @@ test.describe('KI-Anbieter', () => {
       await page.reload();
       await page.getByTestId('site-summary').click();
       await expect(page.getByTestId('site-summary-text')).toHaveText(`- Zusammenfassung ${run}`);
+
+      // Baustellenfoto beschreiben: das Bild geht als Anhang an den Agenten
+      const png = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64',
+      );
+      await request.post(`${API_BASE_URL}/site/projects/${SEED.projectId}/photos`, {
+        headers,
+        multipart: {
+          caption: `Foto-Hinweis ${run}`,
+          file: { name: 'hecke.png', mimeType: 'image/png', buffer: png },
+        },
+      });
+      await page.reload();
+      const message = page.getByTestId('site-message').filter({ hasText: `Foto-Hinweis ${run}` });
+      await message.getByTestId('photo-describe').click();
+      await expect(message.getByTestId('photo-description')).toHaveText(`KI: Foto ${run}: image/png`);
     } finally {
       const providers = await (await request.get(`${API_BASE_URL}/ai/providers`, { headers })).json();
       for (const p of providers.filter((p: { name: string }) => p.name === `Agent ${run}`)) {

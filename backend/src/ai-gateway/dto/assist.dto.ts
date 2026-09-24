@@ -56,3 +56,9 @@ export class SiteSummaryDto {
   @MaxLength(100)
   projectId!: string;
 }
+
+export class PhotoDescriptionDto {
+  @IsString()
+  @MaxLength(100)
+  documentId!: string;
+}

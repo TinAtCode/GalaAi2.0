@@ -19,7 +19,7 @@ import { AuthenticatedUser } from '../common/authenticated-request';
 import { AiGatewayService } from './ai-gateway.service';
 import { CompleteDto } from './dto/complete.dto';
 import { AssignTaskDto, CreateAiProviderDto, UpdateAiProviderDto } from './dto/provider.dto';
-import { QuoteTextDto, SiteSummaryDto } from './dto/assist.dto';
+import { PhotoDescriptionDto, QuoteTextDto, SiteSummaryDto } from './dto/assist.dto';
 import { AiAssistService } from './ai-assist.service';
 
 // Nutzen braucht "ai.use"; Anbieter einrichten die Systemeinstellungen.
@@ -105,5 +105,12 @@ export class AiGatewayController {
   @RequirePermissions(PERMISSIONS.AI_USE, PERMISSIONS.SITE_USE)
   siteSummary(@CurrentUser() user: AuthenticatedUser, @Body() dto: SiteSummaryDto) {
     return this.assist.siteSummary(user, dto);
+  }
+
+  // Baustellenfoto beschreiben lassen
+  @Post('assist/photo-description')
+  @RequirePermissions(PERMISSIONS.AI_USE, PERMISSIONS.SITE_USE)
+  photoDescription(@CurrentUser() user: AuthenticatedUser, @Body() dto: PhotoDescriptionDto) {
+    return this.assist.photoDescription(user, dto);
   }
 }

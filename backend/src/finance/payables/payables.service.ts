@@ -18,6 +18,9 @@ import { CreditNoteError, EMPTY_DRAFT, parseEInvoice, PayableDraft } from './ein
 import { extractFromText, TextSuggestion } from './extract-text';
 import { bestMatches, discountedAmount, earliestPayment, MatchDebit, MatchPayable } from './match';
 import { embeddedInvoiceXml } from './pdf-attachment';
+import { AI_READ_PROMPT, draftFromAi, jsonFromText } from './ai-read';
+import { AiGatewayService, Caller } from '../../ai-gateway/ai-gateway.service';
+import { imagesForAi } from '../../ai-gateway/images';
 import { plannedPayment } from './schedule';
 import { ListPayablesDto, PayPayableDto, UpsertPayableDto } from './payables.dto';
 
@@ -57,6 +60,7 @@ export class PayablesService {
     private ocr: OcrService,
     private queue: OcrQueue,
     private categories: CategoriesService,
+    private ai: AiGatewayService,
   ) {}
 
   view(p: Row) {
@@ -433,6 +437,36 @@ export class PayablesService {
   }
 
   // Eingelesener Beleg, der doch nicht erfasst wird ("Verwerfen")
+  // Beleg von der KI lesen lassen (Aufgabe „beleg_lesen“, Anbieter mit
+  // „Bilder verstehen“): Foto oder die ersten Seiten der PDF als Bild. Das
+  // Ergebnis ist wie beim Texterkennen nur ein Vorschlag fürs Formular.
+  async readWithAi(caller: Caller, documentId: string) {
+    const { companyId } = caller;
+    const document = await this.prisma.document.findFirst({
+      where: { id: documentId, companyId, documentType: PAYABLE_DOCUMENT_TYPE },
+    });
+    if (!document) throw new NotFoundException('Beleg nicht gefunden.');
+    const images = await imagesForAi(await this.storage.read(companyId, document.storagePath));
+    const company = await this.company(companyId);
+    const result = await this.ai.runTask(caller, 'beleg_lesen', AI_READ_PROMPT, undefined, images);
+    // eigene Agenten dürfen die Felder auch strukturiert in `data` liefern
+    const structured = result.data && Object.keys(EMPTY_DRAFT).some((key) => key in result.data!);
+    const draft = draftFromAi(
+      structured ? result.data! : jsonFromText(result.text),
+      company.iban ? [company.iban] : [],
+    );
+    const categoryId = draft.supplierName
+      ? await this.suggestCategory(companyId, draft.supplierName, draft.supplierIban)
+      : null;
+    const duplicateOf = await this.findDuplicate(companyId, draft.supplierName, draft.invoiceNumber);
+    return {
+      draft: { ...draft, categoryId },
+      duplicateOf: duplicateOf ? this.view(duplicateOf) : null,
+      providerName: result.providerName,
+      readable: Object.values(draft).some((v) => v !== null),
+    };
+  }
+
   async discardDocument(companyId: string, documentId: string) {
     const document = await this.prisma.document.findFirst({
       where: {

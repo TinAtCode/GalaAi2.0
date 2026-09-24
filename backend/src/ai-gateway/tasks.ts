@@ -36,6 +36,18 @@ export const AI_TASKS: AiTaskDefinition[] = [
     description: 'Kurzfassung der Nachrichten einer Baustelle: Stand, offene Punkte, Material',
     needs: 'text',
   },
+  {
+    key: 'beleg_lesen',
+    label: 'Beleg lesen',
+    description: 'Eingangsrechnung (Foto oder PDF) lesen: Lieferant, Nummer, Datum, Beträge, IBAN',
+    needs: 'vision',
+  },
+  {
+    key: 'foto_beschreiben',
+    label: 'Baustellenfoto beschreiben',
+    description: 'Was ist auf dem Foto zu sehen: Stand der Arbeiten, Schäden, Material',
+    needs: 'vision',
+  },
 ];
 
 export const findTask = (key: string | undefined) => AI_TASKS.find((t) => t.key === key);

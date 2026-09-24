@@ -63,6 +63,8 @@ describe('KI-Aufgaben', () => {
       frage: false,
       angebotstext: false,
       baustelle_zusammenfassung: false,
+      beleg_lesen: false,
+      foto_beschreiben: false,
     });
     const res = await api()
       .post('/ai/assist/quote-text')
@@ -162,6 +164,9 @@ describe('KI-Aufgaben', () => {
       frage: true,
       angebotstext: true,
       baustelle_zusammenfassung: true,
+      // nur Text: Aufgaben mit Bildern bleiben aus
+      beleg_lesen: false,
+      foto_beschreiben: false,
     });
   });
 

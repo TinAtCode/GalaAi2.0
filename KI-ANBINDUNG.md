@@ -30,6 +30,8 @@ verschiedene Anbieter an verschiedenen Stellen arbeiten.
 | Freie Frage | `frage` | Text | Einstellungen → KI-Anbieter |
 | Angebotstext entwerfen | `angebotstext` | Text | Angebot anlegen/bearbeiten → „Vorschlag der KI“ |
 | Baustellen-Verlauf zusammenfassen | `baustelle_zusammenfassung` | Text | Projekt bzw. Baustelle → „Verlauf zusammenfassen“ |
+| Beleg lesen | `beleg_lesen` | Bilder verstehen | Finanzen → Eingangsrechnungen → Beleg einlesen → „Mit KI lesen“ |
+| Baustellenfoto beschreiben | `foto_beschreiben` | Bilder verstehen | Foto in den Baustellen-Nachrichten → „Foto beschreiben“ |
 
 Für jede Aufgabe gilt der Reihe nach:
 
@@ -45,6 +47,22 @@ Den Kontext stellt der Server zusammen, nur mit dem, was die Aufgabe braucht:
 - **Zusammenfassung:** die letzten 100 Nachrichten der Baustelle.
 
 Das Anschreiben steht im Angebots-PDF über den Positionen und bleibt bis zur Freigabe änderbar.
+
+**Bilder:**
+- **Wie sie ankommen:** Fotos gehen unverändert an die KI (JPG, PNG, WebP, GIF, höchstens 5 MB). Von
+  PDFs gehen die ersten zwei Seiten als Bild mit.
+- **Format je Anbieter:** OpenAI-kompatibel als `image_url` (data-URL), Anthropic als `image`-Block
+  (base64). Ein eigener Agent bekommt sie als `attachments` (siehe Vertrag).
+- **Beleg lesen:**
+  - Die KI soll nur JSON mit festen Feldern liefern: Lieferant, Nummer, Datum, Fälligkeit, Beträge,
+    IBAN, Skonto. Ein eigener Agent darf die Felder direkt in `data` liefern.
+  - GartenAI prüft jeden Wert (Datum, Betrag, IBAN-Prüfsumme, nicht die eigene IBAN). Was nicht passt,
+    bleibt leer.
+  - Das Ergebnis ist nur ein Vorschlag im Formular.
+- **Protokoll:** Das Audit-Log zählt die Bilder, speichert sie aber nicht.
+
+Selbst gehostete Modelle, die Bilder verstehen, sind z.B. `llava`, `llama3.2-vision` oder `qwen2.5vl`
+in Ollama.
 
 **Skills oder Aufgaben?** Skills sind eine Eigenheit einzelner Anbieter. GartenAI spricht neutral von
 Aufgaben: Ein eigener Agent bekommt den Schlüssel der Aufgabe in `task`. Wie er sie erledigt, ob mit
@@ -83,7 +101,8 @@ GartenAI schickt `POST` an die eingetragene Adresse:
   "caller": { "companyId": "…", "userId": "…", "permissions": ["ai.use", "…"] },
   "model": "optional, aus der Einrichtung",
   "maxTokens": 1024,
-  "systemPrompt": "optional, aus der Einrichtung"
+  "systemPrompt": "optional, aus der Einrichtung",
+  "attachments": [{ "mediaType": "image/png", "data": "<Base64>" }]
 }
 ```
 
@@ -159,3 +178,6 @@ createServer((req, res) => {
 - `POST /ai/assist/quote-text` – `{ projectId, lines: [{ serviceId? | description?, quantity?, unit? }], hint? }`
   (Rechte `ai.use` und `quote.create`)
 - `POST /ai/assist/site-summary` – `{ projectId }` (Rechte `ai.use` und `site.use`)
+- `POST /ai/assist/photo-description` – `{ documentId }` eines Baustellenfotos (Rechte `ai.use` und `site.use`)
+- `POST /finance/payables/documents/:documentId/ai-read` – Vorschlag fürs Formular (Rechte
+  `finance.read` und `ai.use`)

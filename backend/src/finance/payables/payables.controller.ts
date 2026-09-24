@@ -46,6 +46,13 @@ export class PayablesController {
     return this.payables.extract(user.companyId, user.userId, file);
   }
 
+  // Beleg von der KI lesen lassen (braucht einen Anbieter, der Bilder versteht)
+  @Post('documents/:documentId/ai-read')
+  @RequirePermissions(PERMISSIONS.FINANCE_READ, PERMISSIONS.AI_USE)
+  readWithAi(@CurrentUser() user: AuthenticatedUser, @Param('documentId') documentId: string) {
+    return this.payables.readWithAi(user, documentId);
+  }
+
   // eingelesenen Beleg verwerfen, wenn doch keine Rechnung daraus wird
   @Delete('documents/:documentId')
   discard(@CurrentUser() user: AuthenticatedUser, @Param('documentId') documentId: string) {

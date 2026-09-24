@@ -2,6 +2,12 @@
 // OpenAI-kompatible API (auch selbst gehostet), Anthropic oder ein eigener
 // Agent. Das ist der ganze Vertrag zwischen GartenAI und „irgendeiner“ KI;
 // kein Modul außerhalb dieses Gateways ruft einen Anbieter direkt auf.
+// Bild für Aufgaben, die Bilder verstehen (Belege, Baustellenfotos)
+export interface AiImage {
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+  data: string; // Base64 ohne data:-Präfix
+}
+
 export interface AiCompletionRequest {
   prompt: string;
   // Wofür (z.B. "angebotstext", "test") – für den Agenten und das Protokoll
@@ -11,6 +17,8 @@ export interface AiCompletionRequest {
   context?: Record<string, unknown>;
   // Wer fragt (nur für eigene Agenten: Firma, Nutzer, Rechte)
   caller?: { companyId: string; userId: string; permissions: string[] };
+  // nur für Anbieter mit der Fähigkeit „Bilder verstehen“
+  images?: AiImage[];
 }
 
 export interface AiCompletionResult {
