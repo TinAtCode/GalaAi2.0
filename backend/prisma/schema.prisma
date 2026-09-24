@@ -117,6 +117,7 @@ model Company {
   contractTasks        ContractTask[]
   importSessions       ImportSession[]
   aiProviders          AiProviderConfig[]
+  aiTaskAssignments    AiTaskAssignment[]
   absences             Absence[]
   pushSubscriptions    PushSubscription[]
   projectMessages      ProjectMessage[]
@@ -287,6 +288,8 @@ model Quote {
   totalVat     Decimal      @default(0) @db.Decimal(12, 2)
   totalGross   Decimal      @default(0) @db.Decimal(12, 2)
   validUntil   DateTime?
+  // Anschreiben über den Positionen (PDF); nur im Entwurf änderbar
+  introText    String?
   createdAt    DateTime     @default(now())
 
   lineItems QuoteLineItem[]
@@ -846,24 +849,42 @@ model AppSecret {
 // Server nie wieder.
 // ─────────────────────────────────────────────
 model AiProviderConfig {
-  id              String         @id @default(uuid())
+  id              String             @id @default(uuid())
   companyId       String
-  company         Company        @relation(fields: [companyId], references: [id])
+  company         Company            @relation(fields: [companyId], references: [id])
   name            String
   kind            AiProviderKind
   baseUrl         String
   model           String?
   apiKeyEncrypted String?
-  enabled         Boolean        @default(true)
-  isDefault       Boolean        @default(false)
-  timeoutSeconds  Int            @default(60)
-  maxTokens       Int            @default(1024)
+  enabled         Boolean            @default(true)
+  isDefault       Boolean            @default(false)
+  timeoutSeconds  Int                @default(60)
+  maxTokens       Int                @default(1024)
   // Hinweis an das Modell, z.B. Sprache und Tonfall
   systemPrompt    String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  // was der Anbieter kann: text, vision (Bilder verstehen), image (Bilder/Zeichnungen erzeugen)
+  capabilities    String[]           @default(["text"])
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  tasks           AiTaskAssignment[]
 
   @@index([companyId])
+}
+
+// Welche KI-Aufgabe (ai-gateway/tasks.ts) welcher Anbieter übernimmt, auf
+// Wunsch mit eigenem Modell; ohne Eintrag gilt der Standard-Anbieter
+model AiTaskAssignment {
+  id         String           @id @default(uuid())
+  companyId  String
+  company    Company          @relation(fields: [companyId], references: [id])
+  task       String
+  providerId String
+  provider   AiProviderConfig @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  model      String?
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([companyId, task])
 }
 
 enum AiProviderKind {

@@ -1,7 +1,12 @@
 import { AiProviderKind } from '@prisma/client';
+import { AiCapability } from '../tasks';
 import { PartialType } from '@nestjs/mapped-types';
 import {
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
+  IsIn,
   IsEnum,
   IsInt,
   IsOptional,
@@ -63,6 +68,14 @@ export class CreateAiProviderDto {
   @IsString()
   @MaxLength(4000)
   systemPrompt?: string;
+
+  // was der Anbieter kann (Standard: nur Text)
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique()
+  @IsIn(['text', 'vision', 'image'], { each: true })
+  capabilities?: AiCapability[];
 }
 
 export class UpdateAiProviderDto extends PartialType(CreateAiProviderDto) {
@@ -70,4 +83,17 @@ export class UpdateAiProviderDto extends PartialType(CreateAiProviderDto) {
   @IsOptional()
   @IsBoolean()
   clearApiKey?: boolean;
+}
+
+// Aufgabe einem Anbieter zuordnen (providerId null = Standard-Anbieter)
+export class AssignTaskDto {
+  @IsOptional()
+  @IsString()
+  providerId?: string | null;
+
+  // anderes Modell als beim Anbieter eingestellt (z.B. kleines Modell für Zusammenfassungen)
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  model?: string | null;
 }

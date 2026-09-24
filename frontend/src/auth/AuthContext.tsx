@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, Re
 import { api, ApiError, setUnauthorizedHandler, startNewSessionGeneration } from '../api/client';
 import { offlineDb } from '../offline/db';
 import { disablePush } from '../push/push';
+import { resetAiTasks } from '../ai/tasks';
 
 interface CurrentUser {
   id: string;
@@ -120,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string) => {
+    resetAiTasks();
     startSession(await api.post<LoginResponse>('/auth/login', { email, password }));
   };
 
@@ -130,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     // Push-Nachrichten an diese Person nicht mehr auf dieses Gerät (geteilte Handys)
     await disablePush().catch(() => undefined);
+    resetAiTasks();
     await api.post('/auth/logout').catch(() => undefined);
     startNewSessionGeneration();
     // offline gespeicherte Pläne gehören zu dieser Anmeldung

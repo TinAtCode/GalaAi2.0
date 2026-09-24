@@ -12,6 +12,44 @@ Standard. Ohne Einrichtung antwortet ein Platzhalter; nichts verlässt den Serve
 
 Der **Testen**-Knopf schickt eine kurze Frage und zeigt Antwort und Dauer (oder den Fehler).
 
+## Aufgaben: welcher Anbieter wofür
+
+Jeder Anbieter hat Angaben dazu, was er **kann**:
+
+- **Text:** Standard.
+- **Bilder verstehen:** z.B. Belege oder Baustellenfotos lesen.
+- **Bilder/Zeichnungen erzeugen:** z.B. über einen eigenen Agenten.
+
+Unter **Aufgaben** lässt sich jede Funktion der App einem Anbieter zuordnen, auf Wunsch mit eigenem
+Modell. So können verschiedene Modelle desselben Anbieters an verschiedenen Stellen arbeiten, z.B. ein
+kleines, schnelles Modell für Zusammenfassungen und ein großes für Angebotstexte. Genauso können
+verschiedene Anbieter an verschiedenen Stellen arbeiten.
+
+| Aufgabe | Schlüssel (`task`) | braucht | wo in der App |
+|---|---|---|---|
+| Freie Frage | `frage` | Text | Einstellungen → KI-Anbieter |
+| Angebotstext entwerfen | `angebotstext` | Text | Angebot anlegen/bearbeiten → „Vorschlag der KI“ |
+| Baustellen-Verlauf zusammenfassen | `baustelle_zusammenfassung` | Text | Projekt bzw. Baustelle → „Verlauf zusammenfassen“ |
+
+Für jede Aufgabe gilt der Reihe nach:
+
+1. Ist ein Anbieter zugeordnet und eingeschaltet und kann er, was die Aufgabe braucht, übernimmt er.
+   Das Modell der Zuordnung ersetzt dabei das Modell des Anbieters.
+2. Sonst übernimmt der Standard-Anbieter, wenn er es kann.
+3. Sonst ist die Funktion nicht verfügbar: Der Knopf erscheint nicht, und der Aufruf meldet einen
+   Hinweis auf die Einstellungen.
+
+Den Kontext stellt der Server zusammen, nur mit dem, was die Aufgabe braucht:
+
+- **Angebotstext:** Kunde, Objekt, Projekt, Leistungen und Mengen, ohne Preise.
+- **Zusammenfassung:** die letzten 100 Nachrichten der Baustelle.
+
+Das Anschreiben steht im Angebots-PDF über den Positionen und bleibt bis zur Freigabe änderbar.
+
+**Skills oder Aufgaben?** Skills sind eine Eigenheit einzelner Anbieter. GartenAI spricht neutral von
+Aufgaben: Ein eigener Agent bekommt den Schlüssel der Aufgabe in `task`. Wie er sie erledigt, ob mit
+Skills, Werkzeugen oder mehreren Modellen, entscheidet der Agent selbst.
+
 ## Selbst gehostet
 
 **Ollama** auf einem Rechner im Büro:
@@ -57,7 +95,8 @@ Kopfzeilen:
 
 Der Agent sollte die Signatur prüfen und Anfragen verwerfen, deren Zeitstempel älter als ein paar
 Minuten ist. `task` sagt, wofür gefragt wird: `verbindungstest` beim Testen-Knopf, `frage` für freie
-Fragen, weitere Aufgaben kommen mit den Funktionen der App dazu.
+Fragen und die Aufgaben aus der Tabelle oben. Weitere Aufgaben kommen mit den Funktionen der App
+dazu. Unbekannte Aufgaben sollte der Agent mit einem Fehler beantworten.
 
 Antwort (HTTP 200, JSON):
 
@@ -112,7 +151,11 @@ createServer((req, res) => {
 
 ## Schnittstelle der App
 
-- `GET /ai/gateway/status` – aktiver Standard-Anbieter
+- `GET /ai/gateway/status` – aktiver Standard-Anbieter und `tasks` (welche Aufgaben verfügbar sind)
 - `POST /ai/gateway/complete` – `{ prompt, task?, context?, providerId? }` (Recht `ai.use`)
 - `GET|POST /ai/providers`, `PATCH|DELETE /ai/providers/:id`, `POST /ai/providers/:id/test`
-  (Recht `system.settings.write`; Test zusätzlich `ai.use`)
+  (Recht `system.settings.write`; Test zusätzlich `ai.use`), mit `capabilities: ["text", "vision", "image"]`
+- `GET /ai/tasks`, `PUT /ai/tasks/:task` – `{ providerId | null, model? }` (Recht `system.settings.write`)
+- `POST /ai/assist/quote-text` – `{ projectId, lines: [{ serviceId? | description?, quantity?, unit? }], hint? }`
+  (Rechte `ai.use` und `quote.create`)
+- `POST /ai/assist/site-summary` – `{ projectId }` (Rechte `ai.use` und `site.use`)

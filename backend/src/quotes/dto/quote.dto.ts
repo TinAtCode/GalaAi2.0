@@ -119,6 +119,12 @@ export class CreateQuoteDto {
   @IsString()
   projectId!: string;
 
+  // Anschreiben über den Positionen (im PDF); leer = ohne
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  introText?: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

@@ -206,6 +206,7 @@ export class QuotesService {
           companyId,
           projectId: dto.projectId,
           number: formatDocumentNumber('A', year, value),
+          introText: dto.introText?.trim() || null,
           ...totals,
           lineItems: { create: lineItems },
         },
@@ -226,7 +227,7 @@ export class QuotesService {
     return this.prisma.$transaction(async (tx) => {
       const { count } = await tx.quote.updateMany({
         where: { id, companyId, status: 'draft' },
-        data: totals,
+        data: { ...totals, introText: dto.introText?.trim() || null },
       });
       if (count === 0) {
         throw new BadRequestException('Nur Angebote im Entwurf können bearbeitet werden.');
@@ -327,6 +328,7 @@ export class QuotesService {
         gross: quote.totalGross.toString(),
       },
       notes: [VAT_TREATMENT_NOTES[quote.vatTreatment]].filter((n): n is string => !!n),
+      intro: quote.introText,
     });
     return { buffer, fileName: `${quote.number ?? 'Angebot'}.pdf` };
   }

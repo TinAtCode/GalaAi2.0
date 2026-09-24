@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermissions } from '../common/permissions.decorator';
@@ -7,13 +18,18 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { AiGatewayService } from './ai-gateway.service';
 import { CompleteDto } from './dto/complete.dto';
-import { CreateAiProviderDto, UpdateAiProviderDto } from './dto/provider.dto';
+import { AssignTaskDto, CreateAiProviderDto, UpdateAiProviderDto } from './dto/provider.dto';
+import { QuoteTextDto, SiteSummaryDto } from './dto/assist.dto';
+import { AiAssistService } from './ai-assist.service';
 
 // Nutzen braucht "ai.use"; Anbieter einrichten die Systemeinstellungen.
 @Controller('ai')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AiGatewayController {
-  constructor(private ai: AiGatewayService) {}
+  constructor(
+    private ai: AiGatewayService,
+    private assist: AiAssistService,
+  ) {}
 
   @Get('gateway/status')
   status(@CurrentUser() user: AuthenticatedUser) {
@@ -58,5 +74,36 @@ export class AiGatewayController {
   @RequirePermissions(PERMISSIONS.SYSTEM_SETTINGS_WRITE, PERMISSIONS.AI_USE)
   test(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.ai.test(user, id);
+  }
+
+  // welche Aufgabe welcher Anbieter übernimmt
+  @Get('tasks')
+  @RequirePermissions(PERMISSIONS.SYSTEM_SETTINGS_WRITE)
+  tasks(@CurrentUser() user: AuthenticatedUser) {
+    return this.ai.listTasks(user.companyId);
+  }
+
+  @Put('tasks/:task')
+  @RequirePermissions(PERMISSIONS.SYSTEM_SETTINGS_WRITE)
+  assignTask(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('task') task: string,
+    @Body() dto: AssignTaskDto,
+  ) {
+    return this.ai.assignTask(user, task, dto);
+  }
+
+  // Vorschlag für das Anschreiben eines Angebots
+  @Post('assist/quote-text')
+  @RequirePermissions(PERMISSIONS.AI_USE, PERMISSIONS.QUOTE_CREATE)
+  quoteText(@CurrentUser() user: AuthenticatedUser, @Body() dto: QuoteTextDto) {
+    return this.assist.quoteText(user, dto);
+  }
+
+  // Zusammenfassung der Baustellen-Nachrichten eines Projekts
+  @Post('assist/site-summary')
+  @RequirePermissions(PERMISSIONS.AI_USE, PERMISSIONS.SITE_USE)
+  siteSummary(@CurrentUser() user: AuthenticatedUser, @Body() dto: SiteSummaryDto) {
+    return this.assist.siteSummary(user, dto);
   }
 }

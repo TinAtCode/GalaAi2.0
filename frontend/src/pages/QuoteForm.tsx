@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useAiTask } from '../ai/tasks';
+import { useAuth } from '../auth/AuthContext';
 import { api, ApiError } from '../api/client';
 
 interface Service {
@@ -43,6 +45,7 @@ export interface EditableQuote {
   id: string;
   vatRate: number | string;
   vatTreatment: 'standard' | 'small_business' | 'reverse_charge';
+  introText?: string | null;
   lineItems: {
     serviceId?: string | null;
     description: string;
@@ -103,6 +106,10 @@ export function QuoteForm({
   const [vatRate, setVatRate] = useState(quote?.vatTreatment === 'standard' ? text(quote.vatRate) : '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [introText, setIntroText] = useState(quote?.introText ?? '');
+  const [drafting, setDrafting] = useState(false);
+  const { hasPermission } = useAuth();
+  const aiText = useAiTask('angebotstext') && hasPermission('ai.use');
 
   const serviceLine = (list: Service[] | null): Line[] =>
     list?.length ? [{ kind: 'service', serviceId: list[0].id, quantity: '', ...NO_ROUNDING }] : [];
@@ -132,7 +139,31 @@ export function QuoteForm({
     setLines(serviceLine(services));
     setReverseCharge(false);
     setVatRate('');
+    setIntroText('');
     setError(null);
+  };
+
+  // Vorschlag der KI aus Kunde, Projekt und Positionen (ohne Preise)
+  const draftIntro = async () => {
+    const draftLines = lines.map((l) =>
+      l.kind === 'service'
+        ? { serviceId: l.serviceId, quantity: decimal(l.quantity) || undefined }
+        : {
+            description: l.description.trim() || undefined,
+            unit: l.unit.trim() || undefined,
+            quantity: decimal(l.quantity) || undefined,
+          },
+    );
+    setDrafting(true);
+    setError(null);
+    try {
+      const r = await api.post<{ text: string }>('/ai/assist/quote-text', { projectId, lines: draftLines });
+      setIntroText(r.text.slice(0, 4000));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Kein Vorschlag der KI.');
+    } finally {
+      setDrafting(false);
+    }
   };
 
   const submit = async (event: FormEvent) => {
@@ -181,6 +212,7 @@ export function QuoteForm({
     try {
       const body = {
         lineItems,
+        introText,
         ...(reverseCharge ? { vatTreatment: 'reverse_charge' } : {}),
         ...(!reverseCharge && vatRate.trim() ? { vatRate: decimal(vatRate) } : {}),
       };
@@ -401,6 +433,29 @@ export function QuoteForm({
               Freie Position
             </button>
           </div>
+          <label className="field">
+            <span>Anschreiben (steht im PDF über den Positionen, optional)</span>
+            <textarea
+              value={introText}
+              onChange={(e) => setIntroText(e.target.value)}
+              rows={4}
+              maxLength={4000}
+              data-testid="quote-intro"
+            />
+          </label>
+          {aiText && (
+            <div>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={draftIntro}
+                disabled={drafting || lines.length === 0}
+                data-testid="quote-intro-ai"
+              >
+                {drafting ? 'KI schreibt …' : 'Vorschlag der KI'}
+              </button>
+            </div>
+          )}
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.9rem' }}>
             <input
               type="checkbox"
