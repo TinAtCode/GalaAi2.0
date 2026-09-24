@@ -10,6 +10,7 @@ import {
   IsOptional,
   IsString,
   IsTimeZone,
+  ValidateIf,
   Max,
   MaxLength,
   Min,
@@ -195,6 +196,46 @@ export class UpdateCompanySettingsDto {
   @Min(1)
   @Max(60)
   dunningDeadlineDays?: number;
+
+  // Mahngebühren je Stufe in € (0 = keine)
+  // null ist kein gültiger Wert (Pflichtfeld in der Datenbank)
+  @ValidateIf((_, v) => v !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(500)
+  dunningFee1?: number;
+
+  // null ist kein gültiger Wert (Pflichtfeld in der Datenbank)
+  @ValidateIf((_, v) => v !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(500)
+  dunningFee2?: number;
+
+  // null ist kein gültiger Wert (Pflichtfeld in der Datenbank)
+  @ValidateIf((_, v) => v !== undefined)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(500)
+  dunningFee3?: number;
+
+  // Verzugszinsen nach § 288 BGB berechnen
+  @ValidateIf((_, v) => v !== undefined)
+  @IsBoolean()
+  dunningInterest?: boolean;
+
+  // Basiszinssatz in % (kann negativ sein); null = nicht gepflegt
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(-10)
+  @Max(20)
+  baseInterestRate?: number | null;
+
+  // Pauschale 40 € bei Geschäftskunden (§ 288 Abs. 5 BGB)
+  @ValidateIf((_, v) => v !== undefined)
+  @IsBoolean()
+  dunningLumpSum?: boolean;
 
   // Rundung der Mengen (Standard der Firma)
   @IsOptional()

@@ -167,6 +167,10 @@ bei einer normalen PDF oder einem Foto werden sie vorgeschlagen – prüfen, spe
 mit der Zahlung (Rechnungsnummer im Verwendungszweck) einlesen: die Rechnung steht unter „Bezahlt“. Die
 Übersicht zeigt die Liquiditätsvorschau der nächsten 13 Wochen.
 
+**Mahngebühren und Verzugszinsen testen:** Unter Einstellungen → Firmendaten Gebühren je Stufe, „Verzugszinsen
+berechnen“ mit dem aktuellen Basiszinssatz und ggf. die Pauschale einschalten; beim Kunden „Geschäftskunde“
+setzen. Die nächste Mahnung enthält dann die Aufstellung (Gebühren, Zinsen, Pauschale, zu zahlen).
+
 **Lagepläne testen:** Auf einer Projektseite unter „Lagepläne“ einen Plan anlegen. Werkzeug wählen (z.B.
 „Rasen“), Eckpunkte anklicken, mit Doppelklick schließen; Leitungen mit Enter beenden. Unter „Hintergrund …“
 ein Foto oder eine PDF laden, dann „Maßstab“: zwei Punkte einer bekannten Strecke anklicken und die Länge

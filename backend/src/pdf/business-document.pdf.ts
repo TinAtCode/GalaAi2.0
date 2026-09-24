@@ -267,6 +267,8 @@ export interface LetterPdf {
   meta: [string, string][];
   paragraphs: string[];
   table: { header: string[]; rows: string[][]; widths: number[] };
+  // Aufstellung unter der Tabelle (Bezeichnung, Betrag); letzte Zeile fett
+  summary?: [string, string][];
   closing: string[];
 }
 
@@ -301,6 +303,20 @@ export function renderLetterPdf(doc: LetterPdf): Promise<Buffer> {
   };
   tableRow(doc.table.header, true);
   for (const r of doc.table.rows) tableRow(r, false);
+
+  if (doc.summary?.length) {
+    y += 10;
+    doc.summary.forEach(([label, amount], i) => {
+      const last = i === doc.summary!.length - 1;
+      pdf.font(last ? BOLD : REGULAR).fontSize(9);
+      const labelWidth = width * 0.5;
+      // lange Bezeichnungen (Zinszeitraum) brechen um: Höhe der Zeile danach
+      const height = Math.max(pdf.heightOfString(label, { width: labelWidth }), 12);
+      pdf.text(label, left + width * 0.3, y, { width: labelWidth });
+      pdf.text(amount, left + width * 0.8, y, { width: width * 0.2, align: 'right' });
+      y += height + 2;
+    });
+  }
 
   y += 14;
   pdf.font(REGULAR).fontSize(10);

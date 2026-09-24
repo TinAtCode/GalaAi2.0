@@ -9,6 +9,9 @@ interface DunningNotice {
   issuedOn: string; // JJJJ-MM-TT
   deadline: string;
   sentAt: string | null;
+  fee: string;
+  interest: string;
+  lumpSum: string;
 }
 
 interface OpenItem {
@@ -144,6 +147,8 @@ export function OpenItemsPage() {
             {item.dunning.map((d, index) => (
               <div key={d.id} className="list-item-meta" data-testid="dunning-entry">
                 {DUNNING_TITLES[d.level]} vom {day(d.issuedOn)} · Frist {day(d.deadline)}
+                {Number(d.fee) + Number(d.interest) + Number(d.lumpSum) > 0 &&
+                  ` · zzgl. ${formatEuro(Number(d.fee) + Number(d.interest) + Number(d.lumpSum))} Gebühren/Zinsen`}
                 {d.sentAt ? ' · per E-Mail versendet' : ''}{' '}
                 <button
                   className="btn"

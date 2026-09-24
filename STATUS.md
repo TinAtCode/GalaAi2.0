@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 24.09.2026 – Lagepläne am Projekt mit Übernahme der Mengen ins Angebot; davor Eingangsrechnungen und Liquiditätsvorschau. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 24.09.2026 – Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -371,6 +371,16 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   erwartete Eingänge − Eingangsrechnungen − Fixkosten; Rechnungen mit schon passender Abbuchung zählen nicht
   doppelt). Alles unter `finance.read`, mandantengetrennt per Trigger.
 
+- **Nachtrag – Mahngebühren und Verzugszinsen** (Einstellungen → Firmendaten, Standard: aus): Gebühr je
+  Mahnstufe, Verzugszinsen nach § 288 BGB (Basiszinssatz, den die Firma pflegt, + 5 Prozentpunkte bzw. + 9 bei
+  Geschäftskunden; taggenau, Jahr = 365 Tage) und die Pauschale von 40 € bei Geschäftskunden (§ 288 Abs. 5,
+  einmal je Rechnung). Neues Merkmal am Kunden: „Geschäftskunde“. Verzugsbeginn: Tag nach der ersten Mahnung
+  (auch der Zahlungserinnerung), bei Geschäftskunden spätestens 30 Tage nach Fälligkeit (§ 286 Abs. 3).
+  Beträge werden beim Anlegen der Mahnung festgeschrieben (`fee`, `interest`, `interestRate`, `interestFrom`,
+  `lumpSum`), in der Mahnung als Aufstellung bis „Zu zahlen“ gezeigt und in den offenen Posten als „zzgl. …
+  Gebühren/Zinsen“. Sie sind eine eigene Forderung neben der Rechnung und werden nicht auf die Rechnung
+  gebucht.
+
 - **Nachtrag – Lagepläne (Zeichenmodul, Schritt 1)**: Am Projekt „Lagepläne“ anlegen und im Browser
   zeichnen (Maus und Touch): Regenwasser, Schmutzwasser, Rinnen, Fallrohre, Gullies, Erdkabel, Zäune, Tore
   und Türen (Breite), Pflaster-, Rasen- (optional mit Mähkante), Parkplatz- (mit Stellplätzen) und
@@ -425,7 +435,7 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 ## 7. Offene Punkte
 
 - **Wartet auf Eingaben:** GAEB-Import (echte Beispieldateien vom Auftraggeber), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Hero-Vergleich (später), KI-Anbieter (Entscheidung; bestimmt die Qualität bei Screenshots, Fotos und freien PDFs).
-- **In Arbeit bzw. als Nächstes:** Mahngebühren und Verzugszinsen (optional); Lagepläne: Aufmaß-App offline, DXF-Import.
+- **In Arbeit bzw. als Nächstes:** Lagepläne: Aufmaß-App offline, DXF-Import; Zahlungseingänge auf Mahngebühren und Zinsen buchen.
 - **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Aufmaß-App, Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, automatischer Bankabruf, Peppol, OCR über mehrere Server-Instanzen, automatisches Ausrollen auf einen Server.
 - Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 

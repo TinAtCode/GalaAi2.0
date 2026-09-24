@@ -62,7 +62,17 @@ model Company {
   datevRevenueAccounts  Json?
 
   // Mahnwesen: neue Zahlungsfrist in Tagen ab dem Mahndatum
-  dunningDeadlineDays Int @default(7)
+  dunningDeadlineDays Int      @default(7)
+  // Mahngebühren je Stufe (Zahlungserinnerung, 1., 2. Mahnung), 0 = keine
+  dunningFee1         Decimal  @default(0) @db.Decimal(8, 2)
+  dunningFee2         Decimal  @default(0) @db.Decimal(8, 2)
+  dunningFee3         Decimal  @default(0) @db.Decimal(8, 2)
+  // Verzugszinsen nach § 288 BGB (aus bis eingeschaltet); Basiszinssatz der
+  // Bundesbank, ändert sich zum 1.1. und 1.7.
+  dunningInterest     Boolean  @default(false)
+  baseInterestRate    Decimal? @db.Decimal(5, 2)
+  // Pauschale 40 € bei Geschäftskunden (§ 288 Abs. 5 BGB)
+  dunningLumpSum      Boolean  @default(false)
 
   // Rundung der Mengen auf Angeboten und Rechnungen (Standard; Einheit,
   // Leistung/Artikel und Position können abweichen, siehe common/units.ts)
@@ -187,6 +197,8 @@ model Customer {
   buyerReference String?
   // USt-IdNr. des Kunden – nötig für E-Rechnungen nach § 13b UStG
   vatId          String?
+  // Unternehmer statt Verbraucher: höherer Verzugszins, Verzugspauschale
+  isBusiness     Boolean  @default(false)
   // Debitorenkonto in der Buchhaltung (DATEV: 10000–69999), fortlaufend
   debtorNumber   Int?
   createdAt      DateTime @default(now())
@@ -762,6 +774,12 @@ model DunningNotice {
   issuedOn        DateTime  @db.Date
   deadline        DateTime  @db.Date
   openAmount      Decimal   @db.Decimal(12, 2)
+  // Forderungen neben der Rechnung (siehe invoices/dunning-charges.ts)
+  fee             Decimal   @default(0) @db.Decimal(10, 2)
+  interest        Decimal   @default(0) @db.Decimal(10, 2)
+  interestRate    Decimal?  @db.Decimal(5, 2)
+  interestFrom    DateTime? @db.Date
+  lumpSum         Decimal   @default(0) @db.Decimal(10, 2)
   createdByUserId String?
   sentAt          DateTime?
   sentTo          String?
