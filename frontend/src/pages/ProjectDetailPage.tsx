@@ -7,6 +7,7 @@ import { DocumentsSection } from './DocumentsSection';
 import { PlansSection } from './plans/PlansSection';
 import { InvoicesSection } from './InvoicesSection';
 import { QuoteForm } from './QuoteForm';
+import { MaterialCard, PostCalculationCard } from './ProjectInsights';
 import { quantityText, SOURCE_LABELS } from '../rounding';
 
 interface Appointment {
@@ -60,7 +61,7 @@ interface Order {
   id: string;
   quoteId: string;
   status: 'open' | 'in_progress' | 'done' | 'cancelled';
-  totalNet: number;
+  totalNet?: number; // ohne Verkaufspreis-Recht nicht enthalten
   createdAt: string;
 }
 
@@ -76,6 +77,20 @@ const ORDER_STATUS_LABELS: Record<Order['status'], string> = {
   in_progress: 'In Arbeit',
   done: 'Erledigt',
   cancelled: 'Storniert',
+};
+
+// mögliche nächste Schritte je Auftragsstatus
+const ORDER_ACTIONS: Record<Order['status'], [Order['status'], string][]> = {
+  open: [
+    ['in_progress', 'Beginnen'],
+    ['cancelled', 'Stornieren'],
+  ],
+  in_progress: [
+    ['done', 'Erledigt'],
+    ['cancelled', 'Stornieren'],
+  ],
+  done: [],
+  cancelled: [],
 };
 
 const QUOTE_STATUS_LABELS: Record<Quote['status'], string> = {
@@ -98,6 +113,8 @@ export function ProjectDetailPage() {
   const [project, setProject] = useState<ProjectInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Nachkalkulation nach Änderungen (Material, Aufträge) neu laden
+  const [insightsKey, setInsightsKey] = useState(0);
   const [newAppointment, setNewAppointment] = useState({
     title: '',
     date: '',
@@ -118,6 +135,7 @@ export function ProjectDetailPage() {
         setQuotes(q);
         setOrders(o);
         setProject(p);
+        setInsightsKey((k) => k + 1);
       })
       .catch((err) =>
         setError(err instanceof ApiError ? err.message : 'Daten konnten nicht geladen werden.'),
@@ -159,301 +177,426 @@ export function ProjectDetailPage() {
     }
   };
 
+  const canWrite = hasPermission('customer.write');
+  const showInvoices = !!projectId && !!orders?.length && hasPermission('invoice.create');
+  const sections: [string, string, boolean][] = [
+    ['angebote', 'Angebote & Aufträge', true],
+    ['rechnungen', 'Rechnungen', showInvoices],
+    ['plaene', 'Lagepläne', hasPermission('plan.read')],
+    ['dokumente', 'Dokumente', hasPermission('document.read')],
+    ['termine', 'Termine', true],
+    ['nachkalkulation', 'Nachkalkulation', true],
+    ['material', 'Material', true],
+  ];
+
   return (
     <div>
-      <header className="my-day-header">
-        <h2 data-testid="project-heading">{project?.title ?? 'Projekt'}</h2>
-        {project && (
-          <p className="list-item-meta">
-            <Link to={`/kunden/${project.property.customer.id}`}>{project.property.customer.name}</Link>
-            {' · '}
-            {project.property.label}
-            {project.property.street ? `, ${project.property.street}` : ''}
-            {project.property.city
-              ? `, ${[project.property.postalCode, project.property.city].filter(Boolean).join(' ')}`
-              : ''}
-          </p>
-        )}
-        {project && hasPermission('customer.write') && (
-          <label className="list-item-meta" style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-            Status
-            <select
-              value={project.status}
-              onChange={(e) =>
-                runAction(() => api.patch(`/projects/${project.id}/status`, { status: e.target.value }))
-              }
-              data-testid="project-status-select"
-            >
-              {Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+      <header className="page-header">
+        <div>
+          <div className="list-item-meta" style={{ marginBottom: 4 }}>
+            <Link to="/projekte">Projekte</Link>
+            {project && (
+              <>
+                {' / '}
+                <Link to={`/kunden/${project.property.customer.id}`}>{project.property.customer.name}</Link>
+              </>
+            )}
+          </div>
+          <h2 data-testid="project-heading">{project?.title ?? 'Projekt'}</h2>
+          {project && (
+            <p className="list-item-meta">
+              {project.property.label}
+              {project.property.street ? `, ${project.property.street}` : ''}
+              {project.property.city
+                ? `, ${[project.property.postalCode, project.property.city].filter(Boolean).join(' ')}`
+                : ''}
+            </p>
+          )}
+        </div>
+        {project &&
+          (canWrite ? (
+            <label className="field" style={{ minWidth: 180 }}>
+              <span>Status</span>
+              <select
+                value={project.status}
+                onChange={(e) =>
+                  runAction(() => api.patch(`/projects/${project.id}/status`, { status: e.target.value }))
+                }
+                data-testid="project-status-select"
+              >
+                {Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <span className={`status-badge status-${project.status}`}>
+              {PROJECT_STATUS_LABELS[project.status]}
+            </span>
+          ))}
       </header>
+
+      <nav className="section-nav no-print" aria-label="Abschnitte">
+        {sections
+          .filter(([, , visible]) => visible)
+          .map(([id, label]) => (
+            <a key={id} href={`#${id}`}>
+              {label}
+            </a>
+          ))}
+      </nav>
 
       {error && <p className="field-error">{error}</p>}
 
-      <h3 style={{ marginBottom: 8 }}>Termine</h3>
-      {appointments?.length === 0 && <p className="list-item-meta">Noch keine Termine.</p>}
-      {appointments?.map((a) => (
-        <div key={a.id} className="list-item" data-testid="appointment-item">
-          <div>
-            <div className="list-item-name">{a.title}</div>
-            <div className="list-item-meta">
-              {new Date(a.startTime).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}
-            </div>
-          </div>
-          <span
-            className={`status-badge status-${a.status === 'done' ? 'done' : a.status === 'cancelled' ? 'cancelled' : 'open'}`}
-          >
-            {a.status === 'planned' ? 'Geplant' : a.status === 'done' ? 'Erledigt' : 'Storniert'}
-          </span>
-        </div>
-      ))}
+      <div className="page-grid">
+        <div>
+          <section className="card" id="angebote">
+            <h3 style={{ marginBottom: 12 }}>Angebote &amp; Aufträge</h3>
+            {projectId && hasPermission('quote.create') && (
+              <QuoteForm
+                projectId={projectId}
+                onCreated={load}
+                showCost={hasPermission('price.purchase.read')}
+              />
+            )}
+            {!error && quotes === null && <p>Lädt …</p>}
 
-      <form onSubmit={createAppointment} className="form-row" style={{ marginTop: 12, marginBottom: 28 }}>
-        <input
-          placeholder="Titel (z.B. Aufmaß nehmen)"
-          value={newAppointment.title}
-          onChange={(e) => setNewAppointment({ ...newAppointment, title: e.target.value })}
-          required
-          data-testid="appointment-title"
-        />
-        <input
-          type="date"
-          value={newAppointment.date}
-          onChange={(e) => setNewAppointment({ ...newAppointment, date: e.target.value })}
-          required
-          data-testid="appointment-date"
-        />
-        <input
-          type="time"
-          value={newAppointment.time}
-          onChange={(e) => setNewAppointment({ ...newAppointment, time: e.target.value })}
-          required
-          data-testid="appointment-time"
-        />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.9rem' }}>
-          <input
-            type="checkbox"
-            checked={newAppointment.assignToSelf}
-            onChange={(e) => setNewAppointment({ ...newAppointment, assignToSelf: e.target.checked })}
-          />
-          mir zuweisen
-        </label>
-        <button type="submit" className="btn btn-primary" data-testid="appointment-submit">
-          Termin anlegen
-        </button>
-      </form>
+            {quotes?.length === 0 && (
+              <div className="empty-state">
+                <strong>Noch keine Angebote für dieses Projekt.</strong>
+                Ein Angebot entsteht aus Leistungen mit Rezeptur; die Preise kommen aus der Kalkulation.
+              </div>
+            )}
 
-      <h3 style={{ marginBottom: 8 }}>Angebote &amp; Aufträge</h3>
-      {projectId && hasPermission('quote.create') && (
-        <QuoteForm projectId={projectId} onCreated={load} showCost={hasPermission('price.purchase.read')} />
-      )}
-      {!error && quotes === null && <p>Lädt …</p>}
+            {quotes?.map((quote) => (
+              <article key={quote.id} className="job-card" data-testid="quote-card" data-quote-id={quote.id}>
+                <div className="job-card-task">
+                  Angebot <span data-testid="quote-number">{quote.number ?? ''}</span> vom{' '}
+                  {new Date(quote.createdAt).toLocaleDateString('de-DE')}
+                </div>
+                <div className="job-card-meta" style={{ marginBottom: 10 }}>
+                  <span className={`status-badge status-${quote.status}`} data-testid="quote-status">
+                    {QUOTE_STATUS_LABELS[quote.status]}
+                  </span>{' '}
+                  · {formatEuro(quote.totalNet)} netto
+                  {quote.totalGross !== undefined && (
+                    <>
+                      {' '}
+                      · {formatEuro(quote.totalGross)} brutto (
+                      {quote.vatTreatment === 'small_business'
+                        ? 'ohne USt, § 19 UStG'
+                        : quote.vatTreatment === 'reverse_charge'
+                          ? 'ohne USt, § 13b UStG'
+                          : `${Number(quote.vatRate)} % USt`}
+                      )
+                    </>
+                  )}
+                </div>
 
-      {quotes?.length === 0 && (
-        <div className="empty-state">
-          <strong>Noch keine Angebote für dieses Projekt.</strong>
-          Ein Angebot entsteht aus Leistungen mit Rezeptur; die Preise kommen aus der Kalkulation.
-        </div>
-      )}
+                {editingQuoteId === quote.id && quote.status === 'draft' && projectId && (
+                  <QuoteForm
+                    projectId={projectId}
+                    quote={quote}
+                    showCost={hasPermission('price.purchase.read')}
+                    onCreated={() => {
+                      setEditingQuoteId(null);
+                      load();
+                    }}
+                    onCancel={() => setEditingQuoteId(null)}
+                  />
+                )}
+                <table className="calc-table">
+                  <tbody>
+                    {quote.lineItems.map((li) => (
+                      <tr key={li.id}>
+                        <td data-testid="quote-line">
+                          {li.description} ({quantityText(li.quantity)} {li.unit})
+                          {li.quantityExact != null && Number(li.quantityExact) !== Number(li.quantity) && (
+                            <span
+                              className="list-item-meta"
+                              title={`Gerundet ${SOURCE_LABELS[li.roundingSource ?? ''] ?? ''}`}
+                              data-testid="quote-line-exact"
+                            >
+                              {' '}
+                              · genau {quantityText(li.quantityExact)} {li.unit}
+                            </span>
+                          )}
+                        </td>
+                        <td>{formatEuro(li.lineTotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
-      {quotes?.map((quote) => (
-        <article key={quote.id} className="job-card" data-testid="quote-card" data-quote-id={quote.id}>
-          <div className="job-card-task">
-            Angebot <span data-testid="quote-number">{quote.number ?? ''}</span> vom{' '}
-            {new Date(quote.createdAt).toLocaleDateString('de-DE')}
-          </div>
-          <div className="job-card-meta" style={{ marginBottom: 10 }}>
-            <span
-              className={`status-badge status-${quote.status === 'accepted' ? 'done' : quote.status === 'rejected' ? 'cancelled' : 'open'}`}
-              data-testid="quote-status"
-            >
-              {QUOTE_STATUS_LABELS[quote.status]}
-            </span>{' '}
-            · {formatEuro(quote.totalNet)} netto
-            {quote.totalGross !== undefined && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                  {hasPermission('price.sale.read') && (
+                    <button
+                      className="btn"
+                      onClick={() => runAction(() => api.openFile(`/quotes/${quote.id}/pdf`))}
+                      data-testid="quote-pdf"
+                    >
+                      PDF
+                    </button>
+                  )}
+                  {quote.status === 'draft' &&
+                    editingQuoteId !== quote.id &&
+                    hasPermission('quote.create') &&
+                    hasPermission('price.sale.read') &&
+                    hasPermission('price.purchase.read') && (
+                      <button
+                        className="btn"
+                        disabled={busyId !== null}
+                        onClick={() => setEditingQuoteId(quote.id)}
+                        data-testid="quote-edit"
+                      >
+                        Bearbeiten
+                      </button>
+                    )}
+                  {quote.status === 'draft' &&
+                    editingQuoteId !== quote.id &&
+                    hasPermission('quote.approve') && (
+                      <button
+                        className="btn btn-primary"
+                        disabled={busyId !== null}
+                        onClick={() =>
+                          runAction(function approve() {
+                            return api.post(`/quotes/${quote.id}/approve`);
+                          })
+                        }
+                        data-testid="quote-approve"
+                      >
+                        Freigeben
+                      </button>
+                    )}
+                  {quote.status === 'approved' && hasPermission('quote.create') && (
+                    <button
+                      className="btn btn-primary"
+                      disabled={busyId !== null}
+                      onClick={() =>
+                        runAction(function send() {
+                          return api.post(`/quotes/${quote.id}/send`);
+                        })
+                      }
+                      data-testid="quote-send"
+                    >
+                      Versenden
+                    </button>
+                  )}
+                  {quote.status === 'sent' && hasPermission('quote.create') && (
+                    <>
+                      <button
+                        className="btn btn-primary"
+                        disabled={busyId !== null}
+                        onClick={() =>
+                          runAction(function accept() {
+                            return api.post(`/quotes/${quote.id}/outcome`, { status: 'accepted' });
+                          })
+                        }
+                        data-testid="quote-accept"
+                      >
+                        Kunde hat angenommen
+                      </button>
+                      <button
+                        className="btn"
+                        disabled={busyId !== null}
+                        onClick={() =>
+                          runAction(function reject() {
+                            return api.post(`/quotes/${quote.id}/outcome`, { status: 'rejected' });
+                          })
+                        }
+                        data-testid="quote-reject"
+                      >
+                        Kunde hat abgelehnt
+                      </button>
+                    </>
+                  )}
+                  {quote.status === 'accepted' &&
+                    !hasOrderForQuote(quote.id) &&
+                    hasPermission('order.create') && (
+                      <button
+                        className="btn btn-primary"
+                        disabled={busyId !== null}
+                        onClick={() =>
+                          runAction(function createOrder() {
+                            return api.post('/orders', { quoteId: quote.id });
+                          })
+                        }
+                        data-testid="quote-create-order"
+                      >
+                        Auftrag erzeugen
+                      </button>
+                    )}
+                </div>
+              </article>
+            ))}
+
+            {orders && orders.length > 0 && (
               <>
-                {' '}
-                · {formatEuro(quote.totalGross)} brutto (
-                {quote.vatTreatment === 'small_business'
-                  ? 'ohne USt, § 19 UStG'
-                  : quote.vatTreatment === 'reverse_charge'
-                    ? 'ohne USt, § 13b UStG'
-                    : `${Number(quote.vatRate)} % USt`}
-                )
+                <h3 style={{ marginTop: 20, marginBottom: 4 }}>Aufträge</h3>
+                {orders.map((order) => (
+                  <div key={order.id} className="list-item" data-testid="order-item">
+                    <div>
+                      <div className="list-item-name">
+                        Auftrag vom {new Date(order.createdAt).toLocaleDateString('de-DE')}
+                      </div>
+                      {order.totalNet !== undefined && (
+                        <div className="list-item-meta">{formatEuro(order.totalNet)} netto</div>
+                      )}
+                    </div>
+                    <div className="btn-row">
+                      {hasPermission('order.create') &&
+                        ORDER_ACTIONS[order.status].map(([to, label]) => (
+                          <button
+                            key={to}
+                            className={`btn btn-sm${to === 'cancelled' ? ' btn-danger' : ''}`}
+                            disabled={busyId !== null}
+                            onClick={() => {
+                              if (to === 'cancelled' && !window.confirm('Auftrag wirklich stornieren?'))
+                                return;
+                              runAction(() => api.patch(`/orders/${order.id}/status`, { status: to }));
+                            }}
+                            data-testid={`order-${to}`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      <span className={`status-badge status-${order.status}`} data-testid="order-status">
+                        {ORDER_STATUS_LABELS[order.status]}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </>
             )}
-          </div>
+          </section>
 
-          {editingQuoteId === quote.id && quote.status === 'draft' && projectId && (
-            <QuoteForm
+          {showInvoices && orders && (
+            <section className="card" id="rechnungen">
+              <InvoicesSection projectId={projectId!} orderIds={orders.map((o) => o.id)} />
+            </section>
+          )}
+
+          {projectId && hasPermission('plan.read') && (
+            <section className="card" id="plaene">
+              <PlansSection projectId={projectId} canEdit={hasPermission('plan.write')} />
+            </section>
+          )}
+
+          {projectId && hasPermission('document.read') && (
+            <section className="card" id="dokumente">
+              <DocumentsSection projectId={projectId} canDelete={hasPermission('document.delete')} />
+            </section>
+          )}
+        </div>
+
+        <aside>
+          <section className="card" id="termine">
+            <h3 style={{ marginBottom: 8 }}>Termine</h3>
+            {appointments?.length === 0 && <p className="list-item-meta">Noch keine Termine.</p>}
+            {appointments?.map((a) => (
+              <div
+                key={a.id}
+                className="list-item"
+                style={{ padding: '10px 0' }}
+                data-testid="appointment-item"
+              >
+                <div>
+                  <div className="list-item-name">{a.title}</div>
+                  <div className="list-item-meta">
+                    {new Date(a.startTime).toLocaleString('de-DE', {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </div>
+                </div>
+                {a.status === 'planned' && canWrite ? (
+                  <div className="btn-row">
+                    <button
+                      className="btn btn-sm"
+                      disabled={busyId !== null}
+                      onClick={() =>
+                        runAction(() => api.patch(`/appointments/${a.id}/status`, { status: 'done' }))
+                      }
+                      title="Als erledigt markieren"
+                      data-testid="appointment-done"
+                    >
+                      Erledigt
+                    </button>
+                    <button
+                      className="btn btn-sm btn-ghost"
+                      disabled={busyId !== null}
+                      onClick={() =>
+                        runAction(() => api.patch(`/appointments/${a.id}/status`, { status: 'cancelled' }))
+                      }
+                      title="Termin absagen"
+                      data-testid="appointment-cancel"
+                    >
+                      Absagen
+                    </button>
+                  </div>
+                ) : (
+                  <span className={`status-badge status-${a.status}`}>
+                    {a.status === 'planned' ? 'Geplant' : a.status === 'done' ? 'Erledigt' : 'Abgesagt'}
+                  </span>
+                )}
+              </div>
+            ))}
+            {canWrite && (
+              <form onSubmit={createAppointment} style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+                <input
+                  placeholder="Titel (z.B. Aufmaß nehmen)"
+                  value={newAppointment.title}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, title: e.target.value })}
+                  required
+                  data-testid="appointment-title"
+                />
+                <div className="form-row">
+                  <input
+                    type="date"
+                    value={newAppointment.date}
+                    onChange={(e) => setNewAppointment({ ...newAppointment, date: e.target.value })}
+                    required
+                    data-testid="appointment-date"
+                  />
+                  <input
+                    type="time"
+                    value={newAppointment.time}
+                    onChange={(e) => setNewAppointment({ ...newAppointment, time: e.target.value })}
+                    required
+                    data-testid="appointment-time"
+                  />
+                </div>
+                <div className="form-row" style={{ justifyContent: 'space-between' }}>
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={newAppointment.assignToSelf}
+                      onChange={(e) =>
+                        setNewAppointment({ ...newAppointment, assignToSelf: e.target.checked })
+                      }
+                    />
+                    mir zuweisen
+                  </label>
+                  <button type="submit" className="btn btn-primary" data-testid="appointment-submit">
+                    Termin anlegen
+                  </button>
+                </div>
+              </form>
+            )}
+          </section>
+
+          {projectId && <PostCalculationCard projectId={projectId} reloadKey={insightsKey} />}
+          {projectId && (
+            <MaterialCard
               projectId={projectId}
-              quote={quote}
-              showCost={hasPermission('price.purchase.read')}
-              onCreated={() => {
-                setEditingQuoteId(null);
-                load();
-              }}
-              onCancel={() => setEditingQuoteId(null)}
+              canWrite={canWrite}
+              onChange={() => setInsightsKey((k) => k + 1)}
             />
           )}
-          <table className="calc-table">
-            <tbody>
-              {quote.lineItems.map((li) => (
-                <tr key={li.id}>
-                  <td data-testid="quote-line">
-                    {li.description} ({quantityText(li.quantity)} {li.unit})
-                    {li.quantityExact != null && Number(li.quantityExact) !== Number(li.quantity) && (
-                      <span
-                        className="list-item-meta"
-                        title={`Gerundet ${SOURCE_LABELS[li.roundingSource ?? ''] ?? ''}`}
-                        data-testid="quote-line-exact"
-                      >
-                        {' '}
-                        · genau {quantityText(li.quantityExact)} {li.unit}
-                      </span>
-                    )}
-                  </td>
-                  <td>{formatEuro(li.lineTotal)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-            {hasPermission('price.sale.read') && (
-              <button
-                className="btn"
-                onClick={() => runAction(() => api.openFile(`/quotes/${quote.id}/pdf`))}
-                data-testid="quote-pdf"
-              >
-                PDF
-              </button>
-            )}
-            {quote.status === 'draft' &&
-              editingQuoteId !== quote.id &&
-              hasPermission('quote.create') &&
-              hasPermission('price.sale.read') &&
-              hasPermission('price.purchase.read') && (
-                <button
-                  className="btn"
-                  disabled={busyId !== null}
-                  onClick={() => setEditingQuoteId(quote.id)}
-                  data-testid="quote-edit"
-                >
-                  Bearbeiten
-                </button>
-              )}
-            {quote.status === 'draft' && editingQuoteId !== quote.id && (
-              <button
-                className="btn btn-primary"
-                disabled={busyId !== null}
-                onClick={() =>
-                  runAction(function approve() {
-                    return api.post(`/quotes/${quote.id}/approve`);
-                  })
-                }
-                data-testid="quote-approve"
-              >
-                Freigeben
-              </button>
-            )}
-            {quote.status === 'approved' && (
-              <button
-                className="btn btn-primary"
-                disabled={busyId !== null}
-                onClick={() =>
-                  runAction(function send() {
-                    return api.post(`/quotes/${quote.id}/send`);
-                  })
-                }
-                data-testid="quote-send"
-              >
-                Versenden
-              </button>
-            )}
-            {quote.status === 'sent' && (
-              <>
-                <button
-                  className="btn btn-primary"
-                  disabled={busyId !== null}
-                  onClick={() =>
-                    runAction(function accept() {
-                      return api.post(`/quotes/${quote.id}/outcome`, { status: 'accepted' });
-                    })
-                  }
-                  data-testid="quote-accept"
-                >
-                  Kunde hat angenommen
-                </button>
-                <button
-                  className="btn"
-                  style={{ background: 'transparent', border: '1px solid var(--color-border)' }}
-                  disabled={busyId !== null}
-                  onClick={() =>
-                    runAction(function reject() {
-                      return api.post(`/quotes/${quote.id}/outcome`, { status: 'rejected' });
-                    })
-                  }
-                  data-testid="quote-reject"
-                >
-                  Kunde hat abgelehnt
-                </button>
-              </>
-            )}
-            {quote.status === 'accepted' && !hasOrderForQuote(quote.id) && (
-              <button
-                className="btn btn-primary"
-                disabled={busyId !== null}
-                onClick={() =>
-                  runAction(function createOrder() {
-                    return api.post('/orders', { quoteId: quote.id });
-                  })
-                }
-                data-testid="quote-create-order"
-              >
-                Auftrag erzeugen
-              </button>
-            )}
-          </div>
-        </article>
-      ))}
-
-      {orders && orders.length > 0 && (
-        <>
-          <h3 style={{ marginTop: 28, marginBottom: 8 }}>Aufträge</h3>
-          {orders.map((order) => (
-            <div key={order.id} className="list-item">
-              <div>
-                <div className="list-item-name">
-                  Auftrag vom {new Date(order.createdAt).toLocaleDateString('de-DE')}
-                </div>
-                <div className="list-item-meta">{formatEuro(order.totalNet)}</div>
-              </div>
-              <span className={`status-badge status-${order.status}`}>
-                {ORDER_STATUS_LABELS[order.status]}
-              </span>
-            </div>
-          ))}
-        </>
-      )}
-
-      {projectId && orders && orders.length > 0 && hasPermission('invoice.create') && (
-        <InvoicesSection projectId={projectId} orderIds={orders.map((o) => o.id)} />
-      )}
-
-      {projectId && hasPermission('plan.read') && (
-        <PlansSection projectId={projectId} canEdit={hasPermission('plan.write')} />
-      )}
-
-      {projectId && hasPermission('document.read') && (
-        <DocumentsSection projectId={projectId} canDelete={hasPermission('document.delete')} />
-      )}
+        </aside>
+      </div>
     </div>
   );
 }

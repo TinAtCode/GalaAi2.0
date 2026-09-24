@@ -1,4 +1,4 @@
-import { useTheme } from '../theme/ThemeContext';
+import { ThemeMode, useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../auth/AuthContext';
 import { ChangePasswordSection } from './ChangePasswordSection';
 import { UsersSection } from './UsersSection';
@@ -13,18 +13,43 @@ const COLOR_FIELDS: { key: keyof ReturnType<typeof useTheme>['theme']; label: st
 ];
 
 export function SettingsPage() {
-  const { theme, setTheme, resetTheme } = useTheme();
+  const { theme, setTheme, resetTheme, mode, setMode } = useTheme();
   const { hasPermission } = useAuth();
 
   return (
     <div>
-      <header className="my-day-header">
+      <header className="page-header">
         <h2>Einstellungen</h2>
       </header>
 
       <section className="settings-section">
         <h3>Darstellung</h3>
         <p>Farben lassen sich hier direkt anpassen – die Änderung gilt sofort für die ganze Anwendung.</p>
+
+        <div className="color-field">
+          <div>
+            <div className="list-item-name">Hell oder dunkel</div>
+            <div className="list-item-meta">„Automatisch“ folgt der Einstellung des Geräts</div>
+          </div>
+          <div className="segmented" role="group" aria-label="Hell oder dunkel">
+            {(
+              [
+                ['system', 'Automatisch'],
+                ['light', 'Hell'],
+                ['dark', 'Dunkel'],
+              ] as [ThemeMode, string][]
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                aria-pressed={mode === value}
+                onClick={() => setMode(value)}
+                data-testid={`theme-mode-${value}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {COLOR_FIELDS.map((field) => (
           <div key={field.key} className="color-field">
@@ -41,11 +66,7 @@ export function SettingsPage() {
           </div>
         ))}
 
-        <button
-          className="btn"
-          style={{ marginTop: 16, background: 'transparent', border: '1px solid var(--color-border)' }}
-          onClick={resetTheme}
-        >
+        <button className="btn" style={{ marginTop: 16 }} onClick={resetTheme}>
           Auf Standardfarben zurücksetzen
         </button>
       </section>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { TimeTrackingWidget } from './TimeTrackingWidget';
+import { OfficeOverview } from './OfficeOverview';
 
 interface MyDayItem {
   id: string;
@@ -38,6 +39,7 @@ export function MyDayPage() {
         <h2>Mein Tag</h2>
         <p>{today}</p>
       </header>
+      <OfficeOverview />
 
       <TimeTrackingWidget />
 
@@ -53,7 +55,7 @@ export function MyDayPage() {
       )}
 
       {items?.map((item) => (
-        <article key={item.id} className="job-card">
+        <article key={item.id} className="job-card appointment-card">
           <div className="job-card-time">{formatTime(item.time)}</div>
           <div className="job-card-task">{item.task}</div>
           <div className="job-card-meta">

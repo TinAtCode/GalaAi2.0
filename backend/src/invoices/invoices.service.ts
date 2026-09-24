@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { invoiceClaims } from './claims';
 import { MailService } from '../mail/mail.service';
 import { lockFor } from '../common/advisory-lock';
 import { writeAudit } from '../common/audit';
@@ -35,14 +36,31 @@ export class InvoicesService {
     private mail: MailService,
   ) {}
 
-  findAllForProject(companyId: string, projectId: string) {
-    return this.prisma.invoice.findMany({
+  // Mit offener Forderung je Rechnung (Rechnungsbetrag, Mahnkosten, Zinsen)
+  async findAllForProject(companyId: string, projectId: string) {
+    const invoices = await this.prisma.invoice.findMany({
       where: { companyId, projectId },
       include: {
         lineItems: { orderBy: { position: 'asc' } },
         payments: { orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }] },
+        dunningNotices: { orderBy: { level: 'asc' } },
+        chargeWaivers: true,
       },
       orderBy: { createdAt: 'asc' },
+    });
+    return invoices.map(({ dunningNotices, chargeWaivers, ...invoice }) => {
+      const claims = invoiceClaims({ ...invoice, dunningNotices, chargeWaivers });
+      return {
+        ...invoice,
+        claims: {
+          principalOpen: claims.principalOpen,
+          costs: claims.costs,
+          interest: claims.interest,
+          waived: claims.waived,
+          chargesOpen: claims.chargesOpen,
+          totalOpen: claims.totalOpen,
+        },
+      };
     });
   }
 
@@ -260,9 +278,20 @@ export class InvoicesService {
     const original = await this.findOne(companyId, id);
     return this.prisma.$transaction(async (tx) => {
       await lockFor(tx, 'invoice-order', original.orderId);
+      // wie beim Buchen einer Zahlung: keine Zahlung während des Stornos
+      await lockFor(tx, 'invoice-payment', id);
       const current = await tx.invoice.findUniqueOrThrow({ where: { id } });
       if (current.status !== 'issued' || current.kind === 'cancellation') {
         throw new BadRequestException('Nur ausgestellte Rechnungen können storniert werden.');
+      }
+      // Zahlungen hingen sonst an einer stornierten Rechnung und fehlten in
+      // den offenen Posten: erst entfernen (der Bankumsatz wird wieder offen)
+      // und nach dem Storno der neuen Rechnung zuordnen
+      const payments = await tx.invoicePayment.count({ where: { invoiceId: id, companyId } });
+      if (payments > 0) {
+        throw new BadRequestException(
+          'Die Rechnung hat bereits Zahlungen. Bitte die Zahlungen zuerst entfernen und nach dem Storno der neuen Rechnung zuordnen.',
+        );
       }
       const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
       const issueDate = new Date();

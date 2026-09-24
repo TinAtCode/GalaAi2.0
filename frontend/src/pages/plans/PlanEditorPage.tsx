@@ -44,6 +44,18 @@ import {
   squareMeters,
 } from './geometry';
 import { edgeMidpoint, isCircle, outline } from './outline';
+import { DxfDrawing, parseDxf } from './dxf';
+import { DxfImport } from './DxfImport';
+import { offlineDb, OutboxEntry } from '../../offline/db';
+import {
+  discardLocalVersion,
+  flushOutbox,
+  isNetworkError,
+  keepLocalVersion,
+  notifyOfflineChange,
+  useOnline,
+  useOutbox,
+} from '../../offline/sync';
 
 interface Plan {
   id: string;
@@ -109,6 +121,8 @@ export function PlanEditorPage() {
   const [circleChoice, setCircleChoice] = useState<Partial<Record<Tool, boolean>>>({});
   const circleMode = circleChoice[tool] ?? tool === 'manhole';
   const [quoteOpen, setQuoteOpen] = useState(false);
+  // DXF-Datei, deren Layer gerade zugeordnet werden
+  const [dxf, setDxf] = useState<{ name: string; drawing: DxfDrawing } | null>(null);
   const [background, setBackground] = useState<{ id: string; url: string } | null>(null);
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.7);
   const [size, setSize] = useState<Point>([800, 560]);
@@ -137,22 +151,85 @@ export function PlanEditorPage() {
   const perimeterOf = (o: PlanObject) =>
     isCircle(o.props) ? 2 * Math.PI * radiusOf(o) : toMeters(polygonPerimeter(outlineOf(o)));
 
-  // Laden
-  const apply = (loaded: Plan) => {
+  // Laden – offline aus dem Gerät; eine noch nicht übertragene Änderung
+  // (Warteschlange) geht dem Serverstand vor
+  const online = useOnline();
+  const [offlineCopy, setOfflineCopy] = useState<number | null>(null); // Stand vom (ms)
+  const outbox = useOutbox();
+  const pending = outbox.find((e) => e.planId === planId) ?? null;
+
+  const apply = (loaded: Plan, queued?: OutboxEntry) => {
     setPlan(loaded);
-    setObjects(loaded.objects);
-    setName(loaded.name);
-    setUnitsPerMeter(loaded.unitsPerMeter);
+    const local = queued && !queued.conflict;
+    setObjects(local ? (queued.objects as PlanObject[]) : loaded.objects);
+    setName(local ? queued.name : loaded.name);
+    setUnitsPerMeter(local ? queued.unitsPerMeter : loaded.unitsPerMeter);
     setDirty(false);
     setHistory({ past: [], future: [] });
   };
 
   useEffect(() => {
-    api
-      .get<Plan>(`/plans/${planId}`)
-      .then(apply)
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'Plan konnte nicht geladen werden.'));
+    if (!planId) return;
+    let current = true;
+    (async () => {
+      const queued = await offlineDb.getOutbox(planId).catch(() => undefined);
+      try {
+        const loaded = await api.get<Plan>(`/plans/${planId}`);
+        if (!current) return;
+        apply(loaded, queued);
+        setOfflineCopy(null);
+        // für später ohne Netz auf dem Gerät behalten (Hintergrund kommt beim Laden dazu)
+        const cached = await offlineDb.getPlan(planId).catch(() => undefined);
+        await offlineDb
+          .putPlan({
+            id: loaded.id,
+            projectId: loaded.projectId,
+            name: loaded.name,
+            plan: loaded,
+            background:
+              cached?.backgroundId === loaded.background?.documentId ? cached?.background : undefined,
+            backgroundId:
+              cached?.backgroundId === loaded.background?.documentId ? cached?.backgroundId : undefined,
+            cachedAt: Date.now(),
+          })
+          .catch(() => undefined);
+      } catch (err) {
+        if (!current) return;
+        if (!isNetworkError(err)) {
+          setError(err instanceof ApiError ? err.message : 'Plan konnte nicht geladen werden.');
+          return;
+        }
+        const cached = await offlineDb.getPlan(planId).catch(() => undefined);
+        if (!current) return;
+        if (!cached) {
+          setError('Keine Verbindung – dieser Plan wurde auf diesem Gerät noch nicht geöffnet.');
+          return;
+        }
+        apply(cached.plan as Plan, queued);
+        setOfflineCopy(cached.cachedAt);
+      }
+    })();
+    return () => {
+      current = false;
+    };
   }, [planId]);
+
+  // Nach dem Übertragen der Warteschlange: neuen Serverstand (Version) übernehmen
+  const hadPending = useRef(false);
+  useEffect(() => {
+    if (pending && !pending.conflict) {
+      hadPending.current = true;
+      return;
+    }
+    if (!hadPending.current || pending || !planId) return;
+    hadPending.current = false;
+    offlineDb
+      .getPlan(planId)
+      .then((cached) => {
+        if (cached) setPlan(cached.plan as Plan);
+      })
+      .catch(() => undefined);
+  }, [pending, planId]);
 
   // Hintergrundbild als Blob (Anmeldung per Cookie)
   const backgroundId = plan?.background?.documentId;
@@ -161,14 +238,27 @@ export function PlanEditorPage() {
     if (!backgroundId) return;
     let url: string | null = null;
     let cancelled = false;
+    const show = (blob: Blob) => {
+      if (cancelled) return;
+      url = URL.createObjectURL(blob);
+      setBackground({ id: backgroundId, url });
+    };
     api
       .blob(`/plans/${planId}/background`)
-      .then((blob) => {
-        if (cancelled) return;
-        url = URL.createObjectURL(blob);
-        setBackground({ id: backgroundId, url });
+      .then(async (blob) => {
+        show(blob);
+        // Hintergrund für offline mitspeichern
+        const cached = await offlineDb.getPlan(planId!).catch(() => undefined);
+        if (cached)
+          await offlineDb.putPlan({ ...cached, background: blob, backgroundId }).catch(() => undefined);
       })
-      .catch(() => !cancelled && setError('Hintergrund konnte nicht geladen werden.'));
+      .catch(async (err) => {
+        const cached = isNetworkError(err)
+          ? await offlineDb.getPlan(planId!).catch(() => undefined)
+          : undefined;
+        if (cached?.background && cached.backgroundId === backgroundId) show(cached.background);
+        else if (!cancelled) setError('Hintergrund konnte nicht geladen werden.');
+      });
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
@@ -199,6 +289,13 @@ export function PlanEditorPage() {
     const zoom = Math.min(size[0] / w, size[1] / h) * 0.95;
     setView({ zoom, x: b.minX - (size[0] / zoom - w) / 2, y: b.minY - (size[1] / zoom - h) / 2 });
   }, [plan, size, objects]);
+  // nach einem Import einpassen, sobald die neuen Objekte gerendert sind
+  const fitPending = useRef(false);
+  useEffect(() => {
+    if (!fitPending.current) return;
+    fitPending.current = false;
+    fit();
+  }, [fit]);
   const fitted = useRef<string | null>(null);
   useEffect(() => {
     const key = `${plan?.id}:${backgroundId}:${size[0] > 0}`;
@@ -596,22 +693,55 @@ export function PlanEditorPage() {
     setBusy(true);
     setError(null);
     const snapshot = current.current;
-    try {
-      const saved = await api.put<Plan>(`/plans/${plan.id}`, {
-        version: plan.version,
-        name: snapshot.name.trim() || plan.name,
-        unitsPerMeter: snapshot.unitsPerMeter,
-        objects: snapshot.objects,
-      });
-      setPlan(saved);
+    const body = {
+      name: snapshot.name.trim() || plan.name,
+      unitsPerMeter: snapshot.unitsPerMeter,
+      objects: snapshot.objects,
+    };
+    const stillDirty = () => {
       const now = current.current;
-      setDirty(
+      return (
         now.objects !== snapshot.objects ||
-          now.name !== snapshot.name ||
-          now.unitsPerMeter !== snapshot.unitsPerMeter,
+        now.name !== snapshot.name ||
+        now.unitsPerMeter !== snapshot.unitsPerMeter
       );
+    };
+    // Ohne Netz (oder solange noch eine ältere Änderung wartet): in die
+    // Warteschlange – auf dem Stand, auf dem die erste Änderung beruhte
+    const queue = async () => {
+      const waiting = await offlineDb.getOutbox(plan.id).catch(() => undefined);
+      await offlineDb.putOutbox({
+        planId: plan.id,
+        projectId: plan.projectId,
+        ...body,
+        baseVersion: waiting?.baseVersion ?? plan.version,
+        conflict: waiting?.conflict,
+        queuedAt: Date.now(),
+      });
+      notifyOfflineChange();
+      setDirty(stillDirty());
+      setNotice('Auf dem Gerät gespeichert – wird übertragen, sobald wieder Netz da ist.');
+    };
+    try {
+      if (!navigator.onLine || (await offlineDb.getOutbox(plan.id).catch(() => undefined))) {
+        await queue();
+        if (navigator.onLine) void flushOutbox();
+        return;
+      }
+      const saved = await api.put<Plan>(`/plans/${plan.id}`, { version: plan.version, ...body });
+      setPlan(saved);
+      setOfflineCopy(null);
+      setDirty(stillDirty());
+      const cached = await offlineDb.getPlan(plan.id).catch(() => undefined);
+      if (cached) await offlineDb.putPlan({ ...cached, plan: saved, name: saved.name, cachedAt: Date.now() });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Speichern fehlgeschlagen.');
+      if (isNetworkError(err)) {
+        try {
+          await queue();
+        } catch {
+          setError('Keine Verbindung und kein Offline-Speicher im Browser – bitte später speichern.');
+        }
+      } else setError(err instanceof ApiError ? err.message : 'Speichern fehlgeschlagen.');
     } finally {
       saving.current = false;
       setBusy(false);
@@ -656,6 +786,41 @@ export function PlanEditorPage() {
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
+
+  // DXF im Browser lesen; zugeordnet und übernommen wird im Dialog rechts
+  const readDxf = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const drawing = parseDxf(await file.text());
+      if (!drawing.entities.length) {
+        setError('In der DXF-Datei wurden keine übernehmbaren Elemente gefunden.');
+        return;
+      }
+      setError(null);
+      setDxf({ name: file.name, drawing });
+      setTool('select');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Die DXF-Datei konnte nicht gelesen werden.');
+    }
+  };
+
+  const importDxf = (imported: PlanObject[], dropped: number) => {
+    const room = 2000 - objects.length;
+    const taken = imported.slice(0, Math.max(0, room));
+    commit([...objects, ...taken]);
+    setDxf(null);
+    setNotice(
+      `${taken.length} Objekte aus der DXF übernommen` +
+        (imported.length > taken.length
+          ? ` (höchstens 2000 je Plan, ${imported.length - taken.length} ausgelassen)`
+          : '') +
+        (dropped ? `, ${dropped} passten nicht zur gewählten Art` : '') +
+        '.',
+    );
+    fitPending.current = true;
+  };
 
   const uploadBackground = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1066,8 +1231,19 @@ export function PlanEditorPage() {
           <h2 style={{ margin: 0 }}>{plan.name}</h2>
         )}
         <span className="list-item-meta no-print" data-testid="plan-state">
-          {dirty ? 'nicht gespeichert' : 'gespeichert'}
+          {dirty
+            ? 'nicht gespeichert'
+            : pending?.conflict
+              ? 'Konflikt'
+              : pending
+                ? 'auf dem Gerät gespeichert'
+                : 'gespeichert'}
         </span>
+        {(!online || offlineCopy) && (
+          <span className="status-badge status-open no-print" data-testid="plan-offline">
+            offline{offlineCopy ? ` · Stand ${new Date(offlineCopy).toLocaleString('de-DE')}` : ''}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         {canEdit && (
           <button
@@ -1080,6 +1256,42 @@ export function PlanEditorPage() {
           </button>
         )}
       </header>
+      {pending?.conflict && (
+        <div className="job-card no-print" style={{ display: 'block' }} data-testid="plan-conflict">
+          <strong>Konflikt beim Übertragen</strong>
+          <p className="list-item-meta" style={{ margin: '4px 0 8px' }}>
+            Deine offline gespeicherte Änderung vom {new Date(pending.queuedAt).toLocaleString('de-DE')}{' '}
+            beruht auf einem älteren Stand – auf dem Server wurde der Plan inzwischen geändert (oder er ist
+            nicht mehr erreichbar).
+          </p>
+          <div className="btn-row">
+            <button
+              className="btn btn-primary"
+              disabled={!online || busy}
+              onClick={() =>
+                keepLocalVersion(pending.planId).catch((err) =>
+                  setError(err instanceof ApiError ? err.message : 'Übertragen fehlgeschlagen.'),
+                )
+              }
+              data-testid="plan-conflict-keep"
+            >
+              Meine Version übernehmen
+            </button>
+            <button
+              className="btn"
+              disabled={!online || busy}
+              onClick={async () => {
+                await discardLocalVersion(pending.planId);
+                const loaded = await api.get<Plan>(`/plans/${pending.planId}`);
+                apply(loaded);
+              }}
+              data-testid="plan-conflict-discard"
+            >
+              Serverstand laden (meine Änderung verwerfen)
+            </button>
+          </div>
+        </div>
+      )}
       <p className={`plan-message no-print${error ? ' field-error' : ' list-item-meta'}`} role="status">
         {error ?? notice ?? ''}
       </p>
@@ -1192,6 +1404,16 @@ export function PlanEditorPage() {
                 onChange={uploadBackground}
                 style={{ display: 'none' }}
                 data-testid="plan-background"
+              />
+            </label>
+            <label className="plan-tool" title="CAD-Zeichnung (DXF) übernehmen">
+              DXF …
+              <input
+                type="file"
+                accept=".dxf,application/dxf,image/vnd.dxf"
+                onChange={readDxf}
+                style={{ display: 'none' }}
+                data-testid="plan-dxf"
               />
             </label>
             <button
@@ -1388,6 +1610,16 @@ export function PlanEditorPage() {
         </div>
 
         <aside className="plan-panel">
+          {dxf && (
+            <DxfImport
+              fileName={dxf.name}
+              drawing={dxf.drawing}
+              unitsPerMeter={unitsPerMeter}
+              newId={newId}
+              onImport={importDxf}
+              onCancel={() => setDxf(null)}
+            />
+          )}
           {calibration?.points.length === 2 && (
             <div className="job-card" style={{ display: 'block' }} data-testid="plan-calibration">
               <strong>Maßstab festlegen</strong>

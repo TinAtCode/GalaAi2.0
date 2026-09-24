@@ -2,7 +2,16 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 
 type Chart = 'SKR03' | 'SKR04';
-type AccountKey = 'standard19' | 'standard7' | 'smallBusiness' | 'reverseCharge' | 'bank' | 'cash' | 'other';
+type AccountKey =
+  | 'standard19'
+  | 'standard7'
+  | 'smallBusiness'
+  | 'reverseCharge'
+  | 'bank'
+  | 'cash'
+  | 'other'
+  | 'dunningCosts'
+  | 'interest';
 
 interface DatevSettings {
   datevConsultantNumber: number | null;
@@ -21,6 +30,8 @@ const DEFAULT_ACCOUNTS: Record<Chart, Record<AccountKey, number>> = {
     bank: 1200,
     cash: 1000,
     other: 1360,
+    dunningCosts: 2700,
+    interest: 2650,
   },
   SKR04: {
     standard19: 4400,
@@ -30,6 +41,8 @@ const DEFAULT_ACCOUNTS: Record<Chart, Record<AccountKey, number>> = {
     bank: 1800,
     cash: 1600,
     other: 1460,
+    dunningCosts: 4830,
+    interest: 7100,
   },
 };
 
@@ -41,6 +54,8 @@ const ACCOUNT_LABELS: { key: AccountKey; label: string }[] = [
   { key: 'bank', label: 'Bank (Zahlungseingänge)' },
   { key: 'cash', label: 'Kasse (Barzahlungen)' },
   { key: 'other', label: 'Geldtransit (sonstige Zahlungen)' },
+  { key: 'dunningCosts', label: 'Mahnkosten (Gebühren, Pauschale)' },
+  { key: 'interest', label: 'Verzugszinsen' },
 ];
 
 const isoDay = (d: Date) =>

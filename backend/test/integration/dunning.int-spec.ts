@@ -1,8 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import * as iconv from 'iconv-lite';
 import request from 'supertest';
 import { sentForTests } from '../../src/mail/mail.service';
 import { createApp, createCompany, fetchPdfText, resetDatabase, TestCompany } from './helpers';
+import { EXTF_COLUMNS } from '../../src/datev/extf-columns';
 import { addCalendarDays, localDayString } from '../../src/common/time-zone';
 
 // Mahnwesen: Zahlungserinnerung, 1. und 2. Mahnung zu überfälligen Rechnungen.
@@ -224,12 +226,17 @@ describe('Mahnwesen', () => {
     const second = (await dun(invoice.id).expect(201)).body;
     expect((await send(notice.id).expect(400)).body.message).toContain('höhere Mahnstufe');
     await send(second.id).expect(201);
-    await api()
+    const payment = await api()
       .post(`/invoices/${invoice.id}/payments`)
       .set(auth)
       .send({ amount: 1, paidOn: localDayString(new Date(), 'Europe/Berlin') })
       .expect(201);
     expect((await send(second.id).expect(400)).body.message).toContain('Zahlung eingegangen');
+    // mit Zahlung kein Storno – erst die Zahlung entfernen
+    const blocked = await api().post(`/invoices/${invoice.id}/cancel`).set(auth).send({ reason: 'Kulanz' });
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.message).toContain('Zahlungen zuerst entfernen');
+    await api().delete(`/invoices/${invoice.id}/payments/${payment.body.id}`).set(auth).expect(200);
     await api().post(`/invoices/${invoice.id}/cancel`).set(auth).send({ reason: 'Kulanz' }).expect(201);
     expect((await send(second.id).expect(400)).body.message).toContain('storniert');
     expect(sentForTests).toHaveLength(2);
@@ -337,5 +344,94 @@ describe('Mahnwesen', () => {
       })
       .expect(200);
     await api().patch(`/customers/${customer.id}`).set(auth).send({ isBusiness: false }).expect(200);
+  });
+
+  it('Zahlungen auf Mahnkosten und Zinsen (§ 367 BGB), nur auf den Rechnungsbetrag, Erlass, DATEV', async () => {
+    await api()
+      .patch('/company/settings')
+      .set(auth)
+      .send({ dunningFee1: 5, datevConsultantNumber: 1001, datevClientNumber: 1 })
+      .expect(200);
+    const today = localDayString(new Date(), 'Europe/Berlin');
+    const pay = (invoiceId: string, body: object) =>
+      api()
+        .post(`/invoices/${invoiceId}/payments`)
+        .set(auth)
+        .send({ paidOn: today, ...body });
+
+    // 1) Kunde zahlt Rechnung plus Mahngebühr: erst die Gebühr, dann die Rechnung
+    const full = await issuedPartial(10); // 119 brutto
+    await backdate(full.id, 60);
+    await dun(full.id).expect(201);
+    let item = await openItem(full.id);
+    expect(item).toMatchObject({ open: '119', totalOpen: '124' });
+    expect(item.charges).toMatchObject({ costs: '5', open: '5' });
+    const payment = (await pay(full.id, { amount: 124 }).expect(201)).body;
+    expect(payment).toMatchObject({ amount: '124', costsAmount: '5', interestAmount: '0' });
+    expect(await openItem(full.id)).toBeUndefined();
+    // mehr als die offene Forderung geht nicht
+    const tooMuch = await pay(full.id, { amount: 0.01 }).expect(400);
+    expect(tooMuch.body.message).toContain('übersteigt');
+
+    // 2) Kunde zahlt nur den Rechnungsbetrag: Gebühr bleibt offen, dann Erlass
+    const principal = await issuedPartial(10);
+    await backdate(principal.id, 60);
+    await dun(principal.id).expect(201);
+    // § 367: 119 ohne Bestimmung deckt erst die Gebühr, dann 114 der Rechnung
+    const law = (await pay(principal.id, { amount: 119 }).expect(201)).body;
+    expect(law).toMatchObject({ costsAmount: '5' });
+    item = await openItem(principal.id);
+    expect(item).toMatchObject({ open: '5', totalOpen: '5' });
+    await api().delete(`/invoices/${principal.id}/payments/${law.id}`).set(auth).expect(200);
+    // mit Bestimmung nur auf die Rechnung
+    await pay(principal.id, { amount: 119, allocation: 'principal' }).expect(201);
+    await pay(principal.id, { amount: 1, allocation: 'principal' }).expect(400);
+    item = await openItem(principal.id);
+    expect(item).toMatchObject({ open: '0', totalOpen: '5', nextDunningLevel: null });
+    const invoices = (await api().get(`/invoices/by-project/${item.project.id}`).set(auth).expect(200)).body;
+    expect(invoices.find((i: { id: string }) => i.id === principal.id).claims).toMatchObject({
+      principalOpen: '0',
+      chargesOpen: '5',
+    });
+    await api()
+      .post(`/invoices/${principal.id}/charges/waive`)
+      .set(auth)
+      .send({ reason: 'Kulanz' })
+      .expect(201);
+    expect(await openItem(principal.id)).toBeUndefined();
+    const again = await api().post(`/invoices/${principal.id}/charges/waive`).set(auth).send({}).expect(400);
+    expect(again.body.message).toContain('keine Mahnkosten');
+    expect(
+      await prisma.auditLog.count({ where: { action: 'invoice_charges_waive', entityId: principal.id } }),
+    ).toBe(1);
+
+    // 3) DATEV: Anteil der Gebühr als Ertrag (SKR03 2700), der Rest an den Debitor
+    const res = await api()
+      .get(`/datev/bookings?from=${today}&to=${today}&payments=1`)
+      .set(auth)
+      .buffer(true)
+      .parse((r, done) => {
+        const chunks: Buffer[] = [];
+        r.on('data', (c: Buffer) => chunks.push(c));
+        r.on('end', () => done(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    const rows = iconv
+      .decode(res.body as Buffer, 'win1252')
+      .split('\r\n')
+      .slice(2)
+      .filter(Boolean)
+      .map((l) => l.split(';'));
+    const col = (row: string[], name: (typeof EXTF_COLUMNS)[number]) => row[EXTF_COLUMNS.indexOf(name)];
+    const fee = rows.filter((r) => col(r, 'Buchungstext').includes('Mahnkosten'));
+    expect(fee).toHaveLength(1);
+    expect(col(fee[0], 'Umsatz')).toBe('5,00');
+    expect(col(fee[0], 'Gegenkonto (ohne BU-Schlüssel)')).toBe('2700');
+    const payments = rows.filter((r) => col(r, 'Buchungstext').includes('Zahlung'));
+    // Zahlung 124 € -> 119 € an den Debitor (+ 5 € Ertrag), Zahlung 119 € nur auf die Rechnung
+    expect(payments.filter((r) => col(r, 'Umsatz') === '119,00')).toHaveLength(2);
+    expect(payments.some((r) => col(r, 'Umsatz') === '124,00')).toBe(false);
+
+    await api().patch('/company/settings').set(auth).send({ dunningFee1: 0 }).expect(200);
   });
 });

@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 24.09.2026 – Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 25.09.2026 – Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -104,7 +104,7 @@ npm run dev
 - **Security-Header**: `helmet()` global aktiv (entfernt `X-Powered-By`, setzt `X-Content-Type-Options`, `X-Frame-Options` etc.) – real per HTTP-Header-Vergleich verifiziert.
 - **CORS** nur für die eigenen Frontends: `CORS_ORIGIN` (kommagetrennt), ohne Wert das lokale Vite-Frontend. Mit Cookies wäre „offen für alle“ nicht mehr vertretbar.
 - **Sitzung im httpOnly-Cookie** (`gartenai_session`, `SameSite=Lax`, `Secure` in Produktion bzw. `COOKIE_SECURE`): JavaScript im Browser kommt nicht an das Token. Ändernde Anfragen mit Cookie brauchen `X-Requested-With` (CSRF-Schutz). `GET /auth/me` stellt die Sitzung nach dem Neuladen wieder her, `POST /auth/logout` löscht das Cookie. API-Clients (Tests, spätere Mobile-App) schicken das Token weiter als Bearer-Header. Betrieb: Frontend und API unter derselben Domain (z.B. `app.` und `api.` einer Domain); liegen sie auf verschiedenen Domains, `COOKIE_SAMESITE=none` und HTTPS.
-- **OCR-Warteschlange**: alle Texterkennungen laufen über eine Warteschlange mit begrenzter Parallelität (`OCR_CONCURRENCY`, Standard 2). `POST /ocr/jobs` legt einen Auftrag an und antwortet sofort (202), `GET /ocr/jobs/:id` liefert Status und Ergebnis; `POST /ocr/extract` wartet wie bisher auf das Ergebnis. Die Datei liegt nur bis zur Verarbeitung im Speicher; nach einem Neustart werden unterbrochene Aufträge als fehlgeschlagen markiert. Für mehrere Server-Instanzen wäre eine gemeinsame Warteschlange (Redis/BullMQ) nötig.
+- **OCR-Warteschlange**: alle Texterkennungen laufen über eine Warteschlange mit begrenzter Parallelität (`OCR_CONCURRENCY`, Standard 2). `POST /ocr/jobs` legt einen Auftrag an und antwortet sofort (202), `GET /ocr/jobs/:id` liefert Status und Ergebnis; `POST /ocr/extract` wartet wie bisher auf das Ergebnis. Die Datei liegt nur bis zur Verarbeitung im Speicher; nach einem Neustart werden unterbrochene Aufträge als fehlgeschlagen markiert. Das Limit gilt über alle Server-Instanzen zusammen: die Plätze liegen in PostgreSQL (`OcrSlot`, vergeben mit `FOR UPDATE SKIP LOCKED`, alle 30 s verlängert, nach 2 min ohne Lebenszeichen frei); Aufträge geben ein Lebenszeichen, aufgeräumt werden nur verwaiste Aufträge. Die Datei bleibt bis zur Verarbeitung im Speicher des annehmenden Servers.
 - **Logging**: `LOG_FORMAT=json` für den Betrieb (eine JSON-Zeile pro Ereignis für Log-Sammler), sonst lesbare Ausgabe. Je Anfrage eine Zeile mit Methode, Pfad ohne Query, Status, Dauer, Nutzer/Firma und Request-ID (vom Proxy übernommen oder erzeugt, in `X-Request-Id` zurückgegeben); 5xx mit Stacktrace. Keine Bodies, Cookies oder Tokens im Log.
 - **Metriken**: `GET /metrics` im Prometheus-Format, nur mit `METRICS_TOKEN` als Bearer-Token (ohne Token abgeschaltet, 404). Anfragen je Methode, Routen-Muster (`/customers/:id`, nie echte IDs) und Status, Antwortzeiten als Histogramm, OCR-Warteschlange (laufend/wartend), fehlgeschlagene E-Mails, dazu Prozesswerte (CPU, Speicher, Event-Loop). Beispiel-Konfiguration und Alarmregeln (Backend nicht erreichbar, Serverfehler über 5 %, langsame Antworten, OCR-Stau, fehlgeschlagene E-Mails, blockierter Event-Loop, Speicher) in `ops/prometheus`; die CI prüft die Regeln mit `promtool` samt Regeltests.
 - **Anfrage-Limit** 300/Minute je angemeldetem Nutzer, anonym je IP (`RATE_LIMIT`, `common/user-throttler.guard.ts`). Vorher 100/Minute je IP – Kollegen hinter derselben Büro-IP teilten sich ein Kontingent.
@@ -439,6 +439,35 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   handelndem Nutzer, altem und neuem Wert in derselben Transaktion protokolliert. Gleichzeitige
   Statuswechsel: nur einer gelingt und nur dieser steht im Protokoll (Integrationstest). Einsehbar unter Einstellungen → Protokoll (`GET /audit-log`, filterbar, seitenweise; Recht `audit.read`, das die Migration allen Rollen mit `system.settings.write` gibt).
 
+- **Nachtrag – Code-Review und Oberfläche (25.09.2026)**: Aufträge (Summe), Materialverbrauch
+  (Einkaufspreis) und Nachkalkulation (Materialkosten) liefern Preise nur mit dem passenden Recht; die
+  Nachkalkulation zählt alle nicht stornierten Aufträge; Rechnungen mit Zahlungen lassen sich nicht mehr
+  stornieren (erst Zahlungen entfernen, dann der neuen Rechnung zuordnen); Knöpfe im Projekt nur mit dem Recht,
+  das das Backend verlangt. Neue Oberflächen für vorhandene Funktionen: Nachkalkulation und Materialverbrauch am
+  Projekt, Auftragsstatus, Termine erledigen/absagen, Preislisten-Import (Stammdaten). Suche in Kunden- und
+  Projektlisten (`?q=`, Projekte zusätzlich `?status=`), Schnellsuche mit Strg+K. Oberfläche: Schriften lokal
+  statt von Google Fonts (Datenschutz), Dunkelmodus (automatisch/hell/dunkel), gruppierte Seitenleiste, mobil
+  untere Leiste mit „Mehr“, Karten und einheitliche Formulare, Projektseite zweispaltig mit Sprungmarken,
+  Kennzahlen auf „Mein Tag“. Test: jede Mandanten-Tabelle mit Verweis auf eine andere hat den Trigger
+  `tenant_guard`.
+
+- **Nachtrag – Zahlungen auf Mahnkosten und Zinsen**: Forderung je Rechnung = Rechnungsbetrag + Gebühren und
+  Pauschale aller Mahnstufen + Zinsen der jüngsten Mahnung (`invoices/claims.ts`). Zahlungen werden nach § 367
+  BGB verrechnet (erst Kosten, dann Zinsen, dann Rechnungsbetrag) oder auf Wunsch nur auf den Rechnungsbetrag;
+  die Anteile stehen an der Zahlung. Mahnkosten lassen sich erlassen (eigene Tabelle, Audit-Log). DATEV: die
+  Anteile als Ertrag (SKR03 2700/2650, SKR04 4830/7100, einstellbar) – bitte mit der Kanzlei abstimmen.
+
+- **Nachtrag – Kontoauszüge MT940 und CSV**: neben CAMT.053 auch MT940 (STA) und CSV aus dem Online-Banking;
+  das Format wird am Inhalt erkannt, Spalten der CSV über die Überschrift (Sparkasse, Volksbank, DKB u. a.).
+
+- **Nachtrag – DXF-Import**: CAD-Zeichnungen (ASCII-DXF) im Lageplan übernehmen; je Layer die Objektart
+  wählen (aus dem Namen vorgeschlagen), Bögen und Kreise bleiben echte Bögen/Kreise, Einheit aus `$INSUNITS`.
+
+- **Nachtrag – Aufmaß offline**: installierbare App (Manifest, Service Worker nur im Build); zuletzt
+  geöffnete Lagepläne samt Hintergrund liegen im Gerät (IndexedDB); offline gespeicherte Änderungen werden bei
+  Netz übertragen, bei zwischenzeitlicher Änderung auf dem Server entscheidet der Nutzer (keine stille
+  Überschreibung). Abmelden und Nutzerwechsel löschen die Offline-Daten.
+
 ---
 
 ## 6. Qualitätssicherung
@@ -450,8 +479,9 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 ## 7. Offene Punkte
 
 - **Wartet auf Eingaben:** GAEB-Import (echte Beispieldateien vom Auftraggeber), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Hero-Vergleich (später), KI-Anbieter (Entscheidung; bestimmt die Qualität bei Screenshots, Fotos und freien PDFs).
-- **In Arbeit bzw. als Nächstes:** Lagepläne: Aufmaß-App offline, DXF-Import; Zahlungseingänge auf Mahngebühren und Zinsen buchen.
-- **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Aufmaß-App, Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, automatischer Bankabruf, Peppol, OCR über mehrere Server-Instanzen, automatisches Ausrollen auf einen Server.
+- **Erledigt am 25.09.2026:** Zahlungen auf Mahngebühren und Zinsen, Kontoauszüge als MT940 und CSV, DXF-Import, Aufmaß offline (installierbare App, Lagepläne ohne Netz), OCR-Limit über mehrere Server (siehe Nachtrag unten).
+- **Braucht eine Entscheidung oder Zugänge:** automatischer Kontoabruf (EBICS/FinTS: Bankzugang und ggf. FinTS-Produktregistrierung bei der Deutschen Kreditwirtschaft), Versand der E-Rechnungen über Peppol (Vertrag mit einem Peppol-Access-Point-Anbieter), Schwellen der Alarmregeln (erst nach einigen Wochen Betrieb sinnvoll).
+- **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, Ablage der Dokumente im Objektspeicher, automatisches Ausrollen auf einen Server.
 - Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 
 ---
@@ -459,5 +489,5 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 ## 8. Nächste sinnvolle Schritte
 
 1. **Dein Test** mit einem echten Projekt (siehe `TESTANLEITUNG.md`, für einen Server `BETRIEB.md`) – danach mit echten Rückmeldungen weiterplanen.
-2. Die Punkte „In Arbeit bzw. als Nächstes“ aus Abschnitt 7 in dieser Reihenfolge.
+2. Die Punkte „Braucht eine Entscheidung oder Zugänge“ aus Abschnitt 7, sobald die Zugänge da sind.
 3. KI-Anbieter festlegen, sobald Screenshots, Fotos und freie PDFs zuverlässig gelesen werden sollen.

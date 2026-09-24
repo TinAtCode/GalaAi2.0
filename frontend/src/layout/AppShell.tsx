@@ -1,72 +1,269 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { Icon, IconName } from './icons';
+import { CommandPalette } from './CommandPalette';
+import { offlineDb } from '../offline/db';
+import { startOfflineSync, useOnline, useOutbox } from '../offline/sync';
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Mein Tag', icon: '☀', testId: 'nav-my-day' },
-  { to: '/projekte', label: 'Projekte', icon: '📋', testId: 'nav-projects' },
-  { to: '/kunden', label: 'Kunden', icon: '👤', testId: 'nav-customers' },
-  { to: '/kalkulation', label: 'Kalkulation', icon: '🧮', testId: 'nav-calculation' },
-  { to: '/stammdaten', label: 'Stammdaten', icon: '📦', testId: 'nav-masterdata' },
+export interface NavItem {
+  to: string;
+  label: string;
+  icon: IconName;
+  testId: string;
+  group: 'Arbeit' | 'Angebote & Stammdaten' | 'Finanzen' | 'Verwaltung';
+  permission?: string;
+  // mobil in der unteren Leiste (die übrigen unter „Mehr“)
+  primary?: boolean;
+}
+
+export const NAV_ITEMS: NavItem[] = [
+  { to: '/', label: 'Mein Tag', icon: 'sun', testId: 'nav-my-day', group: 'Arbeit', primary: true },
+  {
+    to: '/projekte',
+    label: 'Projekte',
+    icon: 'folder',
+    testId: 'nav-projects',
+    group: 'Arbeit',
+    primary: true,
+  },
+  { to: '/kunden', label: 'Kunden', icon: 'users', testId: 'nav-customers', group: 'Arbeit', primary: true },
+  // Lagepläne auf diesem Gerät (auch ohne Netz)
+  {
+    to: '/offline',
+    label: 'Offline-Pläne',
+    icon: 'offline',
+    permission: 'plan.read',
+    testId: 'nav-offline',
+    group: 'Arbeit',
+  },
+  {
+    to: '/kalkulation',
+    label: 'Kalkulation',
+    icon: 'calculator',
+    testId: 'nav-calculation',
+    group: 'Angebote & Stammdaten',
+  },
+  {
+    to: '/stammdaten',
+    label: 'Stammdaten',
+    icon: 'box',
+    testId: 'nav-masterdata',
+    group: 'Angebote & Stammdaten',
+  },
   // Rechnungen und Zahlungen: nur mit invoice.create
   {
     to: '/offene-posten',
     label: 'Offene Posten',
-    icon: '€',
+    icon: 'receipt',
     permission: 'invoice.create',
     testId: 'nav-open-items',
+    group: 'Finanzen',
+    primary: true,
   },
   {
     to: '/bankabgleich',
     label: 'Bankabgleich',
-    icon: '🏦',
+    icon: 'bank',
     permission: 'invoice.create',
     testId: 'nav-bank',
+    group: 'Finanzen',
   },
   // Geschäftsführung und Buchhaltung
   {
     to: '/finanzen',
     label: 'Finanzen',
-    icon: '📊',
+    icon: 'chart',
     permission: 'finance.read',
     testId: 'nav-finance',
+    group: 'Finanzen',
   },
   // Nur sichtbar mit employee.data.read (Vorgesetzte/Büro) – dieselbe
   // Berechtigung, die das Backend für diese Daten verlangt.
-  { to: '/team', label: 'Team', icon: '🧑‍🤝‍🧑', permission: 'employee.data.read', testId: 'nav-team' },
-  { to: '/einstellungen', label: 'Einstellungen', icon: '⚙', testId: 'nav-settings' },
+  {
+    to: '/team',
+    label: 'Team',
+    icon: 'team',
+    permission: 'employee.data.read',
+    testId: 'nav-team',
+    group: 'Verwaltung',
+  },
+  {
+    to: '/einstellungen',
+    label: 'Einstellungen',
+    icon: 'settings',
+    testId: 'nav-settings',
+    group: 'Verwaltung',
+  },
 ];
+
+const GROUPS: NavItem['group'][] = ['Arbeit', 'Angebote & Stammdaten', 'Finanzen', 'Verwaltung'];
 
 export function AppShell() {
   const { user, logout, hasPermission } = useAuth();
-  const visibleNavItems = NAV_ITEMS.filter((item) => !item.permission || hasPermission(item.permission));
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const visible = NAV_ITEMS.filter((item) => !item.permission || hasPermission(item.permission));
+  const online = useOnline();
+  const outbox = useOutbox();
+
+  // offline gespeicherte Änderungen übertragen, sobald Netz da ist
+  useEffect(() => startOfflineSync(), []);
+
+  // Abmelden löscht die Offline-Daten – vorher warnen, wenn noch etwas wartet
+  const signOut = async () => {
+    const waiting = await offlineDb.allOutbox().catch(() => []);
+    if (
+      waiting.length &&
+      !window.confirm(
+        `${waiting.length} offline gespeicherte ${waiting.length === 1 ? 'Änderung ist' : 'Änderungen sind'} noch nicht übertragen und gehen beim Abmelden verloren. Trotzdem abmelden?`,
+      )
+    )
+      return;
+    await logout();
+  };
+
+  // Strg+K / Cmd+K öffnet die Schnellsuche
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const link = (item: NavItem) => (
+    <NavLink
+      to={item.to}
+      end={item.to === '/'}
+      className={({ isActive }) => (isActive ? 'active' : '')}
+      data-testid={item.testId}
+    >
+      <span className="app-nav-icon">
+        <Icon name={item.icon} size={22} />
+      </span>
+      <span className="app-nav-label">{item.label}</span>
+    </NavLink>
+  );
+
+  const initials = user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : '';
 
   return (
     <div className="app-shell">
       <nav className="app-nav" aria-label="Hauptnavigation">
-        <div className="app-nav-brand">GartenAI</div>
-        <ul className="app-nav-list">
-          {visibleNavItems.map((item) => (
-            <li key={item.to}>
-              <NavLink
-                to={item.to}
-                end={item.to === '/'}
-                className={({ isActive }) => (isActive ? 'active' : '')}
-                data-testid={item.testId}
-              >
-                <span className="app-nav-icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-                <span className="app-nav-label">{item.label}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-        <button className="app-nav-logout" onClick={logout} data-testid="nav-logout">
-          {user ? `${user.firstName} · Abmelden` : 'Abmelden'}
+        <div className="app-nav-brand">
+          <span className="app-nav-logo">
+            <Icon name="leaf" size={18} />
+          </span>
+          GartenAI
+        </div>
+        <button
+          className="search-trigger nav-desktop-only"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Schnellsuche öffnen (Strg+K)"
+          data-testid="search-open"
+        >
+          <Icon name="search" size={16} /> Suchen …<kbd>Strg K</kbd>
         </button>
+        {GROUPS.map((group) => {
+          const items = visible.filter((item) => item.group === group);
+          if (!items.length) return null;
+          return (
+            <div key={group} className="app-nav-group">
+              <div className="app-nav-group-label">{group}</div>
+              <ul className="app-nav-list">
+                {items.map((item) => (
+                  <li key={item.to} className={item.primary ? undefined : 'nav-secondary'}>
+                    {link(item)}
+                  </li>
+                ))}
+                {group === 'Verwaltung' && (
+                  <li className="nav-more">
+                    <button
+                      className="app-nav-more"
+                      onClick={() => setMoreOpen(!moreOpen)}
+                      aria-expanded={moreOpen}
+                      data-testid="nav-more"
+                    >
+                      <span className="app-nav-icon">
+                        <Icon name="more" size={22} />
+                      </span>
+                      <span className="app-nav-label">Mehr</span>
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
+          );
+        })}
+        <div className="app-nav-footer">
+          {user && (
+            <div className="app-nav-user">
+              <span className="app-nav-avatar">{initials}</span>
+              <span>
+                {user.firstName} {user.lastName}
+              </span>
+            </div>
+          )}
+          <button onClick={signOut} data-testid="nav-logout">
+            Abmelden
+          </button>
+        </div>
       </nav>
 
+      {moreOpen && (
+        <>
+          <div className="nav-sheet-backdrop" onClick={() => setMoreOpen(false)} />
+          <div className="nav-sheet" role="dialog" aria-label="Weitere Bereiche">
+            <button
+              onClick={() => {
+                setMoreOpen(false);
+                setSearchOpen(true);
+              }}
+            >
+              <Icon name="search" size={22} />
+              Suchen
+            </button>
+            {visible
+              .filter((item) => !item.primary)
+              .map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => (isActive ? 'active' : '')}
+                  onClick={() => setMoreOpen(false)}
+                >
+                  <Icon name={item.icon} size={22} />
+                  {item.label}
+                </NavLink>
+              ))}
+            <button onClick={signOut}>
+              <Icon name="logout" size={22} />
+              Abmelden
+            </button>
+          </div>
+        </>
+      )}
+
+      {searchOpen && <CommandPalette items={visible} onClose={() => setSearchOpen(false)} />}
+
       <main className="app-content">
+        {(!online || outbox.length > 0) && (
+          <div
+            className={`offline-banner no-print${online ? '' : ' is-offline'}`}
+            role="status"
+            data-testid="offline-banner"
+          >
+            {!online ? 'Keine Verbindung – ' : ''}
+            {outbox.length > 0
+              ? `${outbox.length} Planänderung${outbox.length === 1 ? '' : 'en'} ${online ? 'werden übertragen' : 'warten auf die Übertragung'}${outbox.some((e) => e.conflict) ? ' (Konflikt – bitte im Plan entscheiden)' : ''}.`
+              : 'Lagepläne auf diesem Gerät lassen sich weiter bearbeiten.'}{' '}
+            <NavLink to="/offline">Offline-Pläne</NavLink>
+          </div>
+        )}
         <Outlet />
       </main>
     </div>

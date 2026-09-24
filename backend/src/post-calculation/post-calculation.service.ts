@@ -13,6 +13,7 @@ export interface DeviationResult {
 }
 
 export interface PostCalculationResult {
+  orders: number; // Anzahl berücksichtigter Aufträge
   labor: DeviationResult; // in Minuten
   material: DeviationResult; // in Euro (Einkaufspreis-Basis)
 }
@@ -58,15 +59,16 @@ export class PostCalculationService {
 
     // Soll: aus dem (falls vorhandenen) Auftrag -> Angebot -> Positionen
     // die geplante Arbeitszeit UND den geplanten Materialeinsatz je Einheit.
-    const order = await this.prisma.order.findFirst({
-      where: { projectId, companyId },
+    // Alle nicht stornierten Aufträge zählen (z.B. Hauptauftrag und Nachtrag)
+    const orders = await this.prisma.order.findMany({
+      where: { projectId, companyId, status: { not: 'cancelled' } },
       include: { quote: { include: { lineItems: true } } },
     });
 
     const plannedLaborItems: PlannedLaborItem[] = [];
     const plannedMaterialItems: PlannedMaterialItem[] = [];
 
-    if (order) {
+    for (const order of orders) {
       // Soll bevorzugt aus dem eingefrorenen Angebot (Stand zum Zeitpunkt des
       // Angebots). Nur für ältere Positionen ohne Snapshot wird auf die
       // aktuelle Rezeptur zurückgegriffen.
@@ -137,6 +139,7 @@ export class PostCalculationService {
     );
 
     return {
+      orders: orders.length,
       labor: calculateDeviation(sumPlannedMinutes(plannedLaborItems), actualMinutes),
       material: calculateDeviation(sumPlannedMaterialCost(plannedMaterialItems), actualMaterialCost),
     };

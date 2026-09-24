@@ -5,8 +5,11 @@ import { lockFor } from '../common/advisory-lock';
 import { writeAudit } from '../common/audit';
 import { addCalendarDays, calendarDaysBetween, isValidDay, localDayString } from '../common/time-zone';
 import { RecordPaymentDto } from './dto/invoice.dto';
+import { allocatePayment, invoiceClaims } from './claims';
 
-// Summe der Zahlungen einer Rechnung
+const euroText = (d: Prisma.Decimal) => `${d.toFixed(2).replace('.', ',')} €`;
+
+// Summe der Zahlungen (ganze Beträge, z.B. aus einem Bankumsatz)
 export const paidAmount = (payments: { amount: Prisma.Decimal }[]) =>
   payments.reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
 
@@ -60,7 +63,7 @@ export class PaymentsService {
       await tx.$queryRaw`SELECT id FROM "Invoice" WHERE id = ${invoiceId} AND "companyId" = ${companyId} FOR UPDATE`;
       const invoice = await tx.invoice.findFirst({
         where: { id: invoiceId, companyId },
-        include: { payments: true },
+        include: { payments: true, dunningNotices: true, chargeWaivers: true },
       });
       if (!invoice) throw new NotFoundException('Rechnung nicht gefunden.');
       if (
@@ -72,12 +75,15 @@ export class PaymentsService {
           'Zahlungen gibt es nur für ausgestellte Rechnungen (nicht für Entwürfe, Stornos oder stornierte Rechnungen).',
         );
       }
-      const paid = invoice.payments.reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
-      const open = invoice.totalGross.minus(paid);
+      const claims = invoiceClaims(invoice);
       const amount = new Prisma.Decimal(dto.amount);
-      if (amount.greaterThan(open)) {
+      const allocation = dto.allocation ?? 'law';
+      const split = allocatePayment(claims, amount, allocation);
+      if (!split) {
         throw new BadRequestException(
-          `Die Zahlung übersteigt den offenen Betrag (${open.toFixed(2).replace('.', ',')} €).`,
+          allocation === 'law' && claims.chargesOpen.greaterThan(0)
+            ? `Die Zahlung übersteigt die offene Forderung (${euroText(claims.totalOpen)} inkl. ${euroText(claims.chargesOpen)} Mahnkosten und Zinsen).`
+            : `Die Zahlung übersteigt den offenen Betrag (${euroText(claims.principalOpen)}).`,
         );
       }
       const payment = await tx.invoicePayment.create({
@@ -85,6 +91,8 @@ export class PaymentsService {
           companyId,
           invoiceId,
           amount,
+          costsAmount: split.costsAmount,
+          interestAmount: split.interestAmount,
           paidOn: new Date(`${dto.paidOn}T00:00:00Z`),
           method: dto.method ?? 'bank',
           note: dto.note?.trim() || null,
@@ -98,7 +106,13 @@ export class PaymentsService {
         action: 'invoice_payment',
         entity: 'Invoice',
         entityId: invoiceId,
-        newData: { amount: amount.toNumber(), paidOn: dto.paidOn, method: payment.method },
+        newData: {
+          amount: amount.toNumber(),
+          paidOn: dto.paidOn,
+          method: payment.method,
+          costs: split.costsAmount.toNumber(),
+          interest: split.interestAmount.toNumber(),
+        },
       });
       return payment;
     }
@@ -143,6 +157,41 @@ export class PaymentsService {
     });
   }
 
+  // Offene Mahnkosten und Zinsen erlassen (z.B. aus Kulanz). Die Mahnungen
+  // bleiben unverändert; der Erlass steht mit Betrag und Grund im Audit-Log.
+  async waiveCharges(companyId: string, userId: string, invoiceId: string, reason?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await lockFor(tx, 'invoice-payment', invoiceId);
+      const invoice = await tx.invoice.findFirst({
+        where: { id: invoiceId, companyId },
+        include: { payments: true, dunningNotices: true, chargeWaivers: true },
+      });
+      if (!invoice) throw new NotFoundException('Rechnung nicht gefunden.');
+      const claims = invoiceClaims(invoice);
+      if (!claims.chargesOpen.greaterThan(0)) {
+        throw new BadRequestException('Es sind keine Mahnkosten oder Zinsen offen.');
+      }
+      const waiver = await tx.invoiceChargeWaiver.create({
+        data: {
+          companyId,
+          invoiceId,
+          amount: claims.chargesOpen,
+          reason: reason?.trim() || null,
+          createdByUserId: userId,
+        },
+      });
+      await writeAudit(tx, {
+        companyId,
+        userId,
+        action: 'invoice_charges_waive',
+        entity: 'Invoice',
+        entityId: invoiceId,
+        newData: { amount: claims.chargesOpen.toNumber(), reason: waiver.reason },
+      });
+      return waiver;
+    });
+  }
+
   // Offene Posten: ausgestellte Rechnungen mit Restbetrag, älteste
   // Fälligkeit zuerst. Fällig = Rechnungsdatum + Zahlungsziel.
   async openItems(companyId: string) {
@@ -152,6 +201,7 @@ export class PaymentsService {
       where: { companyId, status: 'issued', kind: { not: 'cancellation' }, totalGross: { gt: 0 } },
       include: {
         payments: true,
+        chargeWaivers: true,
         dunningNotices: { orderBy: { level: 'asc' } },
         project: {
           select: {
@@ -165,8 +215,9 @@ export class PaymentsService {
     const today = localDayString(new Date(), tz);
     return invoices
       .map((invoice) => {
-        const paid = paidAmount(invoice.payments);
-        const open = invoice.totalGross.minus(paid);
+        const claims = invoiceClaims(invoice);
+        const paid = claims.principalPaid;
+        const open = claims.principalOpen;
         const dueDay = invoiceDueDay(invoice, company);
         const daysOverdue = Math.max(0, calendarDaysBetween(dueDay, today));
         const last = invoice.dunningNotices.at(-1);
@@ -174,6 +225,7 @@ export class PaymentsService {
         // Nächste Mahnstufe möglich: überfällig, Höchststufe nicht erreicht,
         // Frist der letzten Mahnung abgelaufen
         const canDun =
+          open.greaterThan(0) &&
           daysOverdue > 0 &&
           (last?.level ?? 0) < MAX_DUNNING_LEVEL &&
           (lastDeadline === null || lastDeadline < today);
@@ -198,11 +250,19 @@ export class PaymentsService {
           totalGross: invoice.totalGross,
           paid,
           open,
+          // Mahnkosten und Zinsen neben dem Rechnungsbetrag
+          charges: {
+            costs: claims.costs,
+            interest: claims.interest,
+            waived: claims.waived,
+            open: claims.chargesOpen,
+          },
+          totalOpen: claims.totalOpen,
           project: { id: invoice.project.id, title: invoice.project.title },
           customer: invoice.project.property.customer,
         };
       })
-      .filter((item) => item.open.greaterThan(0))
+      .filter((item) => item.totalOpen.greaterThan(0))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || (a.number ?? '').localeCompare(b.number ?? ''));
   }
 }

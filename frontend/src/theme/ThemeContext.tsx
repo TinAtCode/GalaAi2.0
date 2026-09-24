@@ -9,55 +9,93 @@ export interface ThemeColors {
   background: string;
 }
 
-const DEFAULT_THEME: ThemeColors = {
+// Hell, dunkel oder wie das Betriebssystem
+export type ThemeMode = 'system' | 'light' | 'dark';
+
+export const DEFAULT_THEME: ThemeColors = {
   primary: '#2f4b3c',
   accent: '#c98a3b',
   background: '#f7f7f4',
 };
 
 const STORAGE_KEY = 'gartenai.theme';
+const MODE_KEY = 'gartenai.theme-mode';
 
 interface ThemeContextValue {
   theme: ThemeColors;
   setTheme: (theme: ThemeColors) => void;
   resetTheme: () => void;
+  mode: ThemeMode;
+  setMode: (mode: ThemeMode) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-function applyThemeToDocument(theme: ThemeColors) {
-  const root = document.documentElement.style;
-  root.setProperty('--color-primary', theme.primary);
-  root.setProperty('--color-accent', theme.accent);
-  root.setProperty('--color-background', theme.background);
+// Eigene Farben als --user-*: tokens.css leitet daraus die Farben für hell
+// und dunkel ab (im Dunkelmodus gilt der eigene Hintergrund nicht)
+function applyThemeToDocument(theme: ThemeColors, mode: ThemeMode) {
+  const root = document.documentElement;
+  root.style.setProperty('--user-primary', theme.primary);
+  root.style.setProperty('--user-accent', theme.accent);
+  root.style.setProperty('--user-background', theme.background);
+  if (mode === 'system') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', mode);
+}
+
+// localStorage kann fehlen oder gesperrt sein (privates Fenster)
+function read(key: string) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function write(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Darstellung gilt dann nur für diese Sitzung
+  }
 }
 
 function loadStoredTheme(): ThemeColors {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_THEME;
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_THEME, ...parsed };
+    const raw = read(STORAGE_KEY);
+    return raw ? { ...DEFAULT_THEME, ...JSON.parse(raw) } : DEFAULT_THEME;
   } catch {
     return DEFAULT_THEME;
   }
 }
 
+function loadStoredMode(): ThemeMode {
+  const raw = read(MODE_KEY);
+  return raw === 'light' || raw === 'dark' ? raw : 'system';
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeColors>(() => loadStoredTheme());
+  const [mode, setModeState] = useState<ThemeMode>(() => loadStoredMode());
 
   useEffect(() => {
-    applyThemeToDocument(theme);
-  }, [theme]);
+    applyThemeToDocument(theme, mode);
+  }, [theme, mode]);
 
   const setTheme = useCallback((next: ThemeColors) => {
     setThemeState(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    write(STORAGE_KEY, JSON.stringify(next));
+  }, []);
+
+  const setMode = useCallback((next: ThemeMode) => {
+    setModeState(next);
+    write(MODE_KEY, next);
   }, []);
 
   const resetTheme = useCallback(() => setTheme(DEFAULT_THEME), [setTheme]);
 
-  const value = useMemo(() => ({ theme, setTheme, resetTheme }), [theme, setTheme, resetTheme]);
+  const value = useMemo(
+    () => ({ theme, setTheme, resetTheme, mode, setMode }),
+    [theme, setTheme, resetTheme, mode, setMode],
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

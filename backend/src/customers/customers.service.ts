@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { allocateDebtorNumber } from './debtor-number';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/create-customer.dto';
-import { pageArgs, PageQueryDto } from '../common/pagination';
+import { contains, pageArgs, SearchQueryDto } from '../common/pagination';
 
 // MUSTER FÜR ALLE WEITEREN MODULE:
 // Jede Methode nimmt companyId als Parameter entgegen (kommt vom Controller
@@ -15,8 +15,14 @@ import { pageArgs, PageQueryDto } from '../common/pagination';
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(companyId: string, page: PageQueryDto = {}) {
-    const where = { companyId };
+  async findAll(companyId: string, page: SearchQueryDto = {}) {
+    const term = contains(page.q);
+    const where: Prisma.CustomerWhereInput = {
+      companyId,
+      ...(term && {
+        OR: [{ name: term }, { email: term }, { city: term }, { phone: term }],
+      }),
+    };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.customer.findMany({ where, orderBy: { createdAt: 'desc' }, ...pageArgs(page) }),
       this.prisma.customer.count({ where }),

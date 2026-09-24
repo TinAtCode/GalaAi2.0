@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { api, ApiError, setUnauthorizedHandler, startNewSessionGeneration } from '../api/client';
+import { offlineDb } from '../offline/db';
 
 interface CurrentUser {
   id: string;
@@ -35,6 +36,20 @@ const SESSION_MARKER = 'gartenai.session';
 // Ältere Versionen haben das Token im localStorage gespeichert.
 const LEGACY_KEYS = ['gartenai.token', 'gartenai.user'];
 
+// Für das Arbeiten ohne Netz: Name und Rechte der letzten Anmeldung (nur für
+// die Anzeige – jede Anfrage prüft der Server wie immer selbst)
+const OFFLINE_USER = 'gartenai.offline-user';
+function offlineUser(action: 'set' | 'remove' | 'get', user?: CurrentUser): CurrentUser | null {
+  try {
+    if (action === 'set') localStorage.setItem(OFFLINE_USER, JSON.stringify(user));
+    if (action === 'remove') localStorage.removeItem(OFFLINE_USER);
+    const raw = localStorage.getItem(OFFLINE_USER);
+    return raw ? (JSON.parse(raw) as CurrentUser) : null;
+  } catch {
+    return null;
+  }
+}
+
 function marker(action: 'set' | 'remove' | 'get'): boolean {
   try {
     if (action === 'set') localStorage.setItem(SESSION_MARKER, '1');
@@ -56,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const endSession = useCallback((expired: boolean) => {
     if (expired && marker('get')) setSessionExpired(true);
     marker('remove');
+    offlineUser('remove');
     setUser(null);
   }, []);
 
@@ -74,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then((me) => {
           if (loggedInMeanwhile.current) return;
           marker('set');
+          offlineUser('set', me);
           setUser(me);
         })
         .catch((err: unknown) => {
@@ -81,7 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (err instanceof ApiError && err.status === 401) return endSession(true);
           if (retry)
             return new Promise<void>((resolve) => setTimeout(resolve, 1000)).then(() => check(false));
-          setUser(null);
+          // Server nicht erreichbar (offline): mit der letzten Anmeldung weiterarbeiten
+          const cached = !(err instanceof ApiError) && marker('get') ? offlineUser('get') : null;
+          setUser(cached);
         });
     check(true).finally(() => setLoading(false));
   }, [endSession]);
@@ -90,6 +109,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loggedInMeanwhile.current = true;
     startNewSessionGeneration();
     marker('set');
+    // anderer Nutzer auf diesem Gerät: dessen Offline-Daten nie unter der neuen
+    // Anmeldung übertragen
+    const previous = offlineUser('get');
+    if (previous && previous.id !== result.user.id) void offlineDb.clear().catch(() => undefined);
+    offlineUser('set', result.user);
     setSessionExpired(false);
     setUser(result.user);
   };
@@ -105,6 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await api.post('/auth/logout').catch(() => undefined);
     startNewSessionGeneration();
+    // offline gespeicherte Pläne gehören zu dieser Anmeldung
+    await offlineDb.clear().catch(() => undefined);
     endSession(false);
   }, [endSession]);
 

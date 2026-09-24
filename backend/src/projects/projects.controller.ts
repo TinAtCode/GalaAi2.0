@@ -8,7 +8,7 @@ import { AuthenticatedUser } from '../common/authenticated-request';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from './dto/project.dto';
 import { Response } from 'express';
-import { PageQueryDto, withTotalCount } from '../common/pagination';
+import { SearchQueryDto, withTotalCount } from '../common/pagination';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -19,7 +19,7 @@ export class ProjectsController {
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
   async findAllForCompany(
     @CurrentUser() user: AuthenticatedUser,
-    @Query() page: PageQueryDto,
+    @Query() page: SearchQueryDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     return withTotalCount(res, await this.projectsService.findAllForCompany(user.companyId, page));

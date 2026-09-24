@@ -51,7 +51,7 @@ const cents = (value: string | number) => Math.round(Number(value) * 100);
 // Betrag im Eingabefeld: "1234,50"
 const amountText = (value: number) => (value / 100).toFixed(2).replace('.', ',');
 
-// Bankabgleich: Kontoauszug (CAMT.053 aus dem Online-Banking) einlesen,
+// Bankabgleich: Kontoauszug (CAMT.053, MT940 oder CSV aus dem Online-Banking) einlesen,
 // Zahlungseingänge einer offenen Rechnung zuordnen und buchen.
 export function BankPage() {
   const [status, setStatus] = useState<Status>('open');
@@ -182,19 +182,19 @@ export function BankPage() {
 
   return (
     <div>
-      <header className="my-day-header">
+      <header className="page-header">
         <h2>Bankabgleich</h2>
       </header>
       <p className="list-item-meta">
-        Kontoauszug im Format CAMT.053 (XML) aus dem Online-Banking einlesen. Zahlungseingänge mit
-        Rechnungsnummer im Verwendungszweck werden der Rechnung zugeordnet; gebucht wird erst nach
-        Bestätigung.
+        Kontoauszug aus dem Online-Banking einlesen: CAMT.053 (XML), MT940 (STA) oder CSV – das Format wird
+        automatisch erkannt. Zahlungseingänge mit Rechnungsnummer im Verwendungszweck werden der Rechnung
+        zugeordnet; gebucht wird erst nach Bestätigung.
       </p>
-      <label className="btn btn-primary" style={{ display: 'inline-block', margin: '8px 0 16px' }}>
+      <label className="btn btn-primary" style={{ margin: '8px 0 16px' }}>
         Kontoauszug einlesen
         <input
           type="file"
-          accept=".xml,application/xml,text/xml"
+          accept=".xml,.sta,.mt940,.txt,.csv,application/xml,text/xml,text/csv,text/plain"
           onChange={importFile}
           disabled={busy}
           style={{ display: 'none' }}

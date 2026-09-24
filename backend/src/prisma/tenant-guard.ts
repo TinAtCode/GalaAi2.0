@@ -36,6 +36,7 @@ export const TENANT_MODELS = new Set([
   'IncomingInvoice',
   'SitePlan',
   'PlanServiceMapping',
+  'InvoiceChargeWaiver',
 ]);
 
 const GUARDED_ACTIONS = new Set([

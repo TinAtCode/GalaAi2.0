@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { OcrController } from './ocr.controller';
 import { OcrService } from './ocr.service';
-import { OcrQueue } from './ocr-queue';
+import { OCR_SLOT_STORE, OcrQueue, PrismaSlotStore } from './ocr-queue';
 import { OcrJobsService } from './ocr-jobs.service';
 import { IMAGE_OCR_ENGINE } from './engine/image-ocr-engine.interface';
 import { TesseractOcrEngine } from './engine/tesseract-ocr.engine';
@@ -11,6 +11,7 @@ import { TesseractOcrEngine } from './engine/tesseract-ocr.engine';
   providers: [
     OcrService,
     OcrQueue,
+    { provide: OCR_SLOT_STORE, useClass: PrismaSlotStore },
     OcrJobsService,
     { provide: IMAGE_OCR_ENGINE, useClass: TesseractOcrEngine },
   ],

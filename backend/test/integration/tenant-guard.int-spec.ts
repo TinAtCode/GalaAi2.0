@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { TENANT_MODELS } from '../../src/prisma/tenant-guard';
 import { createApp, createCompany, createProject, resetDatabase, TestCompany } from './helpers';
 
 // Die Datenbank selbst verhindert Verknüpfungen über Firmengrenzen hinweg
@@ -112,5 +113,38 @@ describe('Mandantentrennung in der Datenbank', () => {
       appPrisma.$transaction((tx) => tx.project.updateMany({ where: { title: 'x' }, data: { title: 'y' } })),
     ).rejects.toThrow(/ohne companyId-Filter/);
     await expect(appPrisma.customer.findMany({ where: { companyId: a.companyId } })).resolves.toHaveLength(1);
+  });
+});
+
+// Jede Mandanten-Tabelle, die auf eine andere Mandanten-Tabelle verweist,
+// hat den Datenbank-Trigger – sonst ließe sich z. B. eine Rechnung einer
+// fremden Firma verknüpfen (Tabellen ohne solche Verweise brauchen keinen)
+describe('Mandanten-Trigger vollständig', () => {
+  it('jede Tabelle mit Verweis auf eine andere Mandanten-Tabelle hat tenant_guard', async () => {
+    const prisma = new PrismaClient();
+    try {
+      const refs: { source: string; target: string }[] = await prisma.$queryRaw`
+        SELECT src.relname AS "source", dst.relname AS "target"
+        FROM pg_constraint k
+        JOIN pg_class src ON src.oid = k.conrelid
+        JOIN pg_class dst ON dst.oid = k.confrelid
+        WHERE k.contype = 'f'`;
+      const guarded = new Set(
+        (
+          await prisma.$queryRaw<{ table: string }[]>`
+            SELECT c.relname AS "table" FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+            WHERE t.tgname = 'tenant_guard'`
+        ).map((r) => r.table),
+      );
+      const needsGuard = new Set(
+        refs
+          .filter((r) => TENANT_MODELS.has(r.source) && TENANT_MODELS.has(r.target) && r.source !== r.target)
+          .map((r) => r.source),
+      );
+      expect([...needsGuard].filter((table) => !guarded.has(table))).toEqual([]);
+      expect(guarded.has('InvoiceChargeWaiver')).toBe(true);
+    } finally {
+      await prisma.$disconnect();
+    }
   });
 });

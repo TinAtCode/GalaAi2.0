@@ -12,11 +12,22 @@ interface Invoice {
   totalNet: string;
   totalGross: string;
   payments?: Payment[];
+  // offene Forderung laut Backend (Rechnungsbetrag, Mahnkosten, Zinsen)
+  claims?: {
+    principalOpen: string;
+    costs: string;
+    interest: string;
+    waived: string;
+    chargesOpen: string;
+    totalOpen: string;
+  };
 }
 
 interface Payment {
   id: string;
   amount: string;
+  costsAmount?: string;
+  interestAmount?: string;
   paidOn: string;
   method: 'bank' | 'cash' | 'other';
   note: string | null;
@@ -33,11 +44,18 @@ const todayIso = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-// Bezahlt und offen einer ausgestellten Rechnung (in Cent gerechnet)
+// Offen einer ausgestellten Rechnung: Rechnungsbetrag und daneben Mahnkosten/Zinsen
 function paymentState(invoice: Invoice) {
+  if (invoice.claims)
+    return {
+      open: Number(invoice.claims.principalOpen),
+      charges: Number(invoice.claims.chargesOpen),
+      total: Number(invoice.claims.totalOpen),
+    };
   const cents = (v: string) => Math.round(Number(v) * 100);
   const paid = (invoice.payments ?? []).reduce((sum, p) => sum + cents(p.amount), 0);
-  return { paid: paid / 100, open: (cents(invoice.totalGross) - paid) / 100 };
+  const open = (cents(invoice.totalGross) - paid) / 100;
+  return { open, charges: 0, total: open };
 }
 
 const payable = (invoice: Invoice) =>
@@ -65,7 +83,12 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
   const [busy, setBusy] = useState(false);
   // Zahlungsformular: für welche Rechnung, mit welchen Eingaben
   const [paymentFor, setPaymentFor] = useState<string | null>(null);
-  const [payment, setPayment] = useState({ amount: '', paidOn: todayIso(), method: 'bank' });
+  const [payment, setPayment] = useState({
+    amount: '',
+    paidOn: todayIso(),
+    method: 'bank',
+    allocation: 'law' as 'law' | 'principal',
+  });
 
   const load = useCallback(
     () =>
@@ -98,9 +121,10 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
   const openPaymentForm = (invoice: Invoice) => {
     setPaymentFor(invoice.id);
     setPayment({
-      amount: paymentState(invoice).open.toFixed(2).replace('.', ','),
+      amount: paymentState(invoice).total.toFixed(2).replace('.', ','),
       paidOn: todayIso(),
       method: 'bank',
+      allocation: 'law',
     });
   };
 
@@ -111,6 +135,7 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
         amount: parseAmount(payment.amount),
         paidOn: payment.paidOn,
         method: payment.method,
+        allocation: payment.allocation,
       });
       setPaymentFor(null);
     });
@@ -146,7 +171,7 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
 
   return (
     <>
-      <h3 style={{ marginTop: 28, marginBottom: 8 }}>Rechnungen</h3>
+      <h3 style={{ marginBottom: 8 }}>Rechnungen</h3>
       {error && <p className="field-error">{error}</p>}
       {notice && (
         <p className="list-item-meta" data-testid="invoice-notice">
@@ -188,16 +213,47 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
               {invoice.issueDate ? ` · vom ${new Date(invoice.issueDate).toLocaleDateString('de-DE')}` : ''}
               {payable(invoice) && (
                 <span data-testid="invoice-open">
-                  {paymentState(invoice).open <= 0
+                  {paymentState(invoice).total <= 0
                     ? ' · bezahlt'
-                    : ` · offen ${formatEuro(paymentState(invoice).open)}`}
+                    : paymentState(invoice).open > 0
+                      ? ` · offen ${formatEuro(paymentState(invoice).open)}`
+                      : ''}
                 </span>
               )}
             </div>
+            {payable(invoice) && paymentState(invoice).charges > 0 && (
+              <div className="list-item-meta" data-testid="invoice-charges">
+                <span style={{ color: 'var(--color-warning)' }}>
+                  Mahnkosten und Zinsen offen: {formatEuro(paymentState(invoice).charges)}
+                </span>{' '}
+                <button
+                  className="btn btn-sm btn-ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    const reason = window.prompt(
+                      'Mahnkosten und Zinsen erlassen – Grund (optional):',
+                      'Kulanz',
+                    );
+                    if (reason !== null)
+                      run(() => api.post(`/invoices/${invoice.id}/charges/waive`, { reason }));
+                  }}
+                  data-testid="invoice-charges-waive"
+                >
+                  Erlassen
+                </button>
+              </div>
+            )}
             {(invoice.payments ?? []).map((p) => (
               <div key={p.id} className="list-item-meta" data-testid="invoice-payment-entry">
                 Zahlung {formatEuro(p.amount)} am {new Date(p.paidOn).toLocaleDateString('de-DE')} (
-                {METHOD_LABELS[p.method]}){' '}
+                {METHOD_LABELS[p.method]})
+                {(Number(p.costsAmount ?? 0) > 0 || Number(p.interestAmount ?? 0) > 0) &&
+                  `, davon ${[
+                    Number(p.costsAmount) > 0 ? `${formatEuro(p.costsAmount)} Mahnkosten` : null,
+                    Number(p.interestAmount) > 0 ? `${formatEuro(p.interestAmount)} Zinsen` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' und ')}`}{' '}
                 <button
                   className="btn"
                   style={{ padding: '0 6px', fontSize: '0.8rem' }}
@@ -251,6 +307,25 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
                     <option value="other">sonstige</option>
                   </select>
                 </label>
+                {paymentState(invoice).charges > 0 && (
+                  <label className="field">
+                    <span>Verrechnen</span>
+                    <select
+                      value={payment.allocation}
+                      onChange={(e) => {
+                        const allocation = e.target.value as 'law' | 'principal';
+                        const state = paymentState(invoice);
+                        // Betrag passend vorschlagen: alles oder nur der Rechnungsbetrag
+                        const amount = allocation === 'law' ? state.total : state.open;
+                        setPayment({ ...payment, allocation, amount: amount.toFixed(2).replace('.', ',') });
+                      }}
+                      data-testid="payment-allocation"
+                    >
+                      <option value="law">erst Mahnkosten und Zinsen (§ 367 BGB)</option>
+                      <option value="principal">nur auf den Rechnungsbetrag</option>
+                    </select>
+                  </label>
+                )}
                 <button
                   type="submit"
                   className="btn btn-primary"
@@ -322,7 +397,7 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
                 Per E-Mail
               </button>
             )}
-            {payable(invoice) && paymentState(invoice).open > 0 && paymentFor !== invoice.id && (
+            {payable(invoice) && paymentState(invoice).total > 0 && paymentFor !== invoice.id && (
               <button
                 className="btn"
                 disabled={busy}

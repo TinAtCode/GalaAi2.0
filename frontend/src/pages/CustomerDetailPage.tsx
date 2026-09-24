@@ -160,7 +160,7 @@ export function CustomerDetailPage() {
 
       <section className="settings-section">
         <h3>Kundendaten</h3>
-        <form onSubmit={saveCustomer} className="login-form">
+        <form onSubmit={saveCustomer} className="form-grid">
           {CUSTOMER_FIELDS.map((field) => (
             <label key={field.key} className="field">
               <span>{field.label}</span>
@@ -176,7 +176,7 @@ export function CustomerDetailPage() {
               />
             </label>
           ))}
-          <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <label className="checkbox-row form-grid-full">
             <input
               type="checkbox"
               checked={isBusiness}
@@ -189,20 +189,22 @@ export function CustomerDetailPage() {
             />
             <span>Geschäftskunde (Unternehmer) – für Verzugszinsen und -pauschale bei Mahnungen</span>
           </label>
-          {saved && (
-            <p className="list-item-meta" data-testid="customer-saved">
-              Gespeichert.
-            </p>
-          )}
-          {canWrite && (
-            <button type="submit" className="btn btn-primary" data-testid="customer-save">
-              Speichern
-            </button>
-          )}
+          <div className="btn-row form-grid-full">
+            {canWrite && (
+              <button type="submit" className="btn btn-primary" data-testid="customer-save">
+                Speichern
+              </button>
+            )}
+            {saved && (
+              <span className="list-item-meta" data-testid="customer-saved">
+                Gespeichert.
+              </span>
+            )}
+          </div>
         </form>
       </section>
 
-      <h3 style={{ marginTop: 28, marginBottom: 8 }}>Objekte und Projekte</h3>
+      <h3 style={{ marginBottom: 8 }}>Objekte und Projekte</h3>
       {customer.properties.length === 0 && <p className="list-item-meta">Noch keine Objekte.</p>}
       {customer.properties.map((property) => (
         <article key={property.id} className="job-card" data-testid="property-card">

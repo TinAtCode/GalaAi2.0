@@ -8,6 +8,14 @@ import { AuthenticatedUser } from '../common/authenticated-request';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/order.dto';
 
+// Auftragssumme ist ein Verkaufspreis: ohne price.sale.read nicht ausliefern
+function maskOrder<T extends { totalNet: unknown }>(order: T, permissions: string[]) {
+  if (permissions.includes(PERMISSIONS.PRICE_SALE_READ)) return order;
+  const { totalNet, ...rest } = order;
+  void totalNet;
+  return rest;
+}
+
 @Controller('orders')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class OrdersController {
@@ -15,14 +23,15 @@ export class OrdersController {
 
   @Get('by-project/:projectId')
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
-  findAllForProject(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
-    return this.ordersService.findAllForProject(user.companyId, projectId);
+  async findAllForProject(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
+    const orders = await this.ordersService.findAllForProject(user.companyId, projectId);
+    return orders.map((o) => maskOrder(o, user.permissions));
   }
 
   @Get(':id')
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
-  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.ordersService.findOne(user.companyId, id);
+  async findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return maskOrder(await this.ordersService.findOne(user.companyId, id), user.permissions);
   }
 
   @Post()

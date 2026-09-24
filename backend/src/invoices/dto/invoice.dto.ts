@@ -89,6 +89,20 @@ export class RecordPaymentDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  // Verrechnung: 'law' = erst Mahnkosten und Zinsen (§ 367 BGB, Standard),
+  // 'principal' = nur auf den Rechnungsbetrag
+  @IsOptional()
+  @IsIn(['law', 'principal'])
+  allocation?: 'law' | 'principal';
+}
+
+// Mahnkosten und Zinsen erlassen (ganz)
+export class WaiveChargesDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }
 
 // Mahnung per E-Mail; ohne Angabe an die E-Mail-Adresse des Kunden

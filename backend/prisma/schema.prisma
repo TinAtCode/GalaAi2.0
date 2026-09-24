@@ -103,6 +103,7 @@ model Company {
   ocrJobs             OcrJob[]
   invoicePayments     InvoicePayment[]
   dunningNotices      DunningNotice[]
+  chargeWaivers       InvoiceChargeWaiver[]
   bankTransactions    BankTransaction[]
   bankBalances        BankBalance[]
   unitSettings        UnitSetting[]
@@ -641,20 +642,32 @@ enum OcrJobStatus {
   failed
 }
 
+// Plätze für gleichzeitige Texterkennungen über alle Server-Instanzen
+// (OCR_CONCURRENCY). Ein Platz ist belegt, solange sein Halter ihn verlängert.
+model OcrSlot {
+  id          Int       @id
+  holder      String?
+  leasedUntil DateTime?
+}
+
 model OcrJob {
-  id         String       @id @default(uuid())
-  companyId  String
-  company    Company      @relation(fields: [companyId], references: [id])
-  userId     String?
-  fileName   String
+  id          String       @id @default(uuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  userId      String?
+  fileName    String
   // Auftrag zu einem hochgeladenen Dokument: das Ergebnis landet dort
-  documentId String?
-  document   Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
-  status     OcrJobStatus @default(queued)
-  result     Json?
-  error      String?
-  createdAt  DateTime     @default(now())
-  finishedAt DateTime?
+  documentId  String?
+  document    Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  status      OcrJobStatus @default(queued)
+  // Server, der den Auftrag bearbeitet, und dessen letztes Lebenszeichen –
+  // Aufträge ohne Lebenszeichen gelten nach 2 Minuten als abgebrochen
+  worker      String?
+  heartbeatAt DateTime?
+  result      Json?
+  error       String?
+  createdAt   DateTime     @default(now())
+  finishedAt  DateTime?
 
   @@index([companyId, createdAt])
   @@index([documentId])
@@ -716,6 +729,7 @@ model Invoice {
   lineItems      InvoiceLineItem[]
   payments       InvoicePayment[]
   dunningNotices DunningNotice[]
+  chargeWaivers  InvoiceChargeWaiver[]
 
   @@unique([companyId, number])
   @@index([companyId])
@@ -747,6 +761,10 @@ model InvoicePayment {
   invoiceId         String
   invoice           Invoice          @relation(fields: [invoiceId], references: [id])
   amount            Decimal          @db.Decimal(12, 2)
+  // davon auf Mahnkosten (Gebühren, Pauschale) und Verzugszinsen verrechnet
+  // (§ 367 BGB: erst Kosten, dann Zinsen, dann Rechnungsbetrag)
+  costsAmount       Decimal          @default(0) @db.Decimal(12, 2)
+  interestAmount    Decimal          @default(0) @db.Decimal(12, 2)
   paidOn            DateTime         @db.Date
   method            PaymentMethod    @default(bank)
   note              String?
@@ -787,6 +805,22 @@ model DunningNotice {
 
   @@unique([invoiceId, level])
   @@index([companyId])
+}
+
+// Erlassene Mahnkosten und Zinsen (die Rechnung selbst bleibt unverändert)
+model InvoiceChargeWaiver {
+  id              String   @id @default(uuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  invoiceId       String
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id])
+  amount          Decimal  @db.Decimal(12, 2)
+  reason          String?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  @@index([companyId])
+  @@index([invoiceId])
 }
 
 // Zahlungseingang vom Kontoauszug (CAMT.053). Erst nach Bestätigung wird

@@ -57,7 +57,7 @@ export function PlansSection({ projectId, canEdit }: { projectId: string; canEdi
   };
 
   return (
-    <section style={{ marginTop: 28 }} data-testid="plans-section">
+    <section data-testid="plans-section">
       <h3 style={{ marginBottom: 4 }}>Lagepläne</h3>
       <p className="list-item-meta" style={{ marginTop: 0 }}>
         Entwässerung, Leitungen, Flächen, Zäune und Tore einzeichnen – Längen und Flächen werden gemessen.
