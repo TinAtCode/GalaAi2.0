@@ -46,6 +46,8 @@ import {
 import { edgeMidpoint, isCircle, outline } from './outline';
 import { DxfDrawing, parseDxf } from './dxf';
 import { DxfImport } from './DxfImport';
+import { AiDrawing } from './AiDrawing';
+import { useAiTask } from '../../ai/tasks';
 import { offlineDb, OutboxEntry } from '../../offline/db';
 import {
   discardLocalVersion,
@@ -94,6 +96,8 @@ export function PlanEditorPage() {
   const { hasPermission } = useAuth();
   const canEdit = hasPermission('plan.write');
   const canQuote = hasPermission('quote.create');
+  const canDrawAi = useAiTask('lageplan_zeichnen') && canEdit && hasPermission('ai.use');
+  const [aiOpen, setAiOpen] = useState(false);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [objects, setObjects] = useState<PlanObject[]>([]);
   const [name, setName] = useState('');
@@ -822,10 +826,26 @@ export function PlanEditorPage() {
     fitPending.current = true;
   };
 
+  // Vorschlag der Zeichnungs-KI übernehmen (wie beim DXF: höchstens 2000 Objekte)
+  const drawAi = (drawn: PlanObject[], dropped: number, providerName: string) => {
+    const room = 2000 - objects.length;
+    const taken = drawn.slice(0, Math.max(0, room));
+    commit([...objects, ...taken]);
+    setNotice(
+      `${taken.length} Objekte von der KI (${providerName}) eingezeichnet` +
+        (dropped ? `, ${dropped} passten nicht` : '') +
+        ' – bitte prüfen, rückgängig machen ist möglich.',
+    );
+  };
+
   const uploadBackground = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file || !plan) return;
+    if (file) uploadBackgroundFile(file);
+  };
+
+  const uploadBackgroundFile = (file: File) => {
+    if (!plan) return;
     if (dirty) {
       setError('Bitte zuerst speichern.');
       return;
@@ -1406,6 +1426,16 @@ export function PlanEditorPage() {
                 data-testid="plan-background"
               />
             </label>
+            {canDrawAi && (
+              <button
+                className={`plan-tool${aiOpen ? ' active' : ''}`}
+                onClick={() => setAiOpen(!aiOpen)}
+                title="Flächen, Leitungen und Symbole von der KI einzeichnen lassen"
+                data-testid="plan-ai-open"
+              >
+                KI zeichnen
+              </button>
+            )}
             <label className="plan-tool" title="CAD-Zeichnung (DXF) übernehmen">
               DXF …
               <input
@@ -1610,6 +1640,17 @@ export function PlanEditorPage() {
         </div>
 
         <aside className="plan-panel">
+          {aiOpen && plan && (
+            <AiDrawing
+              planId={plan.id}
+              objects={objects}
+              unitsPerMeter={unitsPerMeter}
+              canUseBackground={!dirty && !busy}
+              onDraw={drawAi}
+              onBackground={uploadBackgroundFile}
+              onClose={() => setAiOpen(false)}
+            />
+          )}
           {dxf && (
             <DxfImport
               fileName={dxf.name}

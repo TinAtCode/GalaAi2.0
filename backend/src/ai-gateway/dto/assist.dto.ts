@@ -4,6 +4,9 @@ import {
   ArrayMinSize,
   IsArray,
   IsNumber,
+  Max,
+  Min,
+  MinLength,
   IsOptional,
   IsString,
   MaxLength,
@@ -61,4 +64,22 @@ export class PhotoDescriptionDto {
   @IsString()
   @MaxLength(100)
   documentId!: string;
+}
+
+// Zeichnen mit KI: Auftrag in Worten, dazu der aktuelle (auch ungespeicherte) Stand
+export class PlanDrawingDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(2000)
+  instruction!: string;
+
+  @IsOptional()
+  @IsArray()
+  objects?: unknown[];
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.001)
+  @Max(100_000)
+  unitsPerMeter?: number;
 }
