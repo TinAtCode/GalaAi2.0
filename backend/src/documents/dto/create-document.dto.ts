@@ -14,6 +14,7 @@ export const DOCUMENT_TYPES = [
   'floor_plan',
   'customer_document',
   'site_document',
+  'photo', // Foto von der Baustelle (site/)
   'other',
 ] as const;
 

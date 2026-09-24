@@ -116,6 +116,8 @@ model Company {
   maintenanceContracts MaintenanceContract[]
   contractTasks        ContractTask[]
   importSessions       ImportSession[]
+  projectMessages      ProjectMessage[]
+  projectMessageReads  ProjectMessageRead[]
 }
 
 // ─────────────────────────────────────────────
@@ -135,11 +137,13 @@ model User {
   tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
 
-  roles         UserRole[]
-  appointments  Appointment[]
-  employee      Employee?
-  documents     Document[]
-  contractTasks ContractTask[]
+  roles               UserRole[]
+  appointments        Appointment[]
+  employee            Employee?
+  documents           Document[]
+  contractTasks       ContractTask[]
+  projectMessages     ProjectMessage[]
+  projectMessageReads ProjectMessageRead[]
 
   @@index([companyId])
 }
@@ -250,6 +254,8 @@ model Project {
   materialUsages       ProjectMaterialUsage[]
   invoices             Invoice[]
   maintenanceContracts MaintenanceContract[]
+  messages             ProjectMessage[]
+  messageReads         ProjectMessageRead[]
 
   @@index([companyId])
   @@index([propertyId])
@@ -609,6 +615,7 @@ model Document {
   ocrJobs          OcrJob[]
   payable          IncomingInvoice?
   sitePlans        SitePlan[]
+  message          ProjectMessage?
 
   @@index([companyId])
   @@index([projectId])
@@ -765,6 +772,45 @@ model ImportSession {
   rows      Json
   createdAt DateTime @default(now())
 
+  @@index([companyId])
+}
+
+// ─────────────────────────────────────────────
+// Baustelle: Nachrichten zwischen Büro und Baustelle je Projekt, optional
+// mit Foto (Document, documentType "photo")
+// ─────────────────────────────────────────────
+model ProjectMessage {
+  id           String    @id @default(uuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id])
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id])
+  authorUserId String
+  author       User      @relation(fields: [authorUserId], references: [id])
+  text         String?
+  documentId   String?   @unique
+  document     Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  // vom Gerät vergeben: aus der Offline-Warteschlange nur einmal angelegt
+  clientId     String?
+  createdAt    DateTime  @default(now())
+
+  @@unique([companyId, clientId])
+  @@index([companyId])
+  @@index([projectId, createdAt])
+}
+
+// bis wann ein Nutzer die Nachrichten eines Projekts gelesen hat
+model ProjectMessageRead {
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  lastReadAt DateTime
+
+  @@unique([projectId, userId])
   @@index([companyId])
 }
 
