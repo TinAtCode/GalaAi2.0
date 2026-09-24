@@ -1,0 +1,112 @@
+# GartenAI auf einem Rechner im Büro (Mini-Vollversion): für echte Daten,
+# ohne Server. Datenbank, Backend, App und HTTPS in Docker, dazu eine
+# automatische Sicherung. Handys im selben Netz verbinden sich über die
+# Adresse des Rechners.
+#
+# Start:  ops/buero/start.sh [--demo-daten]     (macOS/Linux)
+#         ops\buero\start.cmd                    (Windows)
+# Die Geheimnisse stehen in .env.buero (vom Startskript beim ersten Start
+# erzeugt, nie ins Repository). Anleitung: BUERO.md
+name: gartenai-buero
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gartenai
+      POSTGRES_USER: gartenai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?.env.buero fehlt - bitte über ops/buero/start starten}
+    volumes:
+      - buero_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U gartenai -d gartenai']
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  backend:
+    image: gartenai-buero-backend
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://gartenai:${POSTGRES_PASSWORD}@postgres:5432/gartenai?schema=public
+      JWT_SECRET: ${JWT_SECRET:?}
+      SECRET_KEY: ${SECRET_KEY:?}
+      # Ersteinrichtung im Browser, nur solange es keinen Nutzer gibt
+      SETUP_CODE: ${SETUP_CODE:-}
+      TRUST_PROXY: 1
+      COOKIE_SECURE: 1
+      # ohne SMTP_URL werden Mails nicht verschickt (Einstellung in .env.buero)
+      SMTP_URL: ${SMTP_URL:-test}
+      MAIL_FROM: ${MAIL_FROM:-GartenAI <noreply@localhost>}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - buero_uploads:/data/uploads
+
+  frontend:
+    image: gartenai-buero-frontend
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  # HTTPS mit eigener Zertifizierungsstelle des Rechners (ops/buero/certs)
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    ports:
+      - '0.0.0.0:${HTTPS_PORT:-8443}:8443'
+    volumes:
+      - ./ops/demo/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./ops/buero/certs:/certs:ro
+
+  # Sicherung einmal am Tag (auch wenn der Rechner nachts aus ist: beim
+  # nächsten Start), gleiches Format wie ops/backup.sh
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    # erst nach den Migrationen, sonst sichert der erste Lauf eine leere Datenbank
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - buero_uploads:/uploads:ro
+      - ./backups/buero:/backups
+      - ./ops/buero/auto-backup.sh:/auto-backup.sh:ro
+    entrypoint: ['sh', '/auto-backup.sh']
+
+  # nur mit --demo-daten: Musterbetrieb zum Ausprobieren und der Demo-Agent
+  demo-data:
+    image: gartenai-buero-backend
+    pull_policy: never
+    profiles: ['demo']
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://gartenai:${POSTGRES_PASSWORD}@postgres:5432/gartenai?schema=public
+    command: ['node', 'dist/cli/demo-data.js', '--api', 'http://backend:3000', '--agent', 'http://demo-agent:8090/']
+    restart: 'no'
+
+  demo-agent:
+    image: gartenai-buero-backend
+    pull_policy: never
+    profiles: ['demo']
+    depends_on:
+      - backend
+    command: ['node', 'dist/cli/demo-agent.js']
+    restart: unless-stopped
+
+volumes:
+  buero_db:
+  buero_uploads:

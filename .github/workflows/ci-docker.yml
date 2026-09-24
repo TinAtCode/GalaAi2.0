@@ -21,12 +21,13 @@ jobs:
       # der Test von ops/deploy.sh mit Attrappen für docker und curl
       - name: Betriebsskripte prüfen
         run: |
-          shellcheck ops/*.sh ops/tests/*.sh ops/demo/*.sh
+          shellcheck ops/*.sh ops/tests/*.sh ops/demo/*.sh ops/buero/*.sh
           bash ops/tests/deploy.test.sh
       - name: Compose-Datei prüfen
         run: |
           POSTGRES_PASSWORD=x JWT_SECRET=x docker compose -f docker-compose.prod.yml config --quiet
           docker compose -f docker-compose.demo.yml --profile https config --quiet
+          POSTGRES_PASSWORD=x JWT_SECRET=x SECRET_KEY=x docker compose -f docker-compose.buero.yml --profile demo config --quiet
       - name: Rauchtest
         run: bash ops/smoke-test.sh
       # Sicherung zurückspielen – mit gelöschten Volumes, Dokument Byte für Byte
@@ -35,3 +36,6 @@ jobs:
       # Demo für Vorführungen (Laptop + Handys im WLAN) mit HTTPS
       - name: Rauchtest Demo
         run: bash ops/tests/demo-smoke.sh
+      # GartenAI im Büro (ein Rechner, echte Daten): Ersteinrichtung, Sicherung, Zurückspielen
+      - name: Rauchtest Büro
+        run: bash ops/tests/buero-smoke.sh

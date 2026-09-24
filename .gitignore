@@ -26,3 +26,7 @@ backend/.verapdf/
 # Stand und Sicherungen von ops/deploy.sh auf dem Server
 .deploy/
 backups/
+
+# GartenAI im Büro (ops/buero): Geheimnisse und Zertifikate dieser Installation
+.env.buero
+ops/buero/certs/

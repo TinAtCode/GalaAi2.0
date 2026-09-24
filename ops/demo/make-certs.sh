@@ -3,13 +3,14 @@
 # LAN. Läuft im Container (alpine), damit auf Windows, macOS und Linux kein
 # openssl nötig ist:  sh make-certs.sh 192.168.1.20 [weitere Adressen …]
 # Die Zertifizierungsstelle bleibt beim erneuten Aufruf erhalten – ein einmal
-# auf dem Handy installiertes Stammzertifikat gilt weiter.
+# auf dem Handy installiertes Stammzertifikat gilt weiter. CA_NAME: Name der
+# Zertifizierungsstelle (Standard „GartenAI Demo CA“).
 set -eu
 cd "${CERT_DIR:-/certs}"
 command -v openssl >/dev/null 2>&1 || apk add --no-cache openssl >/dev/null
 if [ ! -f ca.key ]; then
   openssl req -x509 -newkey rsa:2048 -nodes -days 825 -keyout ca.key -out ca.crt \
-    -subj "/CN=GartenAI Demo CA" -addext "basicConstraints=critical,CA:TRUE" \
+    -subj "/CN=${CA_NAME:-GartenAI Demo CA}" -addext "basicConstraints=critical,CA:TRUE" \
     -addext "keyUsage=critical,keyCertSign,cRLSign" 2>/dev/null
 fi
 san="DNS:localhost,IP:127.0.0.1"
