@@ -1628,3 +1628,150 @@ input[type='radio'] {
   font-size: 0.88rem;
   color: var(--color-ink-muted);
 }
+
+/* ───────────────────────────────────────────────────────────
+   Plantafel: Mitarbeiter × Tage
+   ─────────────────────────────────────────────────────────── */
+
+.board-scroll {
+  overflow-x: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-card);
+}
+
+.board {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 920px;
+  table-layout: fixed;
+  font-size: 0.85rem;
+}
+
+.board th,
+.board td {
+  border-bottom: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+  vertical-align: top;
+  padding: 6px;
+}
+
+.board thead th {
+  background: var(--color-surface-2);
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--color-ink-muted);
+  text-align: left;
+  position: sticky;
+  top: 0;
+}
+
+.board .board-person {
+  width: 150px;
+  text-align: left;
+  font-weight: 500;
+  border-left: none;
+  position: sticky;
+  left: 0;
+  background: var(--color-surface);
+  z-index: 1;
+}
+
+.board thead .board-person {
+  background: var(--color-surface-2);
+  z-index: 2;
+}
+
+.board td {
+  height: 72px;
+  transition: background 0.1s;
+}
+
+.board .board-today {
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.board thead th.board-today {
+  color: var(--color-primary);
+}
+
+.board td.board-drop {
+  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -3px;
+}
+
+.board-item {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-radius: var(--radius-small);
+  border: 1px solid color-mix(in srgb, var(--color-info) 35%, transparent);
+  border-left: 3px solid var(--color-info);
+  background: color-mix(in srgb, var(--color-info) 10%, var(--color-surface));
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.board-item[draggable='true'] {
+  cursor: grab;
+}
+
+.board-item.is-contract {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  border-left-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+}
+
+.board-item.is-done {
+  opacity: 0.55;
+}
+
+.board-item-time {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.board-item-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-item-meta {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-over {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-danger);
+}
+
+.board-dialog {
+  position: fixed;
+  z-index: 31;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-raised);
+  padding: 20px;
+}

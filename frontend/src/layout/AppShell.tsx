@@ -28,6 +28,15 @@ export const NAV_ITEMS: NavItem[] = [
     primary: true,
   },
   { to: '/kunden', label: 'Kunden', icon: 'users', testId: 'nav-customers', group: 'Arbeit', primary: true },
+  // Wer ist wann wo – Termine aller Mitarbeiter einer Woche
+  {
+    to: '/plantafel',
+    label: 'Plantafel',
+    icon: 'board',
+    permission: 'customer.read',
+    testId: 'nav-board',
+    group: 'Arbeit',
+  },
   // Pflege- und Wartungsverträge (ansehen wie Projekte)
   {
     to: '/vertraege',

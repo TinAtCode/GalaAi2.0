@@ -6,6 +6,7 @@ import { MyDayPage } from './pages/MyDayPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { PlanBoardPage } from './pages/PlanBoardPage';
 import { ContractsPage } from './pages/contracts/ContractsPage';
 import { OfflinePlansPage } from './pages/OfflinePlansPage';
 import { PlanEditorPage } from './pages/plans/PlanEditorPage';
@@ -43,6 +44,7 @@ export function App() {
         <Route path="projekte/:projectId/plaene/:planId" element={<PlanEditorPage />} />
         <Route path="offline" element={<OfflinePlansPage />} />
         <Route path="vertraege" element={<ContractsPage />} />
+        <Route path="plantafel" element={<PlanBoardPage />} />
         <Route path="kunden" element={<CustomersPage />} />
         <Route path="kunden/:customerId" element={<CustomerDetailPage />} />
         <Route path="kalkulation" element={<CalculationPage />} />

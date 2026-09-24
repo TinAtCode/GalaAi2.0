@@ -1,7 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateAppointmentDto, UpdateAppointmentStatusDto } from './dto/appointment.dto';
-import { dayRangeInZone, formatTimeInZone } from '../common/time-zone';
+import {
+  BoardQueryDto,
+  CreateAppointmentDto,
+  UpdateAppointmentDto,
+  UpdateAppointmentStatusDto,
+} from './dto/appointment.dto';
+import { addCalendarDays, dayRangeInZone, formatTimeInZone, isValidDay } from '../common/time-zone';
 import { lockFor } from '../common/advisory-lock';
 import { Prisma } from '@prisma/client';
 
@@ -142,6 +147,74 @@ export class AppointmentsService {
       const effectiveEnd = endTime ?? new Date(startTime.getTime() + DEFAULT_DURATION_MS);
       await this.assertNoCollision(tx, companyId, timeZone, assignedUserId, startTime, effectiveEnd);
       return tx.appointment.create({ data });
+    });
+  }
+
+  // Plantafel: alle nicht abgesagten Termine im Zeitraum, mit Baustelle und Kunde
+  async board(companyId: string, query: BoardQueryDto) {
+    if (!isValidDay(query.from)) throw new BadRequestException('Ungültiges Datum.');
+    const timeZone = await this.getTimeZone(companyId);
+    const days = query.days ?? 7;
+    const noon = (day: string) => new Date(`${day}T12:00:00Z`);
+    const start = dayRangeInZone(noon(query.from), timeZone).start;
+    const end = dayRangeInZone(noon(addCalendarDays(query.from, days - 1)), timeZone).end;
+    const [appointments, assignees] = await Promise.all([
+      this.prisma.appointment.findMany({
+        where: { companyId, status: { not: 'cancelled' }, startTime: { gte: start, lt: end } },
+        select: {
+          id: true,
+          title: true,
+          startTime: true,
+          endTime: true,
+          status: true,
+          assignedUserId: true,
+          contractTaskId: true,
+          project: {
+            select: {
+              id: true,
+              title: true,
+              property: { select: { city: true, customer: { select: { name: true } } } },
+            },
+          },
+        },
+        orderBy: { startTime: 'asc' },
+      }),
+      this.assignees(companyId),
+    ]);
+    return { from: query.from, days, timeZone, assignees, appointments };
+  }
+
+  // Verschieben und neu zuteilen – mit derselben Kollisionsprüfung wie beim Anlegen
+  async update(companyId: string, id: string, dto: UpdateAppointmentDto) {
+    const existing = await this.assertAppointmentBelongsToCompany(companyId, id);
+    if (existing.status === 'cancelled') {
+      throw new BadRequestException('Abgesagte Termine lassen sich nicht verschieben.');
+    }
+    const startTime = dto.startTime ? new Date(dto.startTime) : existing.startTime;
+    let endTime: Date | null;
+    if (dto.endTime !== undefined) endTime = dto.endTime ? new Date(dto.endTime) : null;
+    else
+      endTime = existing.endTime
+        ? new Date(existing.endTime.getTime() + (startTime.getTime() - existing.startTime.getTime()))
+        : null;
+    if (endTime && endTime <= startTime) {
+      throw new BadRequestException('Das Ende eines Termins muss nach dem Beginn liegen.');
+    }
+    const assignedUserId = dto.assignedUserId === undefined ? existing.assignedUserId : dto.assignedUserId;
+    if (assignedUserId && assignedUserId !== existing.assignedUserId) {
+      const user = await this.prisma.user.findFirst({
+        where: { id: assignedUserId, companyId, active: true },
+      });
+      if (!user) throw new NotFoundException('Zugewiesener Benutzer nicht gefunden.');
+    }
+    const data = { title: dto.title ?? existing.title, startTime, endTime, assignedUserId };
+    if (!assignedUserId) return this.prisma.appointment.update({ where: { id }, data });
+    const timeZone = await this.getTimeZone(companyId);
+    return this.prisma.$transaction(async (tx) => {
+      await lockFor(tx, 'appointment', assignedUserId);
+      const effectiveEnd = endTime ?? new Date(startTime.getTime() + DEFAULT_DURATION_MS);
+      await this.assertNoCollision(tx, companyId, timeZone, assignedUserId, startTime, effectiveEnd, id);
+      return tx.appointment.update({ where: { id }, data });
     });
   }
 

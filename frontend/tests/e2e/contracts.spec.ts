@@ -34,8 +34,12 @@ test.describe('Pflegeverträge', () => {
 
     // Termine für 4 Wochen: übermorgen und dann wöchentlich
     await card.getByTestId('contract-plan').click();
-    await expect(page.getByTestId('contract-message')).toContainText('Termine für die nächsten 4 Wochen geplant');
-    await expect(page.getByTestId('appointment-item').filter({ hasText: 'Rasen mähen' }).first()).toBeVisible();
+    await expect(page.getByTestId('contract-message')).toContainText(
+      'Termine für die nächsten 4 Wochen geplant',
+    );
+    await expect(
+      page.getByTestId('appointment-item').filter({ hasText: 'Rasen mähen' }).first(),
+    ).toBeVisible();
 
     // Abrechnen: Entwurf erscheint unter Rechnungen
     await card.getByTestId('contract-invoice').click();
@@ -55,7 +59,8 @@ test.describe('Pflegeverträge', () => {
       await request.get(`${API_BASE_URL}/invoices/by-project/${SEED.projectId}`, { headers })
     ).json();
     for (const invoice of invoices.filter(
-      (i: { contractId: string | null; status: string }) => i.contractId === contract.id && i.status === 'draft',
+      (i: { contractId: string | null; status: string }) =>
+        i.contractId === contract.id && i.status === 'draft',
     )) {
       expect((await request.delete(`${API_BASE_URL}/invoices/${invoice.id}`, { headers })).ok()).toBeTruthy();
     }
