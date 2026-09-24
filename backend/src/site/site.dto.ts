@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsISO8601, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 // clientId: vom Gerät vergeben (UUID), damit ein zweiter Versuch aus der
 // Offline-Warteschlange nichts doppelt anlegt
@@ -27,7 +27,8 @@ export class PostPhotoDto {
 }
 
 export class MessagesQueryDto {
+  // Zeitpunkt der ältesten schon geladenen Nachricht (weiter zurückblättern)
   @IsOptional()
-  @IsString()
+  @IsISO8601()
   before?: string;
 }

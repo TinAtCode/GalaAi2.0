@@ -164,6 +164,7 @@ describe('Baustelle', () => {
   it('Rechte und Mandanten', async () => {
     const otherAuth = { Authorization: `Bearer ${other.token}` };
     await api().get(`/site/projects/${projectId}/messages`).set(otherAuth).expect(404);
+    await api().get(`/site/projects/${projectId}/messages?before=gestern`).set(officeAuth()).expect(400);
     await api()
       .post(`/site/projects/${projectId}/messages`)
       .set(otherAuth)

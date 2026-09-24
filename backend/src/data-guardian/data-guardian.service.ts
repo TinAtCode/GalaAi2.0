@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as Papa from 'papaparse';
 import { readSheet } from 'read-excel-file/node';
+import { assertZipWithinLimits } from '../common/zip-guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { diffPriceList, PriceListRow } from './price-list-diff';
 
@@ -56,6 +57,7 @@ async function readXlsxRows(file: {
   }
 
   let sheet: unknown[][];
+  assertZipWithinLimits(file.buffer);
   try {
     sheet = await readSheet(file.buffer);
   } catch {
