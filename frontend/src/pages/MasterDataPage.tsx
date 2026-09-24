@@ -5,6 +5,7 @@ import { formatEuro } from '../format';
 import { InlineEdit } from '../layout/InlineEdit';
 import { ServicesTab } from './ServicesTab';
 import { UnitsTab } from './UnitsTab';
+import { PriceListImportTab } from './PriceListImportTab';
 
 interface Article {
   id: string;
@@ -26,7 +27,7 @@ interface Machine {
   hourlyRate?: number;
 }
 
-type Tab = 'articles' | 'services' | 'suppliers' | 'machines' | 'units';
+type Tab = 'articles' | 'services' | 'suppliers' | 'machines' | 'units' | 'pricelist';
 
 export function MasterDataPage() {
   const { hasPermission } = useAuth();
@@ -75,6 +76,15 @@ export function MasterDataPage() {
         >
           Einheiten
         </button>
+        {hasPermission('data.import') && (
+          <button
+            className={tab === 'pricelist' ? 'active' : ''}
+            onClick={() => setTab('pricelist')}
+            data-testid="tab-pricelist"
+          >
+            Preisliste importieren
+          </button>
+        )}
       </div>
 
       {tab === 'articles' && <ArticlesTab canWrite={canWrite} />}
@@ -82,6 +92,7 @@ export function MasterDataPage() {
       {tab === 'suppliers' && <SuppliersTab canWrite={canWrite} />}
       {tab === 'machines' && <MachinesTab canWrite={canWrite} />}
       {tab === 'units' && <UnitsTab canWrite={canWrite} />}
+      {tab === 'pricelist' && <PriceListImportTab />}
     </div>
   );
 }

@@ -53,7 +53,7 @@ export function MyDayPage() {
       )}
 
       {items?.map((item) => (
-        <article key={item.id} className="job-card">
+        <article key={item.id} className="job-card appointment-card">
           <div className="job-card-time">{formatTime(item.time)}</div>
           <div className="job-card-task">{item.task}</div>
           <div className="job-card-meta">

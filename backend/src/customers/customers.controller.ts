@@ -8,7 +8,7 @@ import { AuthenticatedUser } from '../common/authenticated-request';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/create-customer.dto';
 import { Response } from 'express';
-import { PageQueryDto, withTotalCount } from '../common/pagination';
+import { SearchQueryDto, withTotalCount } from '../common/pagination';
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard, PermissionsGuard) // 1. eingeloggt? 2. berechtigt?
@@ -19,7 +19,7 @@ export class CustomersController {
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
   async findAll(
     @CurrentUser() user: AuthenticatedUser,
-    @Query() page: PageQueryDto,
+    @Query() page: SearchQueryDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     return withTotalCount(res, await this.customersService.findAll(user.companyId, page));

@@ -260,9 +260,20 @@ export class InvoicesService {
     const original = await this.findOne(companyId, id);
     return this.prisma.$transaction(async (tx) => {
       await lockFor(tx, 'invoice-order', original.orderId);
+      // wie beim Buchen einer Zahlung: keine Zahlung während des Stornos
+      await lockFor(tx, 'invoice-payment', id);
       const current = await tx.invoice.findUniqueOrThrow({ where: { id } });
       if (current.status !== 'issued' || current.kind === 'cancellation') {
         throw new BadRequestException('Nur ausgestellte Rechnungen können storniert werden.');
+      }
+      // Zahlungen hingen sonst an einer stornierten Rechnung und fehlten in
+      // den offenen Posten: erst entfernen (der Bankumsatz wird wieder offen)
+      // und nach dem Storno der neuen Rechnung zuordnen
+      const payments = await tx.invoicePayment.count({ where: { invoiceId: id, companyId } });
+      if (payments > 0) {
+        throw new BadRequestException(
+          'Die Rechnung hat bereits Zahlungen. Bitte die Zahlungen zuerst entfernen und nach dem Storno der neuen Rechnung zuordnen.',
+        );
       }
       const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
       const issueDate = new Date();

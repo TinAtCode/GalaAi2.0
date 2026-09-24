@@ -224,12 +224,17 @@ describe('Mahnwesen', () => {
     const second = (await dun(invoice.id).expect(201)).body;
     expect((await send(notice.id).expect(400)).body.message).toContain('höhere Mahnstufe');
     await send(second.id).expect(201);
-    await api()
+    const payment = await api()
       .post(`/invoices/${invoice.id}/payments`)
       .set(auth)
       .send({ amount: 1, paidOn: localDayString(new Date(), 'Europe/Berlin') })
       .expect(201);
     expect((await send(second.id).expect(400)).body.message).toContain('Zahlung eingegangen');
+    // mit Zahlung kein Storno – erst die Zahlung entfernen
+    const blocked = await api().post(`/invoices/${invoice.id}/cancel`).set(auth).send({ reason: 'Kulanz' });
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.message).toContain('Zahlungen zuerst entfernen');
+    await api().delete(`/invoices/${invoice.id}/payments/${payment.body.id}`).set(auth).expect(200);
     await api().post(`/invoices/${invoice.id}/cancel`).set(auth).send({ reason: 'Kulanz' }).expect(201);
     expect((await send(second.id).expect(400)).body.message).toContain('storniert');
     expect(sentForTests).toHaveLength(2);

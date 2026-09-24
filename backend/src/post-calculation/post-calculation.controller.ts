@@ -14,7 +14,10 @@ export class PostCalculationController {
 
   @Get(':projectId')
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
-  calculate(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
-    return this.postCalculationService.calculateForProject(user.companyId, projectId);
+  async calculate(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
+    const result = await this.postCalculationService.calculateForProject(user.companyId, projectId);
+    // Materialkosten beruhen auf Einkaufspreisen: nur mit price.purchase.read
+    if (user.permissions.includes(PERMISSIONS.PRICE_PURCHASE_READ)) return result;
+    return { ...result, material: null };
   }
 }

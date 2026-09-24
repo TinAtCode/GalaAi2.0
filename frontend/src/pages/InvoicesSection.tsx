@@ -146,7 +146,7 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
 
   return (
     <>
-      <h3 style={{ marginTop: 28, marginBottom: 8 }}>Rechnungen</h3>
+      <h3 style={{ marginBottom: 8 }}>Rechnungen</h3>
       {error && <p className="field-error">{error}</p>}
       {notice && (
         <p className="list-item-meta" data-testid="invoice-notice">

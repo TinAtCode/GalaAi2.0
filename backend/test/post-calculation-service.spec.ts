@@ -57,8 +57,8 @@ function createPrismaMock() {
       }),
     },
     order: {
-      findFirst: jest.fn(({ where }: any) =>
-        where.projectId === 'proj-a' ? Promise.resolve(order) : Promise.resolve(null),
+      findMany: jest.fn(({ where }: any) =>
+        where.projectId === 'proj-a' ? Promise.resolve([order]) : Promise.resolve([]),
       ),
     },
     service: {

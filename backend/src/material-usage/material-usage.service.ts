@@ -15,7 +15,9 @@ export class MaterialUsageService {
     }
     return this.prisma.projectMaterialUsage.findMany({
       where: { projectId, companyId },
-      include: { article: true },
+      include: {
+        article: { select: { id: true, name: true, unit: true, articleNumber: true, purchasePrice: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

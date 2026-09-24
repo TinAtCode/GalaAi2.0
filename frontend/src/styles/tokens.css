@@ -1,21 +1,40 @@
 /* Design-Tokens für GartenAI.
    Bewusst als CSS-Variablen statt hart codierter Farben in Komponenten –
    das IST der Mechanismus für "einfach individuell anpassbar": die
-   Einstellungen-Seite schreibt diese Variablen zur Laufzeit um
-   (siehe theme/ThemeContext.tsx), kein Rebuild nötig. */
+   Einstellungen-Seite setzt --user-primary/--user-accent/--user-background
+   zur Laufzeit (siehe theme/ThemeContext.tsx), kein Rebuild nötig.
+   Hell und dunkel: data-theme="light|dark" am <html>, ohne Angabe wie das
+   Betriebssystem (prefers-color-scheme). */
+
+/* Schriften lokal statt von Google Fonts (Datenschutz, offline nutzbar) */
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/space-grotesk/latin-500.css';
+@import '@fontsource/space-grotesk/latin-600.css';
+@import '@fontsource/space-grotesk/latin-700.css';
+
 :root {
+  color-scheme: light;
+
   /* Basis-Palette (Standard-Theme "Moos & Ocker") */
-  --color-primary: #2f4b3c;
+  --color-primary: var(--user-primary, #2f4b3c);
   --color-primary-contrast: #f7f7f4;
-  --color-accent: #c98a3b;
+  --color-accent: var(--user-accent, #c98a3b);
   --color-accent-contrast: #20241f;
-  --color-background: #f7f7f4;
+  --color-background: var(--user-background, #f7f7f4);
   --color-surface: #ffffff;
+  --color-surface-2: #f0efe9; /* Flächen in Karten, Tabellenköpfe */
   --color-ink: #20241f;
   --color-ink-muted: #5a6058;
   --color-border: #e3e1d9;
+  --color-border-strong: #cfccc1;
   --color-danger: #b3432b;
   --color-success: #3d6b4f;
+  --color-warning: #a8670f;
+  --color-info: #2a6fb0;
+  --shadow-card: 0 1px 2px rgb(32 36 31 / 6%), 0 1px 1px rgb(32 36 31 / 4%);
+  --shadow-raised: 0 12px 32px rgb(32 36 31 / 16%), 0 2px 6px rgb(32 36 31 / 8%);
 
   /* Typografie */
   --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
@@ -27,10 +46,56 @@
   --radius-pill: 999px;
   --nav-height: 64px;
   --touch-target-min: 44px;
+  --content-max: 1180px;
 
   /* Sicherheitsabstände für Notches/System-UI (siehe layout/AppShell.tsx) */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Dunkelmodus: eigene Primär-/Akzentfarbe aufgehellt, Hintergrund fest */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-primary: color-mix(in srgb, var(--user-primary, #2f4b3c) 45%, #b9dcc6);
+  --color-primary-contrast: #102017;
+  --color-accent: color-mix(in srgb, var(--user-accent, #c98a3b) 80%, #ffffff);
+  --color-accent-contrast: #20241f;
+  --color-background: #141715;
+  --color-surface: #1c201d;
+  --color-surface-2: #252a26;
+  --color-ink: #e8ebe6;
+  --color-ink-muted: #a3aaa2;
+  --color-border: #313731;
+  --color-border-strong: #454d45;
+  --color-danger: #ec8a73;
+  --color-success: #86c29b;
+  --color-warning: #e3b061;
+  --color-info: #7fb5ea;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-raised: 0 12px 32px rgb(0 0 0 / 55%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-primary: color-mix(in srgb, var(--user-primary, #2f4b3c) 45%, #b9dcc6);
+    --color-primary-contrast: #102017;
+    --color-accent: color-mix(in srgb, var(--user-accent, #c98a3b) 80%, #ffffff);
+    --color-accent-contrast: #20241f;
+    --color-background: #141715;
+    --color-surface: #1c201d;
+    --color-surface-2: #252a26;
+    --color-ink: #e8ebe6;
+    --color-ink-muted: #a3aaa2;
+    --color-border: #313731;
+    --color-border-strong: #454d45;
+    --color-danger: #ec8a73;
+    --color-success: #86c29b;
+    --color-warning: #e3b061;
+    --color-info: #7fb5ea;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-raised: 0 12px 32px rgb(0 0 0 / 55%);
+  }
 }
 
 * {
@@ -49,6 +114,8 @@ body {
   background: var(--color-background);
   color: var(--color-ink);
   -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
 }
 
 h1,
@@ -57,6 +124,10 @@ h3 {
   font-family: var(--font-display);
   margin: 0;
   letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--color-primary);
 }
 
 button {

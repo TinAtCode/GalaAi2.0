@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Response } from 'express';
 
 // Listen liefern höchstens so viele Einträge auf einmal – ohne Grenze lädt
@@ -21,6 +21,25 @@ export class PageQueryDto {
   @IsInt()
   @Min(0)
   skip?: number;
+}
+
+// Liste mit Suche: ?q=Müller (Groß-/Kleinschreibung egal), optional Status
+export class SearchQueryDto extends PageQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  status?: string;
+}
+
+// Suchbegriff als Prisma-Bedingung "enthält" (null ohne Begriff)
+export function contains(q: string | undefined) {
+  const term = q?.trim();
+  return term ? { contains: term, mode: 'insensitive' as const } : null;
 }
 
 export function pageArgs(page: PageQueryDto) {

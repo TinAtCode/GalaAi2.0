@@ -15,8 +15,14 @@ export class MaterialUsageController {
 
   @Get('by-project/:projectId')
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
-  findAllForProject(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
-    return this.materialUsageService.findAllForProject(user.companyId, projectId);
+  async findAllForProject(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {
+    const usages = await this.materialUsageService.findAllForProject(user.companyId, projectId);
+    // Einkaufspreis nur mit price.purchase.read
+    const canPurchase = user.permissions.includes(PERMISSIONS.PRICE_PURCHASE_READ);
+    return usages.map(({ article: { purchasePrice, ...article }, ...usage }) => ({
+      ...usage,
+      article: canPurchase ? { ...article, purchasePrice } : article,
+    }));
   }
 
   // Gleiche Permission wie Termine/Baustellendokumentation (customer.write) –

@@ -122,7 +122,7 @@ export function DocumentsSection({ projectId, canDelete }: { projectId: string; 
 
   return (
     <section data-testid="documents-section">
-      <h3 style={{ marginTop: 28, marginBottom: 8 }}>Dokumente</h3>
+      <h3 style={{ marginBottom: 8 }}>Dokumente</h3>
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 8 }}>
         <label className="field">
           <span>Art</span>
@@ -138,7 +138,7 @@ export function DocumentsSection({ projectId, canDelete }: { projectId: string; 
             ))}
           </select>
         </label>
-        <label className="btn btn-primary" style={{ display: 'inline-block' }}>
+        <label className="btn btn-primary">
           Dateien hochladen
           <input
             type="file"
