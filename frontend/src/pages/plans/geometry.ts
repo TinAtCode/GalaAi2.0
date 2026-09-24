@@ -199,3 +199,18 @@ export function setListValue(list: number[] | undefined, length: number, index: 
   next[index] = value;
   return compact(next);
 }
+
+// Objekt um seine Mitte vergrößern/verkleinern; Radien und Bögen (in m) werden mitskaliert
+export function scaleObject<
+  O extends { points: Point[]; props?: { shape?: 'circle'; radii?: number[]; bulges?: number[] } },
+>(o: O, factor: number): Pick<O, 'points'> & Partial<Pick<O, 'props'>> {
+  const center = o.props?.shape === 'circle' ? o.points[0] : centroid(o.points);
+  const points = o.points.map(
+    ([x, y]) => [center[0] + (x - center[0]) * factor, center[1] + (y - center[1]) * factor] as Point,
+  );
+  const scale = (list?: number[]) => list?.map((v) => v * factor);
+  return {
+    points,
+    ...(o.props ? { props: { ...o.props, radii: scale(o.props.radii), bulges: scale(o.props.bulges) } } : {}),
+  };
+}

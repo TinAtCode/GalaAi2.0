@@ -97,7 +97,13 @@ describe('Lageplan: Geometrie', () => {
       ],
       50,
     );
-    expect(rows).toEqual([
+    // Formstücke (Fallrohre an der Leitung) prüft plan-fittings.spec.ts; hier nur ihre Summe
+    const fittings = (key: string) => /:(bogen|abzweig|anschluss)/.test(key);
+    expect(rows.filter((r) => fittings(r.key)).map((r) => [r.key, r.quantity])).toEqual([
+      ['rainwater:anschluss', 1],
+      ['rainwater:bogen87', 2],
+    ]);
+    expect(rows.filter((r) => !fittings(r.key))).toEqual([
       { key: 'rainwater', label: 'Regenwasserleitung', unit: 'm', quantity: 12.5 },
       { key: 'lawn', label: 'Rasenfläche', unit: 'm²', quantity: 42 },
       { key: 'lawn:mowingEdge', label: 'Mähkante', unit: 'm', quantity: 28 },
@@ -178,7 +184,7 @@ describe('Lageplan: Geometrie', () => {
       ],
       50,
     );
-    expect(rows).toEqual([
+    expect(rows.filter((r) => !/:(bogen|abzweig|anschluss)/.test(r.key))).toEqual([
       { key: 'rainwater:dn110', label: 'Regenwasserleitung DN 110', unit: 'm', quantity: 15 },
       { key: 'rainwater:dn160', label: 'Regenwasserleitung DN 160', unit: 'm', quantity: 2 },
       { key: 'rainwater', label: 'Regenwasserleitung', unit: 'm', quantity: 1 },
@@ -538,6 +544,17 @@ describe('Lageplan: Umriss im Frontend', () => {
     const body = (path: string) => readFileSync(path, 'utf8').split('\n').slice(2).join('\n');
     expect(body(`${__dirname}/../../frontend/src/pages/plans/outline.ts`)).toBe(
       body(`${__dirname}/../src/plans/outline.ts`),
+    );
+  });
+
+  it('Formstücke: dieselbe Rechnung wie im Frontend (bis auf die Importe)', () => {
+    const body = (path: string) =>
+      readFileSync(path, 'utf8')
+        .split('\n')
+        .filter((line) => !/^import |^  [A-Za-z_ ]+,$|^} from /.test(line))
+        .join('\n');
+    expect(body(`${__dirname}/../../frontend/src/pages/plans/fittings.ts`)).toBe(
+      body(`${__dirname}/../src/plans/plan-fittings.ts`),
     );
   });
 });

@@ -40,12 +40,14 @@ import {
   polygonPerimeter,
   polylineLength,
   removePoint,
+  scaleObject,
   setListValue,
   squareMeters,
 } from './geometry';
 import { edgeMidpoint, isCircle, outline } from './outline';
 import { DxfDrawing, parseDxf } from './dxf';
 import { DxfImport } from './DxfImport';
+import { pipeFittings } from './fittings';
 import { AiDrawing } from './AiDrawing';
 import { useAiTask } from '../../ai/tasks';
 import { offlineDb, OutboxEntry } from '../../offline/db';
@@ -98,6 +100,7 @@ export function PlanEditorPage() {
   const canQuote = hasPermission('quote.create');
   const canDrawAi = useAiTask('lageplan_zeichnen') && canEdit && hasPermission('ai.use');
   const [aiOpen, setAiOpen] = useState(false);
+  const [scalePercent, setScalePercent] = useState('100');
   const [plan, setPlan] = useState<Plan | null>(null);
   const [objects, setObjects] = useState<PlanObject[]>([]);
   const [name, setName] = useState('');
@@ -956,18 +959,20 @@ export function PlanEditorPage() {
           const cm = Math.round(radiusOf(o) * 200);
           add(`manhole:d${cm}`, `${t.label} Ø ${number(cm / 100, 2)} m`, 'Stk', 1);
         } else add(o.type, t.label, 'Stk', 1);
-      } else if (t.kind === 'area') {
+      } else if (t.kind === 'area' && o.type !== 'building') {
         add(o.type, t.label, 'm²', areaOf(o));
         if (o.type === 'lawn' && o.props?.mowingEdge) add('lawn:edge', 'Mähkante', 'm', perimeterOf(o));
         if (o.type === 'parking' && o.props?.spaces)
           add('parking:spaces', 'Stellplätze', 'Stk', o.props.spaces);
       }
-      if (t.kind === 'symbol') {
+      if (t.kind === 'symbol' && o.type !== 'height_point') {
         if (o.type === 'pictogram' && o.props?.icon)
           add(`p:${o.props.icon}`, PICTOGRAMS[o.props.icon], 'Stk', 1);
         else add(o.type, t.label, 'Stk', 1);
       }
     }
+    // Bögen, Abzweige, Anschlussrohre, Schachttiefen (wie im Backend)
+    for (const f of pipeFittings(objects, unitsPerMeter)) add(f.key, f.label, f.unit, f.quantity);
     return [...rows.entries()];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objects, unitsPerMeter]);
@@ -1896,7 +1901,8 @@ export function PlanEditorPage() {
                         onChange={(e) => {
                           const type = e.target.value as ObjectType;
                           // Nennweite nur bei Leitungen mit DN, Tiefe nicht beim Zaun
-                          const { dn, depth, ...rest } = selected.props ?? {};
+                          const { dn, depth, height, ...rest } = selected.props ?? {};
+                          const keepsHeight = TYPES[type].kind === 'area' || type === 'height_point';
                           updateSelected({
                             type,
                             props:
@@ -1906,6 +1912,7 @@ export function PlanEditorPage() {
                                     ...rest,
                                     ...(dn !== undefined && PIPE_TYPES.includes(type) ? { dn } : {}),
                                     ...(depth !== undefined && type !== 'fence' ? { depth } : {}),
+                                    ...(height !== undefined && keepsHeight ? { height } : {}),
                                   },
                           });
                         }}
@@ -1990,10 +1997,70 @@ export function PlanEditorPage() {
                             updateSelected({ props: { ...selected.props, depth } });
                         }}
                         inputMode="decimal"
-                        placeholder="z. B. 0,80"
+                        placeholder="Standard 0,50"
                         data-testid="plan-depth"
                       />
                     </label>
+                  )}
+                  {(TYPES[selected.type].kind === 'area' || selected.type === 'height_point') && (
+                    <label className="field">
+                      <span>Höhe über Bezug (m, unter Bezug mit −)</span>
+                      <input
+                        key={`h-${selected.id}`}
+                        defaultValue={
+                          selected.props?.height !== undefined ? number(selected.props.height, 2) : ''
+                        }
+                        onBlur={(e) => {
+                          const raw = e.target.value.trim().replace(',', '.').replace('−', '-');
+                          const height = raw ? Number(raw) : undefined;
+                          if (height !== undefined && (!Number.isFinite(height) || Math.abs(height) > 100)) {
+                            setError('Höhe bitte in Metern angeben (z. B. 0,15 oder −0,30).');
+                            return;
+                          }
+                          if (height !== selected.props?.height)
+                            updateSelected({ props: { ...selected.props, height } });
+                        }}
+                        inputMode="decimal"
+                        placeholder="Standard 0"
+                        data-testid="plan-height"
+                      />
+                    </label>
+                  )}
+                  {TYPES[selected.type].kind !== 'text' && TYPES[selected.type].kind !== 'symbol' && (
+                    <div className="field">
+                      <span>Größe ändern</span>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          value={scalePercent}
+                          onChange={(e) => setScalePercent(e.target.value)}
+                          inputMode="decimal"
+                          style={{ width: 80 }}
+                          aria-label="Größe in Prozent"
+                          data-testid="plan-scale"
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={!!selected.props?.locked || !!selected.props?.fixed?.length}
+                          title={
+                            selected.props?.locked || selected.props?.fixed?.length
+                              ? 'Fixierte Objekte lassen sich nicht skalieren'
+                              : undefined
+                          }
+                          onClick={() => {
+                            const factor = Number(scalePercent.replace(',', '.')) / 100;
+                            if (!Number.isFinite(factor) || factor <= 0 || factor > 100) {
+                              setError('Größe bitte in Prozent angeben, z. B. 150 oder 50.');
+                              return;
+                            }
+                            updateSelected(scaleObject(selected, factor));
+                          }}
+                          data-testid="plan-scale-apply"
+                        >
+                          % anwenden
+                        </button>
+                      </div>
+                    </div>
                   )}
                   {selected.type === 'parking' && (
                     <label className="field">
@@ -2122,6 +2189,32 @@ export function PlanEditorPage() {
                   ))}
                 </tbody>
               </table>
+            )}
+            {quantities.length > 0 && (
+              <button
+                className="btn btn-sm no-print"
+                onClick={() => {
+                  // Einkaufsliste für Excel: Semikolon, Dezimalkomma, BOM für Umlaute
+                  const lines = [
+                    'Position;Menge;Einheit',
+                    ...quantities.map(
+                      ([, row]) =>
+                        `"${row.label.replace(/"/g, '""')}";${number(row.quantity, row.unit === 'Stk' ? 0 : 2)};${row.unit}`,
+                    ),
+                  ];
+                  const url = URL.createObjectURL(
+                    new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }),
+                  );
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `${name || 'Lageplan'} – Mengenliste.csv`;
+                  link.click();
+                  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                }}
+                data-testid="plan-quantities-csv"
+              >
+                Mengenliste als CSV (Einkaufsliste)
+              </button>
             )}
             {canQuote && quantities.length > 0 && !quoteOpen && (
               <button
