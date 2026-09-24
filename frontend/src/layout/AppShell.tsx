@@ -28,6 +28,15 @@ export const NAV_ITEMS: NavItem[] = [
     primary: true,
   },
   { to: '/kunden', label: 'Kunden', icon: 'users', testId: 'nav-customers', group: 'Arbeit', primary: true },
+  // Pflege- und Wartungsverträge (ansehen wie Projekte)
+  {
+    to: '/vertraege',
+    label: 'Pflegeverträge',
+    icon: 'repeat',
+    permission: 'customer.read',
+    testId: 'nav-contracts',
+    group: 'Arbeit',
+  },
   // Lagepläne auf diesem Gerät (auch ohne Netz)
   {
     to: '/offline',

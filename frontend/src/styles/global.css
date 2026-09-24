@@ -1503,3 +1503,128 @@ input[type='radio'] {
     flex: none;
   }
 }
+
+/* ───────────────────────────────────────────────────────────
+   Pflegeverträge
+   ─────────────────────────────────────────────────────────── */
+
+.notice {
+  font-size: 0.9rem;
+  padding: 10px 14px;
+  border-radius: var(--radius-small);
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  color: color-mix(in srgb, var(--color-success) 80%, var(--color-ink));
+  margin: 0 0 12px;
+}
+
+.contract-card {
+  border-left: 4px solid var(--color-primary);
+}
+
+.status-badge.status-contract-active {
+  background: color-mix(in srgb, var(--color-success) 18%, transparent);
+  color: var(--color-success);
+}
+
+.status-badge.status-contract-paused {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  color: color-mix(in srgb, var(--color-accent) 75%, var(--color-ink));
+}
+
+.contract-task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.contract-form {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  padding: 16px;
+  margin-bottom: 14px;
+  background: var(--color-surface);
+}
+
+.contract-form-heading {
+  font-size: 0.95rem;
+  margin: 18px 0 8px;
+}
+
+.contract-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.contract-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.app-content .contract-row .grow {
+  flex: 1 1 220px;
+}
+
+.app-content .contract-row .narrow {
+  flex: 0 1 90px;
+  min-width: 70px;
+}
+
+.app-content .contract-row .tiny {
+  width: 70px;
+}
+
+/* Position: Leistung, Menge, Einheit, Preis, Summe, Entfernen */
+.contract-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 64px 84px 84px 36px;
+  gap: 8px;
+  align-items: center;
+}
+
+.app-content .contract-line input {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 599px) {
+  .contract-line {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 36px;
+  }
+
+  .contract-line > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .contract-line .contract-line-total {
+    grid-column: 1 / 4;
+    text-align: left;
+  }
+}
+
+.contract-line-total {
+  min-width: 90px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.contract-task {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  background: var(--color-surface-2);
+}
+
+.inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: var(--color-ink-muted);
+}

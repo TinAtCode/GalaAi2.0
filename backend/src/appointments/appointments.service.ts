@@ -94,6 +94,15 @@ export class AppointmentsService {
     });
   }
 
+  // Wem Termine zugeteilt werden können: aktive Nutzer der Firma (nur Namen)
+  assignees(companyId: string) {
+    return this.prisma.user.findMany({
+      where: { companyId, active: true },
+      select: { id: true, firstName: true, lastName: true },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    });
+  }
+
   async create(companyId: string, dto: CreateAppointmentDto) {
     await this.assertProjectBelongsToCompany(companyId, dto.projectId);
 

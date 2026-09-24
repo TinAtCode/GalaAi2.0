@@ -40,6 +40,12 @@ export class AppointmentsController {
     return appointments.map(toMyDayItem);
   }
 
+  @Get('assignees')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_WRITE)
+  assignees(@CurrentUser() user: AuthenticatedUser) {
+    return this.appointmentsService.assignees(user.companyId);
+  }
+
   @Get('by-project/:projectId')
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
   findAllForProject(@CurrentUser() user: AuthenticatedUser, @Param('projectId') projectId: string) {

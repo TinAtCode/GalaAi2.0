@@ -17,7 +17,7 @@ interface DunningNotice {
 interface OpenItem {
   invoiceId: string;
   number: string;
-  kind: 'partial' | 'final';
+  kind: 'partial' | 'final' | 'periodic';
   dueDate: string; // JJJJ-MM-TT
   daysOverdue: number;
   totalGross: string;
@@ -37,6 +37,7 @@ interface OpenItem {
 const KIND_LABELS: Record<OpenItem['kind'], string> = {
   partial: 'Abschlag',
   final: 'Rechnung',
+  periodic: 'Pflegevertrag',
 };
 
 const DUNNING_TITLES: Record<number, string> = {
