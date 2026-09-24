@@ -7,4 +7,5 @@ Texterkennung. Backend NestJS + Prisma + PostgreSQL, Frontend React + Vite.
 
 - **Entwicklung und Test:** [`TESTANLEITUNG.md`](TESTANLEITUNG.md)
 - **Betrieb auf einem eigenen Server:** [`BETRIEB.md`](BETRIEB.md)
+- **KI anbinden (eigene APIs, eigene Agenten, selbst gehostet):** [`KI-ANBINDUNG.md`](KI-ANBINDUNG.md)
 - **Technischer Stand:** [`STATUS.md`](STATUS.md), Bewertung und Fahrplan: [`BEWERTUNG.md`](BEWERTUNG.md)

@@ -116,6 +116,7 @@ model Company {
   maintenanceContracts MaintenanceContract[]
   contractTasks        ContractTask[]
   importSessions       ImportSession[]
+  aiProviders          AiProviderConfig[]
   projectMessages      ProjectMessage[]
   projectMessageReads  ProjectMessageRead[]
 }
@@ -773,6 +774,40 @@ model ImportSession {
   createdAt DateTime @default(now())
 
   @@index([companyId])
+}
+
+// ─────────────────────────────────────────────
+// KI-Anbieter je Firma – bewusst offen: OpenAI-kompatible APIs (auch selbst
+// gehostet: Ollama, LM Studio, vLLM, LocalAI), Anthropic oder ein eigener
+// Agent über einen festen HTTP-Vertrag (siehe KI-ANBINDUNG.md). Der Schlüssel
+// liegt verschlüsselt (AES-256-GCM, common/secret-box.ts) und verlässt den
+// Server nie wieder.
+// ─────────────────────────────────────────────
+model AiProviderConfig {
+  id              String         @id @default(uuid())
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id])
+  name            String
+  kind            AiProviderKind
+  baseUrl         String
+  model           String?
+  apiKeyEncrypted String?
+  enabled         Boolean        @default(true)
+  isDefault       Boolean        @default(false)
+  timeoutSeconds  Int            @default(60)
+  maxTokens       Int            @default(1024)
+  // Hinweis an das Modell, z.B. Sprache und Tonfall
+  systemPrompt    String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([companyId])
+}
+
+enum AiProviderKind {
+  openai_compatible
+  anthropic
+  agent
 }
 
 // ─────────────────────────────────────────────

@@ -42,6 +42,7 @@ export const TENANT_MODELS = new Set([
   'ImportSession',
   'ProjectMessage',
   'ProjectMessageRead',
+  'AiProviderConfig',
 ]);
 
 const GUARDED_ACTIONS = new Set([
