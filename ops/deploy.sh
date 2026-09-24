@@ -54,7 +54,7 @@ CURRENT_REF=$(cat "$STATE/current-ref" 2>/dev/null || git rev-parse HEAD)
 if [ "${1:-}" = "--rollback" ]; then
   TARGET=$(cat "$STATE/previous" 2>/dev/null || true)
   TARGET_REF=$(cat "$STATE/previous-ref" 2>/dev/null || true)
-  [ -n "$TARGET" ] && [ -n "$TARGET_REF" ] || die "Keine vorige Version bekannt."
+  if ! { [ -n "$TARGET" ] && [ -n "$TARGET_REF" ]; }; then die "Keine vorige Version bekannt."; fi
 else
   TARGET=${1:?Version angeben, z.B. ops/deploy.sh v1.4.0}
   git fetch --quiet --tags origin

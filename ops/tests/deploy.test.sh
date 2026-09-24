@@ -65,11 +65,11 @@ state() { cat ".deploy/$1" 2>/dev/null || true; }
 running() { cat "$STUB_DIR/running" 2>/dev/null || true; }
 
 bash ops/deploy.sh v1 >"$WORK/out1" 2>&1 || fail "v1 ausrollen: $(cat "$WORK/out1")"
-[ "$(state current)" = v1 ] && [ "$(running)" = v1 ] || fail "v1 läuft nicht"
+if ! { [ "$(state current)" = v1 ] && [ "$(running)" = v1 ]; }; then fail "v1 läuft nicht"; fi
 ok "erste Version ausgerollt"
 
 bash ops/deploy.sh v2 >"$WORK/out2" 2>&1 || fail "v2 ausrollen: $(cat "$WORK/out2")"
-[ "$(state current)" = v2 ] && [ "$(state previous)" = v1 ] || fail "Stand nach v2 falsch"
+if ! { [ "$(state current)" = v2 ] && [ "$(state previous)" = v1 ]; }; then fail "Stand nach v2 falsch"; fi
 [ "$(cat VERSION)" = v2 ] || fail "Code von v2 nicht ausgecheckt"
 ls .deploy/backups/*-v1.dump >/dev/null 2>&1 || fail "keine Datenbank-Sicherung vor v2"
 ls .deploy/backups/*-v1-uploads.tgz >/dev/null 2>&1 || fail "keine Sicherung der Dokumente vor v2"
@@ -77,18 +77,18 @@ grep -q "pull --quiet backend frontend \[GARTENAI_VERSION=v2\]" "$STUB_DIR/calls
 ok "Update mit Sicherung von Datenbank und Dokumenten"
 
 if STUB_BROKEN=v3 bash ops/deploy.sh v3 >"$WORK/out3" 2>&1; then fail "kaputte v3 als Erfolg gemeldet"; fi
-[ "$(running)" = v2 ] && [ "$(state current)" = v2 ] || fail "nicht auf v2 zurückgefallen"
+if ! { [ "$(running)" = v2 ] && [ "$(state current)" = v2 ]; }; then fail "nicht auf v2 zurückgefallen"; fi
 [ "$(cat VERSION)" = v2 ] || fail "Code nicht auf v2 zurück"
 grep -q "pg_restore" "$WORK/out3" || fail "Hinweis zum Zurückspielen fehlt"
 grep -q "Fehler beim Start" "$WORK/out3" || fail "Logs der kaputten Version fehlen"
 ok "kaputte Version: zurück auf die vorige, mit Hinweis auf die Sicherung"
 
 bash ops/deploy.sh --rollback >"$WORK/out4" 2>&1 || fail "Rollback: $(cat "$WORK/out4")"
-[ "$(state current)" = v1 ] && [ "$(state previous)" = v2 ] && [ "$(running)" = v1 ] || fail "Rollback auf v1 falsch"
+if ! { [ "$(state current)" = v1 ] && [ "$(state previous)" = v2 ] && [ "$(running)" = v1 ]; }; then fail "Rollback auf v1 falsch"; fi
 ok "--rollback auf die vorige Version"
 
 if STUB_MISSING=v4 bash ops/deploy.sh v4 >"$WORK/out5" 2>&1; then fail "fehlende Images als Erfolg gemeldet"; fi
-[ "$(running)" = v1 ] && [ "$(cat VERSION)" = v1 ] || fail "bei fehlenden Images etwas geändert"
+if ! { [ "$(running)" = v1 ] && [ "$(cat VERSION)" = v1 ]; }; then fail "bei fehlenden Images etwas geändert"; fi
 grep -q "nichts geändert" "$WORK/out5" || fail "Meldung bei fehlenden Images fehlt"
 ok "fehlende Images: nichts geändert"
 
