@@ -39,6 +39,9 @@ export const PERMISSIONS = {
   // Lagepläne am Projekt: ansehen (auch Mitarbeiter auf der Baustelle), zeichnen
   PLAN_READ: 'plan.read',
   PLAN_WRITE: 'plan.write',
+
+  // Baustelle: Fotos hochladen, Nachrichten je Projekt, eigene Termine erledigen
+  SITE_USE: 'site.use',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -56,10 +59,12 @@ export const BOOKKEEPING_PERMISSIONS: PermissionKey[] = [
   PERMISSIONS.PRICE_SALE_READ,
 ];
 
-// Standardrolle "Mitarbeiter": Kunden/Projekte und Lagepläne ansehen, KI nutzen –
-// keine Preise. Lagepläne per Migration 20260924130000_site_plans nachgetragen.
+// Standardrolle "Mitarbeiter": Kunden/Projekte und Lagepläne ansehen, KI nutzen,
+// Baustelle (Fotos, Nachrichten) – keine Preise. Lagepläne und Baustelle per
+// Migration 20260924130000_site_plans bzw. 20260928090000_site_messages nachgetragen.
 export const EMPLOYEE_PERMISSIONS: PermissionKey[] = [
   PERMISSIONS.CUSTOMER_READ,
   PERMISSIONS.AI_USE,
   PERMISSIONS.PLAN_READ,
+  PERMISSIONS.SITE_USE,
 ];

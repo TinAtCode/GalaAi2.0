@@ -39,6 +39,7 @@ import { AuditLogModule } from './audit-log/audit-log.module';
 import { MailModule } from './mail/mail.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { MasterDataImportModule } from './master-data-import/master-data-import.module';
+import { SiteModule } from './site/site.module';
 import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
 
 @Module({
@@ -83,6 +84,7 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     PlansModule,
     ContractsModule,
     MasterDataImportModule,
+    SiteModule,
     UnitsModule,
     UsersModule,
     InvoicesModule,

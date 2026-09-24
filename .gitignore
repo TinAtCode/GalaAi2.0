@@ -22,3 +22,6 @@ frontend/test-results/
 backend/.xrechnung-rules/
 backend/.verapdf/
 .env.production
+
+# Stand und Sicherungen von ops/deploy.sh auf dem Server
+.deploy/

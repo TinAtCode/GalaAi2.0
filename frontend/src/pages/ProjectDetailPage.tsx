@@ -7,6 +7,7 @@ import { DocumentsSection } from './DocumentsSection';
 import { PlansSection } from './plans/PlansSection';
 import { InvoicesSection } from './InvoicesSection';
 import { ContractsSection } from './contracts/ContractsSection';
+import { SiteThread } from './site/SiteThread';
 import { Contract } from './contracts/types';
 import { QuoteForm } from './QuoteForm';
 import { MaterialCard, PostCalculationCard } from './ProjectInsights';
@@ -193,6 +194,7 @@ export function ProjectDetailPage() {
     ['rechnungen', 'Rechnungen', showInvoices],
     ['plaene', 'Lagepläne', hasPermission('plan.read')],
     ['dokumente', 'Dokumente', hasPermission('document.read')],
+    ['baustelle', 'Baustelle', hasPermission('site.use')],
     ['termine', 'Termine', true],
     ['nachkalkulation', 'Nachkalkulation', true],
     ['material', 'Material', true],
@@ -514,6 +516,12 @@ export function ProjectDetailPage() {
         </div>
 
         <aside>
+          {projectId && hasPermission('site.use') && (
+            <section className="card" id="baustelle">
+              <h3 style={{ marginBottom: 8 }}>Baustelle: Fotos &amp; Nachrichten</h3>
+              <SiteThread projectId={projectId} compact />
+            </section>
+          )}
           <section className="card" id="termine">
             <h3 style={{ marginBottom: 8 }}>Termine</h3>
             {appointments?.length === 0 && <p className="list-item-meta">Noch keine Termine.</p>}

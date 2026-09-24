@@ -31,6 +31,7 @@ const TYPE_LABELS: Record<string, string> = {
   credit_note: 'Gutschrift',
   reminder: 'Mahnung',
   purchase_order: 'Bestellung',
+  photo: 'Foto von der Baustelle',
 };
 
 const OCR_LABELS: Record<OcrStatus, string> = {

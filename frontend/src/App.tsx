@@ -7,6 +7,7 @@ import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { PlanBoardPage } from './pages/PlanBoardPage';
+import { SitePage, SiteProjectPage } from './pages/site/SitePage';
 import { ContractsPage } from './pages/contracts/ContractsPage';
 import { OfflinePlansPage } from './pages/OfflinePlansPage';
 import { PlanEditorPage } from './pages/plans/PlanEditorPage';
@@ -45,6 +46,8 @@ export function App() {
         <Route path="offline" element={<OfflinePlansPage />} />
         <Route path="vertraege" element={<ContractsPage />} />
         <Route path="plantafel" element={<PlanBoardPage />} />
+        <Route path="baustelle" element={<SitePage />} />
+        <Route path="baustelle/:projectId" element={<SiteProjectPage />} />
         <Route path="kunden" element={<CustomersPage />} />
         <Route path="kunden/:customerId" element={<CustomerDetailPage />} />
         <Route path="kalkulation" element={<CalculationPage />} />

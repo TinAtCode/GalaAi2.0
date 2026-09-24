@@ -40,6 +40,8 @@ export const TENANT_MODELS = new Set([
   'MaintenanceContract',
   'ContractTask',
   'ImportSession',
+  'ProjectMessage',
+  'ProjectMessageRead',
 ]);
 
 const GUARDED_ACTIONS = new Set([

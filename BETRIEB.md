@@ -89,12 +89,59 @@ Backend-Server nebeneinander.
 
 ## Aktualisieren
 
+Von Hand auf dem Server:
+
 ```bash
 git pull
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
 
 Vorher sichern. Migrationen laufen beim Start des neuen Backends automatisch.
+
+### Automatisch ausrollen (GitHub Actions)
+
+Der Workflow „Ausrollen“ (`.github/workflows/deploy.yml`) baut die Images einer Version, legt sie in der
+GitHub-Registry ab (`ghcr.io/<owner>/<repo>-backend` und `-frontend`) und startet auf dem Server
+`ops/deploy.sh`. Das Skript
+
+1. holt den Code der Version (Compose-Datei, Skripte) per `git` und lädt die Images,
+2. sichert die Datenbank (`pg_dump`) und – ohne Objektspeicher – die Dokumente nach `.deploy/backups`
+   (die letzten 10 bleiben),
+3. startet die neue Version (Migrationen laufen beim Start) und wartet, bis `GET /api/health` die neue
+   Versionsnummer meldet,
+4. fällt sonst auf die vorige Version zurück und nennt den Befehl, um die Sicherung zurückzuspielen, falls
+   Migrationen die Datenbank schon verändert haben.
+
+**Einmalig auf dem Server:** den Projektordner als `git clone` anlegen (bei einem privaten Repository mit
+einem Deploy-Key mit Lesezugriff), `.env.production` wie oben, einen Nutzer für das Ausrollen in der Gruppe
+`docker`, dessen `~/.ssh/authorized_keys` den öffentlichen Schlüssel enthält.
+
+**Einmalig in GitHub** (Settings → Environments → `production`; dort lässt sich auch eine Freigabe durch
+eine Person vor jedem Ausrollen einstellen):
+
+| Secret | Inhalt |
+| --- | --- |
+| `DEPLOY_HOST` | Adresse des Servers |
+| `DEPLOY_USER` | Nutzer für das Ausrollen |
+| `DEPLOY_PATH` | Projektordner auf dem Server, z.B. `/srv/gartenai` |
+| `DEPLOY_SSH_KEY` | privater SSH-Schlüssel (nur für diesen Zweck erzeugen: `ssh-keygen -t ed25519`) |
+| `DEPLOY_KNOWN_HOSTS` | Fingerabdruck des Servers: Ausgabe von `ssh-keyscan <server>` |
+| `DEPLOY_PORT` | optional, Standard 22 |
+
+Ohne diese Secrets baut der Workflow nur die Images und meldet, dass nicht ausgerollt wurde. Das Token zum
+Laden der Images aus der Registry bringt jeder Lauf selbst mit; es gilt nur während des Laufs.
+
+**Ausrollen:** eine Version taggen – `git tag v1.4.0 && git push origin v1.4.0` – oder unter Actions →
+„Ausrollen“ → „Run workflow“ einen Tag oder Commit angeben (leer = aktueller `main`).
+
+**Von Hand auf dem Server** (gleicher Ablauf, z.B. wenn GitHub nicht erreichbar ist):
+
+```bash
+GARTENAI_IMAGE=ghcr.io/<owner>/<repo> ops/deploy.sh v1.4.0
+GARTENAI_IMAGE=ghcr.io/<owner>/<repo> ops/deploy.sh --rollback   # zurück auf die vorige Version
+```
+
+Welche Version läuft, steht in `.deploy/current` und in `GET /api/health` (`version`).
 
 ## Texterkennung
 

@@ -108,6 +108,8 @@ export const api = {
     body.append('file', file);
     return request<T>(path, { method: 'POST', body });
   },
+  // Formular mit Datei und weiteren Feldern
+  postForm: <T>(path: string, body: FormData) => request<T>(path, { method: 'POST', body }),
   // Datei als Blob (z.B. Hintergrundbild eines Plans)
   blob: (path: string) => fetchFile(path),
   // PDF in einem neuen Tab öffnen

@@ -7,6 +7,11 @@ import { Controller, Get } from '@nestjs/common';
 export class HealthController {
   @Get()
   check() {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+    // version: ausgerollte Version (ops/deploy.sh prüft sie nach dem Start)
+    return {
+      status: 'ok',
+      version: process.env.GARTENAI_VERSION ?? 'dev',
+      timestamp: new Date().toISOString(),
+    };
   }
 }

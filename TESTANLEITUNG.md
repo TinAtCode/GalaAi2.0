@@ -230,6 +230,13 @@ Backend `STORAGE=s3`, `S3_ENDPOINT=http://localhost:9199`, `S3_BUCKET=gartenai`,
 `S3_SECRET_ACCESS_KEY=test` setzen und neu starten: Hochladen und Herunterladen von Dokumenten laufen über den
 Bucket. Die Integrationstests dazu laufen mit `S3_TEST_ENDPOINT=http://127.0.0.1:9199 npm run test:integration`.
 
+**Baustelle testen (am besten auf dem Handy):** Im Büro einen Termin für heute anlegen und sich selbst
+zuteilen. Unter „Baustelle“ steht er mit Adresse („Navigation“ öffnet die Karten-App), „Hier anfangen“ startet
+die Zeiterfassung für diese Baustelle, „Erledigt“ meldet ihn fertig. „Fotos & Nachrichten“: Kamera-Symbol
+nimmt ein Foto auf (Text im Feld wird Bildunterschrift), „Senden“ schickt eine Nachricht. Flugmodus an: der
+Tag bleibt sichtbar, Fotos und Nachrichten stehen als „wartet auf Netz“ da und gehen raus, sobald Netz da ist.
+Im Büro erscheinen sie auf der Projektseite unter „Baustelle“, neue Nachrichten zeigt das Menü mit einer Zahl.
+
 **Oberfläche:** Strg+K öffnet die Schnellsuche (Kunden, Projekte, Bereiche); unter Einstellungen → Darstellung
 „Hell“, „Dunkel“ oder „Automatisch“.
 

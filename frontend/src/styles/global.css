@@ -1831,3 +1831,177 @@ input[type='radio'] {
     grid-column: 2;
   }
 }
+
+/* ───────────────────────────────────────────────────────────
+   Baustelle (Handy): Tag, Nachrichten, Fotos
+   ─────────────────────────────────────────────────────────── */
+
+.app-nav-icon {
+  position: relative;
+}
+
+.nav-badge,
+.site-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nav-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+}
+
+.site-badge {
+  margin-left: 6px;
+}
+
+.site-offline-note {
+  font-size: 0.88rem;
+  padding: 10px 14px;
+  border-radius: var(--radius-small);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  margin: 0 0 12px;
+}
+
+.site-card.is-done {
+  opacity: 0.65;
+}
+
+.site-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.site-address {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.95rem;
+}
+
+.site-notes {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+.site-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* auf dem Handy: große Knöpfe über die ganze Breite */
+@media (max-width: 699px) {
+  .site-actions .btn {
+    flex: 1 1 140px;
+    min-height: var(--touch-target-min);
+  }
+}
+
+.site-messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.site-thread.is-compact .site-messages {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.site-message {
+  max-width: 85%;
+  justify-self: start;
+  padding: 8px 12px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--color-surface-2);
+}
+
+.site-message.is-mine {
+  justify-self: end;
+  border-radius: 14px 14px 4px 14px;
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface));
+}
+
+.site-message.is-pending {
+  opacity: 0.75;
+  border: 1px dashed var(--color-border-strong);
+}
+
+.site-message-meta {
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  margin-bottom: 4px;
+}
+
+.site-message-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.site-photo {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+
+.site-photo-loading,
+.site-photo-missing {
+  height: 160px;
+  background: var(--color-surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: var(--color-ink-muted);
+}
+
+.site-composer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.app-content .site-composer input {
+  flex: 1;
+  min-width: 0;
+}
+
+.site-camera {
+  padding: 0 12px;
+  flex: none;
+}
+
+/* Eingabe bleibt sichtbar, auch bei langem Verlauf (Handy: über der unteren Leiste) */
+.site-thread:not(.is-compact) .site-composer {
+  position: sticky;
+  bottom: 0;
+  background: var(--color-surface);
+  padding: 10px 0;
+  z-index: 2;
+}
+
+@media (max-width: 899px) {
+  .site-thread:not(.is-compact) .site-composer {
+    bottom: calc(var(--nav-height) + var(--safe-bottom));
+  }
+}

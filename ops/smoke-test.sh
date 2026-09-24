@@ -6,8 +6,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export POSTGRES_PASSWORD="smoke-$(date +%s)-postgres"
-export JWT_SECRET="smoke-test-jwt-secret-$(date +%s)-0123456789abcdef"
+POSTGRES_PASSWORD="smoke-$(date +%s)-postgres"
+JWT_SECRET="smoke-test-jwt-secret-$(date +%s)-0123456789abcdef"
+export POSTGRES_PASSWORD JWT_SECRET
 export COOKIE_SECURE=0
 COMPOSE="docker compose -p gartenai-smoke -f docker-compose.prod.yml"
 BASE=http://localhost:8080
@@ -53,7 +54,7 @@ DOC=$(curl -fsS -X POST "$BASE/api/documents/upload?documentType=delivery_note&o
   -H 'X-Requested-With: fetch' -F "file=@ops/fixtures/smoke-scan.png;type=image/png" | json 'v.id')
 for _ in $(seq 1 60); do
   STATUS=$(curl -fsS "$BASE/api/documents/$DOC" -H "$AUTH" | json 'v.ocrStatus')
-  [ "$STATUS" = done ] && break
+  [ "$STATUS" = "done" ] && break
   [ "$STATUS" = failed ] && { echo "Texterkennung fehlgeschlagen" >&2; exit 1; }
   sleep 1
 done
