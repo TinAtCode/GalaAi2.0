@@ -58,6 +58,8 @@ services:
   # legt beim ersten Start die Beispieldaten an und beendet sich dann
   demo-data:
     image: gartenai-demo-backend
+    # dasselbe Image wie das Backend (lokal gebaut), nie aus einer Registry laden
+    pull_policy: never
     depends_on:
       backend:
         condition: service_healthy

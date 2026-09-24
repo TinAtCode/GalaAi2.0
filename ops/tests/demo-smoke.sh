@@ -47,6 +47,8 @@ count=$(curl -fsS --cacert "$CA" -H "Authorization: Bearer $worker" "$BASE/site/
 [ "$count" -ge 2 ] || fail "Mitarbeiter hat heute $count Termine"
 echo "✓ drei Zugänge, Mitarbeiter mit $count Terminen heute"
 
-"${COMPOSE[@]}" run --rm demo-data | grep -q "schon da" || fail "Beispieldaten beim zweiten Mal erneut angelegt"
+# Ausgabe erst sammeln: grep -q würde compose sonst mit SIGPIPE beenden (pipefail)
+second=$("${COMPOSE[@]}" run --rm -T demo-data 2>&1) || fail "zweiter Lauf der Beispieldaten: $second"
+grep -q "schon da" <<<"$second" || fail "Beispieldaten beim zweiten Mal erneut angelegt: $second"
 echo "✓ Beispieldaten nur einmal"
 echo "Demo-Rauchtest bestanden."
