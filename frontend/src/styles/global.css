@@ -2009,3 +2009,33 @@ input[type='radio'] {
   padding: 24px;
   color: var(--color-ink-muted);
 }
+
+/* Abwesenheit in der Plantafel: Zelle gedämpft, Hinweis oben */
+.board td.board-absent {
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-ink-muted) 8%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+.board-absence {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.board-absence-remove {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0 2px;
+}

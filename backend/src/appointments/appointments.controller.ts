@@ -55,7 +55,7 @@ export class AppointmentsController {
   @Get('board')
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
   board(@CurrentUser() user: AuthenticatedUser, @Query() query: BoardQueryDto) {
-    return this.appointmentsService.board(user.companyId, query);
+    return this.appointmentsService.board(user.companyId, query, user.permissions);
   }
 
   @Get('by-project/:projectId')
