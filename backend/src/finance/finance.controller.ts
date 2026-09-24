@@ -41,6 +41,12 @@ export class FinanceController {
     private recurring: RecurringService,
   ) {}
 
+  // Liquiditätsvorschau der nächsten 13 Wochen
+  @Get('forecast')
+  forecast(@CurrentUser() user: AuthenticatedUser) {
+    return this.recurring.forecast(user.companyId);
+  }
+
   @Get('overview')
   overview(@CurrentUser() user: AuthenticatedUser) {
     return this.financeService.overview(user.companyId);

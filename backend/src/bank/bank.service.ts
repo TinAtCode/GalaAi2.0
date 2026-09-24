@@ -6,6 +6,7 @@ import { PaymentsService, paidAmount } from '../invoices/payments.service';
 import { invoiceNumbersIn, parseCamt053 } from './camt053';
 import { BookBankTransactionDto } from './bank.dto';
 import { CategoriesService } from '../finance/categories.service';
+import { PayablesService } from '../finance/payables/payables.service';
 
 type OpenInvoice = { id: string; number: string; open: Prisma.Decimal; customer: string };
 
@@ -17,6 +18,7 @@ export class BankService {
     private prisma: PrismaService,
     private payments: PaymentsService,
     private categories: CategoriesService,
+    private payables: PayablesService,
   ) {}
 
   // Offene Rechnungen der Firma mit Restbetrag (für Vorschläge)
@@ -94,11 +96,18 @@ export class BankService {
       });
     }
     // neue Abbuchungen gleich einer Kategorie zuordnen (Gelerntes, Regeln)
-    if (debits > 0) await this.categories.categorizeOpen(companyId);
+    // und Eingangsrechnungen mit eindeutiger Abbuchung als bezahlt verbuchen
+    let payablesPaid = 0;
+    if (debits > 0) {
+      await this.categories.categorizeOpen(companyId);
+      // Fehler dabei machen den gespeicherten Import nicht ungültig
+      ({ paid: payablesPaid } = await this.payables.autoMatchSafely(companyId));
+    }
     const result = {
       imported: count,
       credits,
       debits,
+      payablesPaid,
       duplicates: entries.length - count,
       balances: balances.length,
       skipped,

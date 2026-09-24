@@ -162,6 +162,10 @@ Unter „Kontobewegungen“ tragen Abbuchungen eine Kategorie (per Regel oder ge
 künftige Abbuchungen desselben Empfängers bekommen sie automatisch, auf Wunsch als feste Regel. „Kategorien“:
 eigene anlegen und Stichwörter hinzufügen. „Fixkosten“: erkannte wiederkehrende Zahlungen übernehmen oder
 selbst anlegen; im „Jahresüberblick“ stehen sie als geplant, bis die Abbuchung im Kontoauszug steht.
+„Eingangsrechnungen“: „Beleg einlesen“ mit einer E-Rechnung (XML oder ZUGFeRD-PDF) übernimmt alle Angaben,
+bei einer normalen PDF oder einem Foto werden sie vorgeschlagen – prüfen, speichern. Danach einen Kontoauszug
+mit der Zahlung (Rechnungsnummer im Verwendungszweck) einlesen: die Rechnung steht unter „Bezahlt“. Die
+Übersicht zeigt die Liquiditätsvorschau der nächsten 13 Wochen.
 
 **Dokumente testen:** Auf einer Projektseite unter „Dokumente“ die Art wählen und ein PDF oder Foto
 hochladen, „Text erkennen“ angehakt lassen. Nach wenigen Sekunden steht „Text erkannt“ mit einem Ausschnitt

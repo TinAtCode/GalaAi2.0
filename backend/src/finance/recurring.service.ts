@@ -6,9 +6,15 @@ import { PaymentsService } from '../invoices/payments.service';
 import { normalizeIban, normalizeName } from './categorize';
 import { addMonths, detectRecurring, dueDatesBetween, Interval } from './recurring';
 import { UpsertRecurringDto } from './finance.dto';
+import { PayablesService } from './payables/payables.service';
 
 const ZERO = new Prisma.Decimal(0);
 const day = (d: Date) => d.toISOString().slice(0, 10);
+const addDays = (value: string, days: number) => {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
 
 type Debit = {
   bookingDate: Date;
@@ -37,6 +43,7 @@ export class RecurringService {
   constructor(
     private prisma: PrismaService,
     private payments: PaymentsService,
+    private payables: PayablesService,
   ) {}
 
   private view(p: RecurringPayment) {
@@ -170,7 +177,7 @@ export class RecurringService {
     const today = localDayString(new Date(), company.timeZone);
     const from = `${year}-01-01`;
     const to = `${year}-12-31`;
-    const [categories, transactions, recurring, openItems] = await Promise.all([
+    const [categories, transactions, recurring, openItems, payablePlan] = await Promise.all([
       this.prisma.expenseCategory.findMany({
         where: { companyId },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -191,6 +198,7 @@ export class RecurringService {
       }),
       this.prisma.recurringPayment.findMany({ where: { companyId, active: true } }),
       this.payments.openItems(companyId),
+      this.payables.openPlan(companyId, today),
     ]);
 
     const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
@@ -208,7 +216,14 @@ export class RecurringService {
       ).getUTCDate();
       const monthTo = `${month}-${String(lastDay).padStart(2, '0')}`;
       // geplant: Fälligkeiten ab heute, die noch nicht abgebucht sind
-      const planned = recurring.flatMap((p) =>
+      const planned: {
+        kind: 'recurring' | 'payable';
+        id: string;
+        name: string;
+        amount: Prisma.Decimal;
+        due: string;
+        categoryId: string | null;
+      }[] = recurring.flatMap((p) =>
         dueDatesBetween(
           {
             nextDue: day(p.nextDue),
@@ -219,8 +234,26 @@ export class RecurringService {
           monthTo,
         )
           .filter((due) => due >= today && !debits.some((d) => matches(p, d)))
-          .map((due) => ({ id: p.id, name: p.name, amount: p.amount, due, categoryId: p.categoryId })),
+          .map((due) => ({
+            kind: 'recurring' as 'recurring' | 'payable',
+            id: p.id,
+            name: p.name,
+            amount: p.amount,
+            due,
+            categoryId: p.categoryId,
+          })),
       );
+      // offene Eingangsrechnungen zum geplanten Zahltag (mit Skonto, solange möglich)
+      for (const bill of payablePlan.filter((b) => b.date.startsWith(month))) {
+        planned.push({
+          kind: 'payable' as const,
+          id: bill.id,
+          name: bill.name,
+          amount: new Prisma.Decimal(bill.amount),
+          due: bill.date,
+          categoryId: bill.categoryId,
+        });
+      }
       const expected = openItems
         .filter((i) => i.dueDate.startsWith(month) && i.dueDate >= today)
         .reduce((sum, i) => sum.plus(i.open), ZERO);
@@ -248,6 +281,127 @@ export class RecurringService {
       categories: categories.map((c) => ({ id: c.id, name: c.name })),
       months: result,
       fixedCostsPerMonth: fixedPerMonth.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP),
+    };
+  }
+
+  // Liquiditätsvorschau je Woche ab heute: Kontostand laut letztem
+  // Kontoauszug, dazu erwartete Zahlungseingänge (offene Rechnungen nach
+  // Fälligkeit, Überfälliges in der ersten Woche) und geplante Ausgaben
+  // (Eingangsrechnungen zum Zahltag, Fixkosten, die noch nicht abgebucht sind)
+  async forecast(companyId: string, weeks = 13) {
+    const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+    const today = localDayString(new Date(), company.timeZone);
+    const end = addDays(today, weeks * 7 - 1);
+    const [balances, openItems, bills, recurring, recentDebits] = await Promise.all([
+      this.prisma.bankBalance.findMany({
+        where: { companyId },
+        orderBy: [{ accountIban: 'asc' }, { date: 'desc' }],
+        distinct: ['accountIban'],
+      }),
+      this.payments.openItems(companyId),
+      this.payables.openPlan(companyId, today),
+      this.prisma.recurringPayment.findMany({ where: { companyId, active: true } }),
+      this.prisma.bankTransaction.findMany({
+        where: {
+          companyId,
+          direction: 'debit',
+          reversal: false,
+          bookingDate: { gte: new Date(`${addDays(today, -40)}T00:00:00Z`) },
+        },
+        select: {
+          bookingDate: true,
+          amount: true,
+          counterpartyName: true,
+          counterpartyIban: true,
+          categoryId: true,
+        },
+      }),
+    ]);
+    const startBalance = balances.reduce((sum, b) => sum.plus(b.amount), ZERO);
+    type Item = {
+      kind: 'receivable' | 'payable' | 'recurring';
+      name: string;
+      date: string;
+      amount: Prisma.Decimal;
+    };
+    const items: Item[] = [
+      ...openItems.map((i) => ({
+        kind: 'receivable' as const,
+        name: `${i.number} · ${i.customer.name}`,
+        date: i.dueDate < today ? today : i.dueDate,
+        amount: new Prisma.Decimal(i.open),
+      })),
+      ...bills.map((b) => ({
+        kind: 'payable' as const,
+        name: b.name,
+        date: b.date,
+        amount: new Prisma.Decimal(b.amount),
+      })),
+      ...recurring.flatMap((p) =>
+        dueDatesBetween(
+          {
+            nextDue: day(p.nextDue),
+            interval: p.interval as Interval,
+            endDate: p.endDate ? day(p.endDate) : null,
+          },
+          today,
+          end,
+        )
+          // schon abgebucht (bis zehn Tage vor oder nach der Fälligkeit)?
+          .filter(
+            (due) =>
+              !recentDebits.some(
+                (d) =>
+                  day(d.bookingDate) >= addDays(due, -10) &&
+                  day(d.bookingDate) <= addDays(due, 10) &&
+                  matches(p, d),
+              ),
+          )
+          .map((due) => ({ kind: 'recurring' as const, name: p.name, date: due, amount: p.amount })),
+      ),
+    ];
+    let balance = startBalance;
+    const rows = Array.from({ length: weeks }, (_, w) => {
+      const from = addDays(today, w * 7);
+      const to = addDays(from, 6);
+      const inWeek = items
+        .filter((i) => i.date >= from && i.date <= to)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      const income = inWeek
+        .filter((i) => i.kind === 'receivable')
+        .reduce((sum, i) => sum.plus(i.amount), ZERO);
+      const expenses = inWeek
+        .filter((i) => i.kind !== 'receivable')
+        .reduce((sum, i) => sum.plus(i.amount), ZERO);
+      balance = balance.plus(income).minus(expenses);
+      return { from, to, income, expenses, balance, items: inWeek };
+    });
+    const lowest = rows.reduce((min, r) => (r.balance.lessThan(min.balance) ? r : min), rows[0]);
+    const discount = bills.filter((b) => b.withDiscount);
+    const openBills = await this.prisma.incomingInvoice.findMany({
+      where: { companyId, status: 'open', id: { in: discount.map((b) => b.id) } },
+      select: { id: true, amount: true },
+    });
+    return {
+      today,
+      startBalance,
+      balanceDate: balances.length
+        ? day(balances.map((b) => b.date).sort((a, b) => a.getTime() - b.getTime())[0])
+        : null,
+      weeks: rows,
+      lowest: { from: lowest.from, balance: lowest.balance },
+      payables: {
+        count: bills.length,
+        total: bills.reduce((sum, b) => sum.plus(b.amount), ZERO),
+        overdue: bills.filter((b) => b.overdue).reduce((sum, b) => sum.plus(b.amount), ZERO),
+        // Ersparnis, wenn alle laufenden Skontofristen genutzt werden
+        discountCount: discount.length,
+        discountSaving: discount.reduce(
+          (sum, b) => sum.plus(openBills.find((o) => o.id === b.id)?.amount.minus(b.amount) ?? ZERO),
+          ZERO,
+        ),
+        nextDiscount: discount.map((b) => b.date).sort()[0] ?? null,
+      },
     };
   }
 }

@@ -73,6 +73,12 @@ export function TransactionsTab() {
   useEffect(() => {
     load();
   }, [load]);
+  // nach einer Aktion mit dem aktuellen Reiter/Filter neu laden (auch wenn er
+  // während der Aktion gewechselt wurde)
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
 
   const search = (event: FormEvent) => {
     event.preventDefault();
@@ -101,7 +107,7 @@ export function TransactionsTab() {
           ? `${count} Abbuchung${count === 1 ? '' : 'en'} zugeordnet.`
           : 'Keine weitere Abbuchung passt zu Gelerntem oder einer Regel.',
       );
-      await load();
+      await loadRef.current();
     });
 
   const assign = (tx: Transaction, categoryId: string, createRule = false) =>
@@ -113,7 +119,7 @@ export function TransactionsTab() {
       );
       setAssigned(categoryId && !createRule ? { tx, categoryId, also: result.alsoAssigned } : null);
       // alle Einträge neu laden: gleiche Empfänger wurden evtl. mit zugeordnet
-      await load();
+      await loadRef.current();
     });
 
   const assignedName = assigned && categories.find((c) => c.id === assigned.categoryId)?.name;

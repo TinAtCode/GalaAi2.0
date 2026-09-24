@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  CategorizableEntry,
   DEFAULT_CATEGORIES,
   DEFAULT_RULES,
   normalizeIban,
@@ -145,19 +146,15 @@ export class CategoriesService {
     return { deleted: true };
   }
 
-  // Abbuchungen ohne Kategorie (und nicht von Hand geleert) zuordnen
-  async categorizeOpen(companyId: string) {
+  // Regeln (neueste zuerst) und Gelerntes aus Zuordnungen von Hand
+  private async knowledge(companyId: string) {
     await this.ensureDefaults(companyId);
-    const [rules, manual, open] = await Promise.all([
+    const [rules, manual] = await Promise.all([
       this.prisma.categoryRule.findMany({ where: { companyId }, orderBy: { createdAt: 'desc' } }),
       this.prisma.bankTransaction.findMany({
         where: { companyId, categorySource: 'manual', categoryId: { not: null } },
         orderBy: { categorizedAt: 'asc' },
         select: { counterpartyName: true, counterpartyIban: true, categoryId: true },
-      }),
-      this.prisma.bankTransaction.findMany({
-        where: { companyId, direction: 'debit', categoryId: null, categorySource: null },
-        select: { id: true, counterpartyName: true, counterpartyIban: true, remittance: true },
       }),
     ]);
     // spätere Zuordnungen überschreiben frühere
@@ -168,6 +165,24 @@ export class CategoriesService {
       if (iban) learned.byIban.set(iban, m.categoryId!);
       if (name) learned.byName.set(name, m.categoryId!);
     }
+    return { rules, learned };
+  }
+
+  // Vorschlag für einen Empfänger (z.B. den Lieferanten einer Eingangsrechnung)
+  async suggestFor(companyId: string, entry: CategorizableEntry) {
+    const { rules, learned } = await this.knowledge(companyId);
+    return suggestCategory(entry, rules, learned)?.categoryId ?? null;
+  }
+
+  // Abbuchungen ohne Kategorie (und nicht von Hand geleert) zuordnen
+  async categorizeOpen(companyId: string) {
+    const [{ rules, learned }, open] = await Promise.all([
+      this.knowledge(companyId),
+      this.prisma.bankTransaction.findMany({
+        where: { companyId, direction: 'debit', categoryId: null, categorySource: null },
+        select: { id: true, counterpartyName: true, counterpartyIban: true, remittance: true },
+      }),
+    ]);
     let assigned = 0;
     for (const t of open) {
       const hit = suggestCategory(t, rules, learned);

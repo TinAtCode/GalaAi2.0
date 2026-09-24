@@ -14,6 +14,6 @@ import { TesseractOcrEngine } from './engine/tesseract-ocr.engine';
     OcrJobsService,
     { provide: IMAGE_OCR_ENGINE, useClass: TesseractOcrEngine },
   ],
-  exports: [OcrJobsService],
+  exports: [OcrJobsService, OcrService, OcrQueue],
 })
 export class OcrModule {}

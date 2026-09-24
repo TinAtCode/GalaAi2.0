@@ -105,6 +105,7 @@ describe('Bankabgleich (CAMT.053)', () => {
       debits: 1,
       duplicates: 0,
       balances: 1,
+      payablesPaid: 0,
       skipped: { notBooked: 1, foreignCurrency: 0 },
     });
     // derselbe Auszug noch einmal: nichts doppelt

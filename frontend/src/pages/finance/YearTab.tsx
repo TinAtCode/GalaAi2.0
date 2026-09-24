@@ -8,7 +8,14 @@ interface YearMonth {
   income: string;
   expenses: Record<string, string>; // Kategorie-ID oder "none"
   spent: string;
-  planned: { id: string; name: string; amount: string; due: string; categoryId: string | null }[];
+  planned: {
+    kind: 'recurring' | 'payable';
+    id: string;
+    name: string;
+    amount: string;
+    due: string;
+    categoryId: string | null;
+  }[];
   plannedTotal: string;
   expectedIncome: string;
   future: boolean;
@@ -70,7 +77,8 @@ function YearChart({ months }: { months: YearMonth[] }) {
             { color: SERIES[key].color, label: SERIES[key].label },
             {
               color: SERIES[key].light,
-              label: key === 'income' ? 'erwartet (offene Rechnungen)' : 'geplant (Fixkosten)',
+              label:
+                key === 'income' ? 'erwartet (offene Rechnungen)' : 'geplant (Fixkosten, Eingangsrechnungen)',
             },
           ])
           .map((s) => (
@@ -366,7 +374,8 @@ export function YearTab() {
                           ))}
                           {m.planned.map((p) => (
                             <div key={`${p.id}-${p.due}`} className="list-item-meta">
-                              geplant {day(p.due)}: {p.name} {formatEuro(p.amount)}
+                              {p.kind === 'payable' ? 'Eingangsrechnung' : 'geplant'} {day(p.due)}: {p.name}{' '}
+                              {formatEuro(p.amount)}
                             </div>
                           ))}
                         </td>

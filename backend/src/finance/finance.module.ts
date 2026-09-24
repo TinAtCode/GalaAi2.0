@@ -4,11 +4,15 @@ import { FinanceController } from './finance.controller';
 import { FinanceService } from './finance.service';
 import { CategoriesService } from './categories.service';
 import { RecurringService } from './recurring.service';
+import { DocumentsModule } from '../documents/documents.module';
+import { OcrModule } from '../ocr/ocr.module';
+import { PayablesController } from './payables/payables.controller';
+import { PayablesService } from './payables/payables.service';
 
 @Module({
-  imports: [InvoicesModule],
-  controllers: [FinanceController],
-  providers: [FinanceService, CategoriesService, RecurringService],
-  exports: [CategoriesService],
+  imports: [InvoicesModule, DocumentsModule, OcrModule],
+  controllers: [FinanceController, PayablesController],
+  providers: [FinanceService, CategoriesService, RecurringService, PayablesService],
+  exports: [CategoriesService, PayablesService],
 })
 export class FinanceModule {}

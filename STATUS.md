@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 24.09.2026 – Finanzen Schritt 2: Ausgabenkategorien (Regeln, Lernen aus Zuordnungen), Fixkosten mit Erkennung aus dem Kontoauszug, Jahresüberblick. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 24.09.2026 – Eingangsrechnungen (E-Rechnung, ZUGFeRD, Texterkennung, Abgleich mit Abbuchungen, Skonto) und Liquiditätsvorschau. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -352,7 +352,24 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   noch nicht abgebuchte Fixkosten als geplant (Abbuchung gilt als bezahlt bei gleichem Empfänger und Betrag
   höchstens 10 % daneben), erwartete Zahlungseingänge aus offenen Rechnungen nach Fälligkeit; Fixkosten je
   Monat im Schnitt. Monatsende-sicher (31.01. → 28.02. → 31.03.). Alles unter `finance.read`, mandantengetrennt
-  per Trigger. Als Nächstes: Eingangsrechnungen.
+  per Trigger.
+
+- **Nachtrag – Eingangsrechnungen** (Finanzen → Eingangsrechnungen, `IncomingInvoice`): Beleg einlesen per
+  `POST /finance/payables/extract` – E-Rechnungen (XRechnung/ZUGFeRD als CII oder UBL, auch als in die PDF
+  eingebettete factur-x.xml) werden exakt übernommen (Lieferant, IBAN, Nummer, Datum, Fälligkeit, Brutto,
+  Netto, USt, Skonto nach `#SKONTO#TAGE=…#PROZENT=…#`); Gutschriften werden abgelehnt. PDFs mit Textebene und
+  Fotos laufen über die Texterkennung; Betrag, Rechnungsnummer, Daten, Zahlungsziel, Skonto, IBAN (mit
+  Prüfsumme, nicht die eigene) und Lieferant (bekannte Lieferanten zuerst) werden vorgeschlagen, bei mehreren
+  Treffern als Auswahl. Kategorie: wie beim letzten Beleg des Lieferanten, sonst Gelerntes/Regeln. Doppelt
+  erfasste Rechnungen (Lieferant + Nummer) werden erkannt. Der Beleg liegt als Dokument (Typ
+  `incoming_invoice`, getrennt von Projektdokumenten). Abgleich mit Abbuchungen: Betrag genau oder abzüglich
+  Skonto (bis drei Tage nach der Frist) plus Rechnungsnummer im Verwendungszweck, IBAN oder Name; eindeutige
+  Treffer mit Rechnungsnummer werden nach dem Kontoauszug-Import automatisch verbucht, sonst als Vorschlag.
+  „Wieder öffnen“ merkt sich die falsche Abbuchung. Bezahlt auch von Hand (Datum, Betrag; Skonto innerhalb der
+  Frist automatisch). Offene Rechnungen gehen zum geplanten Zahltag (mit Skonto, solange möglich) in den
+  Jahresüberblick und in die **Liquiditätsvorschau** (`GET /finance/forecast`, 13 Wochen: Kontostand +
+  erwartete Eingänge − Eingangsrechnungen − Fixkosten; Rechnungen mit schon passender Abbuchung zählen nicht
+  doppelt). Alles unter `finance.read`, mandantengetrennt per Trigger.
 
 - **Nachtrag – Einheiten und Rundung** (Stammdaten → Einheiten): Einheitenkatalog in `common/units.ts`
   (mm, cm, m, km, cm², m², ha, l, m³, g, kg, t, Stk, Sack, Palette, h, min, psch) mit Dimension,
@@ -392,7 +409,7 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 ## 7. Offene Punkte
 
 - **Wartet auf Eingaben:** GAEB-Import (echte Beispieldateien vom Auftraggeber), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Hero-Vergleich (später), KI-Anbieter (Entscheidung; bestimmt die Qualität bei Screenshots, Fotos und freien PDFs).
-- **In Arbeit bzw. als Nächstes:** Eingangsrechnungen (Beleg mit Texterkennung, Abgleich mit Abbuchungen, Liquiditätsvorschau), Mahngebühren und Verzugszinsen (optional).
+- **In Arbeit bzw. als Nächstes:** Zeichenmodul für Lagepläne (Entwässerung, Leitungen, Flächen, Zäune/Tore, Symbole; Maßstab über Hintergrundbild, Längen und Flächen automatisch, Mengenliste fürs Angebot), Mahngebühren und Verzugszinsen (optional).
 - **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Aufmaß-App, Plantafel, Pflege- und Wartungsverträge, Stammdaten-Import aus beliebigen Quellen mit Abgleich, automatischer Bankabruf, Peppol, OCR über mehrere Server-Instanzen, automatisches Ausrollen auf einen Server.
 - Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 

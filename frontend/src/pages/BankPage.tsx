@@ -86,6 +86,12 @@ export function BankPage() {
   useEffect(() => {
     load();
   }, [load]);
+  // nach einer Aktion mit dem aktuellen Reiter/Filter neu laden (auch wenn er
+  // während der Aktion gewechselt wurde)
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
 
   // reload=false, wenn ein Reiterwechsel ohnehin neu lädt
   const run = async (action: () => Promise<string | void>, reload = true) => {
@@ -95,7 +101,7 @@ export function BankPage() {
     try {
       const message = await action();
       if (message) setNotice(message);
-      if (reload) await load();
+      if (reload) await loadRef.current();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Aktion fehlgeschlagen.');
     } finally {

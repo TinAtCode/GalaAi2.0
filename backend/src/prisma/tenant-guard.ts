@@ -33,6 +33,7 @@ export const TENANT_MODELS = new Set([
   'ExpenseCategory',
   'CategoryRule',
   'RecurringPayment',
+  'IncomingInvoice',
 ]);
 
 const GUARDED_ACTIONS = new Set([
