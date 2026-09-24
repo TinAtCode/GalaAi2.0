@@ -492,6 +492,23 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Zeitraums (ohne abgesagte) und die zuteilbaren Mitarbeiter, `PATCH /appointments/:id` verschiebt und teilt
   neu zu (Dauer bleibt, dieselbe Kollisionsprüfung wie beim Anlegen). Seite „Plantafel“: Mitarbeiter ×
   Wochentage, Ziehen mit der Maus, Dialog zum Antippen (Touch), Tage über 8 Stunden markiert.
+- **Nachtrag – Stammdaten-Import mit Abgleich**: Kunden, Lieferanten, Artikel und Maschinen aus Excel (.xlsx),
+  CSV/Text (Trennzeichen und Zeichensatz UTF-8/Windows-1252 werden erkannt), aus Excel kopiertem Text, JSON oder
+  vCard (Kontakte). `POST /master-data-import/upload` bzw. `/text` liest ein (höchstens 5000 Zeilen; die Quelle
+  liegt bis zur Übernahme, längstens einen Tag, in `ImportSession`), schlägt Datenart und Spalten vor.
+  `POST /master-data-import/:id/preview` gleicht mit dem Bestand ab – Kunden über Debitorennummer, E-Mail, Name
+  und PLZ, Name; Lieferanten über Name oder E-Mail; Artikel über die Artikelnummer; Maschinen über den Namen –
+  und zeigt je Zeile neu, geändert (alt → neu), unverändert, mögliche Dublette (ähnlicher Name, Rechtsform
+  ignoriert) oder Fehler (auch doppelt in der Quelle oder derselbe Bestandseintrag zweimal). Leere Zellen
+  überschreiben nichts. `POST /master-data-import/:id/apply` übernimmt die ausgewählten Zeilen in einer
+  Transaktion nach erneutem Abgleich, mit Audit-Log. Rechte: `data.import` und `masterdata.write`, für Artikel
+  und Maschinen zusätzlich die Preisrechte. Oberfläche: Stammdaten → „Stammdaten importieren“.
+- **Nachtrag – Dokumente im Objektspeicher**: `STORAGE=s3` legt Dokumente, Lageplan-Hintergründe und Belege in
+  einem S3-kompatiblen Bucket ab (AWS, Hetzner, IONOS, Wasabi, MinIO …; `S3_*`-Variablen, optional Präfix und
+  serverseitige Verschlüsselung). Schlüssel wie im Dateisystem (`<companyId>/<datei>`), Mandantenprüfung am
+  Schlüssel, Prüfung von Bucket und Zugang beim Start. `dist/cli/migrate-storage.js [--dry-run]` zieht
+  vorhandene Dateien um (Rücklesen und Vergleich, wiederholbar, Pfade bleiben gleich). Tests gegen moto
+  (S3-Nachbau) in der CI.
 
 ---
 
@@ -508,7 +525,8 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 - **Nicht geplant (Entscheidung vom 24.09.2026):** automatischer Kontoabruf per EBICS/FinTS (Auszüge werden als CAMT.053, MT940 oder CSV hochgeladen), Versand der E-Rechnungen über Peppol (Versand per E-Mail mit PDF und XRechnung).
 - **Im Betrieb:** Schwellen der Alarmregeln nach einigen Wochen anpassen. Das Backend zeichnet die Werte dafür ab jetzt selbst auf; die Auswertung macht Vorschläge (siehe Nachtrag „Verlauf für die Alarmschwellen“ und BETRIEB.md).
 - **Erledigt am 26.09.2026:** Pflege- und Wartungsverträge (Einsätze als Termine, Abrechnung je Zeitraum), Plantafel (siehe Nachträge).
-- **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), Stammdaten-Import aus beliebigen Quellen mit Abgleich, Ablage der Dokumente im Objektspeicher, automatisches Ausrollen auf einen Server.
+- **Erledigt am 27.09.2026:** Stammdaten-Import aus beliebigen Quellen mit Abgleich, Dokumente im S3-kompatiblen Objektspeicher (siehe Nachträge).
+- **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), automatisches Ausrollen auf einen Server.
 - Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 
 ---

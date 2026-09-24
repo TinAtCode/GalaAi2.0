@@ -217,6 +217,19 @@ Dauer bleiben) oder antippen und im Dialog Tag, Zeit und Mitarbeiter ändern. Ü
 mit einem anderen desselben Mitarbeiters, kommt eine Meldung und nichts wird verschoben. Tage mit mehr als
 8 Stunden sind rot markiert.
 
+**Stammdaten-Import testen:** Stammdaten → „Stammdaten importieren“. Eine Excel-/CSV-Datei, eine vCard
+(z.B. Kontakte aus Outlook exportiert) wählen oder eine Tabelle mit Kopfzeile aus Excel einfügen und
+„Einlesen“. Die Datenart und die Spalten sind vorgeschlagen und lassen sich ändern. Die Vorschau zeigt je Zeile
+„Neu“, „Geändert“ (alt → neu), „Unverändert“, „Mögliche Dublette“ oder „Fehler“; neue und geänderte Zeilen
+sind vorausgewählt. „… übernehmen“ schreibt alles auf einmal – ein zweites Einlesen derselben Datei zeigt
+dann alles als unverändert.
+
+**Objektspeicher testen:** Einen S3-Server starten, z.B. `pip install "moto[server]"` und
+`moto_server -p 9199`; Bucket anlegen (`aws --endpoint-url http://localhost:9199 s3 mb s3://gartenai`). Im
+Backend `STORAGE=s3`, `S3_ENDPOINT=http://localhost:9199`, `S3_BUCKET=gartenai`, `S3_ACCESS_KEY_ID=test`,
+`S3_SECRET_ACCESS_KEY=test` setzen und neu starten: Hochladen und Herunterladen von Dokumenten laufen über den
+Bucket. Die Integrationstests dazu laufen mit `S3_TEST_ENDPOINT=http://127.0.0.1:9199 npm run test:integration`.
+
 **Oberfläche:** Strg+K öffnet die Schnellsuche (Kunden, Projekte, Bereiche); unter Einstellungen → Darstellung
 „Hell“, „Dunkel“ oder „Automatisch“.
 
