@@ -43,7 +43,8 @@
     "read-excel-file": "^9.3.10",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "web-push": "^3.6.7"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -62,6 +63,7 @@
     "@types/pdf-parse": "^1.1.5",
     "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^6.0.3",
+    "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.70.1",
     "@typescript-eslint/parser": "^8.70.1",
     "cross-env": "^10.1.0",

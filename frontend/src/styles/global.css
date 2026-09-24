@@ -2061,3 +2061,12 @@ input[type='radio'] {
   border-radius: 8px;
   background: #fff;
 }
+
+/* Push-Nachrichten: Schalter auf der Baustelle */
+.push-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 12px;
+}

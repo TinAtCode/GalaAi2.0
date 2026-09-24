@@ -52,6 +52,21 @@ app.musterbetrieb.de {
 sehen die Login-Limits die echte Adresse des Nutzers. Nur für einen kurzen Test
 ohne HTTPS: `COOKIE_SECURE=0`.
 
+## Push-Nachrichten
+
+Mitarbeiter schalten auf der Baustellen-Seite „Benachrichtigungen“ ein und bekommen dann eine
+Nachricht aufs Handy, sobald ihnen ein Termin der nächsten 14 Tage zugeteilt oder verschoben wird oder
+jemand im Verlauf einer ihrer Baustellen schreibt. Voraussetzungen:
+
+- **HTTPS** (ohne HTTPS gibt es im Browser keine Benachrichtigungen)
+- **iPhone/iPad:** ab iOS 16.4, und nur aus der installierten App (Teilen → „Zum Home-Bildschirm“)
+- **Android, Windows, macOS:** Chrome, Edge und Firefox direkt im Browser, Safari ab macOS 13
+
+Einrichtung: keine. Die Schlüssel des Servers (VAPID) erzeugt GartenAI beim ersten Bedarf und legt sie
+verschlüsselt in der Datenbank ab (mit `SECRET_KEY`, siehe oben). `PUSH_CONTACT` (z.B.
+`mailto:it@firma.de`) nennt den Push-Diensten der Browser einen Ansprechpartner. Beim Abmelden meldet
+die App das Gerät ab – auf einem geteilten Handy bekommt der Nächste keine fremden Nachrichten.
+
 ## Daten und Sicherung
 
 | Was | Wo |

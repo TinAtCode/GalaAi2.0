@@ -1,4 +1,5 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { PushService } from '../push/push.service';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { FILE_STORAGE, FileStorage } from '../documents/storage/file-storage.interface';
@@ -26,7 +27,58 @@ export class SiteService {
   constructor(
     private prisma: PrismaService,
     @Inject(FILE_STORAGE) private storage: FileStorage,
+    @Optional() private push?: PushService,
   ) {}
+
+  // Neue Nachricht: Push an alle, die an dieser Baustelle dran sind – wer in
+  // den nächsten 14 Tagen dort eingeplant ist oder im Verlauf geschrieben hat
+  // (das Büro, das antwortet, eingeschlossen); nie an den Absender.
+  private async announce(companyId: string, projectId: string, authorUserId: string, preview: string) {
+    if (!this.push) return;
+    const now = Date.now();
+    const [project, planned, writers] = await Promise.all([
+      this.prisma.project.findFirst({ where: { id: projectId, companyId }, select: { title: true } }),
+      this.prisma.appointment.findMany({
+        where: {
+          companyId,
+          projectId,
+          assignedUserId: { not: null },
+          status: { not: 'cancelled' },
+          startTime: { gte: new Date(now - 86_400_000), lt: new Date(now + 14 * 86_400_000) },
+        },
+        select: { assignedUserId: true },
+      }),
+      this.prisma.projectMessage.findMany({
+        where: { companyId, projectId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: { authorUserId: true },
+      }),
+    ]);
+    const candidates = new Set([
+      ...planned.map((a) => a.assignedUserId!),
+      ...writers.map((m) => m.authorUserId),
+    ]);
+    candidates.delete(authorUserId);
+    if (!candidates.size) return;
+    const [author, active] = await Promise.all([
+      this.prisma.user.findFirst({ where: { id: authorUserId, companyId }, select: { firstName: true } }),
+      this.prisma.user.findMany({
+        where: { companyId, id: { in: [...candidates] }, active: true },
+        select: { id: true },
+      }),
+    ]);
+    this.push.notifyLater(
+      companyId,
+      active.map((u) => u.id),
+      {
+        title: project?.title ?? 'Baustelle',
+        body: `${author?.firstName ?? 'Jemand'}: ${preview}`,
+        url: `/baustelle/${projectId}`,
+        tag: `site-${projectId}`,
+      },
+    );
+  }
 
   private async project(companyId: string, projectId: string) {
     const project = await this.prisma.project.findFirst({
@@ -165,7 +217,14 @@ export class SiteService {
     if (!trimmed) throw new BadRequestException('Die Nachricht ist leer.');
     const known = await this.existing(companyId, clientId);
     if (known) return known;
-    return this.create(companyId, { projectId, authorUserId: userId, text: trimmed, clientId });
+    const message = await this.create(companyId, {
+      projectId,
+      authorUserId: userId,
+      text: trimmed,
+      clientId,
+    });
+    await this.announce(companyId, projectId, userId, trimmed).catch(() => undefined);
+    return message;
   }
 
   // Unique-Konflikt beim gleichzeitigen zweiten Versuch: die erste gewinnt
@@ -200,7 +259,7 @@ export class SiteService {
     if (known) return known;
     const stored = await this.storage.save(companyId, file.originalname || 'foto.jpg', file.buffer);
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const message = await this.prisma.$transaction(async (tx) => {
         const document = await tx.document.create({
           data: {
             companyId,
@@ -223,6 +282,8 @@ export class SiteService {
           select: messageSelect,
         });
       });
+      await this.announce(companyId, project.id, userId, caption?.trim() || 'Foto').catch(() => undefined);
+      return message;
     } catch (error) {
       await this.storage.remove(companyId, stored.storagePath).catch(() => undefined);
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' && clientId) {

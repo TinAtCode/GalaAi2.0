@@ -64,4 +64,40 @@ test.describe('App ohne Netz', () => {
     await page.goto(`${BASE}/finanzen`);
     await expect(page.getByRole('heading', { level: 2, name: 'Finanzen' })).toBeVisible();
   });
+
+  // Den Versand über Google/Mozilla/Apple kann der Testbrowser nicht; geprüft
+  // wird, dass der Service Worker eine ankommende Nachricht richtig anzeigt.
+  test('Push-Nachricht: der Service Worker zeigt sie an', async ({ page, context }) => {
+    preview = startPreview();
+    await waitFor(true);
+    await context.grantPermissions(['notifications'], { origin: BASE });
+    await page.goto(`${BASE}/login`);
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    const cdp = await context.newCDPSession(page);
+    const registrationId = new Promise<string>((resolve) => {
+      cdp.on('ServiceWorker.workerRegistrationUpdated', ({ registrations }) => {
+        const found = registrations.find((r: { scopeURL: string }) => r.scopeURL.startsWith(BASE));
+        if (found) resolve(found.registrationId);
+      });
+    });
+    await cdp.send('ServiceWorker.enable');
+    await cdp.send('ServiceWorker.deliverPushMessage', {
+      origin: BASE,
+      registrationId: await registrationId,
+      data: JSON.stringify({
+        title: 'Neuer Termin',
+        body: 'Mo 9:00 Uhr: Hecke',
+        url: '/baustelle',
+        tag: 't1',
+      }),
+    });
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const reg = await navigator.serviceWorker.ready;
+          return (await reg.getNotifications()).map((n) => `${n.title}|${n.body}|${n.tag}`);
+        }),
+      )
+      .toEqual(['Neuer Termin|Mo 9:00 Uhr: Hecke|t1']);
+  });
 });
