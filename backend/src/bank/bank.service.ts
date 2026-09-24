@@ -5,6 +5,18 @@ import { writeAudit } from '../common/audit';
 import { PaymentsService, paidAmount } from '../invoices/payments.service';
 import { invoiceClaims } from '../invoices/claims';
 import { invoiceNumbersIn, parseCamt053 } from './camt053';
+import { parseMt940 } from './mt940';
+import { parseBankCsv } from './bank-csv';
+import { decodeText } from './statement-keys';
+
+// Format am Inhalt erkennen: CAMT.053 (XML), MT940 (:20:/:61:-Felder) oder CSV
+export function parseStatement(file: { buffer: Buffer; originalname: string }) {
+  const text = decodeText(file.buffer);
+  const start = text.trimStart();
+  if (start.startsWith('<')) return parseCamt053(file.buffer.toString('utf8').replace(/^\uFEFF/, ''));
+  if (/^(\{1:|:20:)/.test(start) || /^:61:/m.test(start)) return parseMt940(text);
+  return parseBankCsv(text);
+}
 import { BookBankTransactionDto } from './bank.dto';
 import { CategoriesService } from '../finance/categories.service';
 import { PayablesService } from '../finance/payables/payables.service';
@@ -55,8 +67,7 @@ export class BankService {
   }
 
   async importStatement(companyId: string, userId: string, file: Express.Multer.File) {
-    const xml = file.buffer.toString('utf8').replace(/^\uFEFF/, '');
-    const { entries, balances, skipped } = parseCamt053(xml);
+    const { entries, balances, skipped } = parseStatement(file);
     // Schon eingelesene Umsätze (gleicher dedupeKey) zählen als Duplikat;
     // skipDuplicates sichert zusätzlich gegen einen gleichzeitigen Import ab
     const known = new Set(

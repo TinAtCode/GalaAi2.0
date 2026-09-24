@@ -8,6 +8,7 @@ type Tx = {
   id: string;
   amount: string;
   remittance: string | null;
+  debtorName: string | null;
   status: string;
   booked: string;
   rest: string;
@@ -301,9 +302,36 @@ describe('Bankabgleich (CAMT.053)', () => {
       .expect(404);
   });
 
-  it('lehnt Dateien ab, die kein CAMT.053 sind', async () => {
-    const res = await upload('Buchungstag;Betrag\n22.09.2026;100,00').expect(400);
-    expect(res.body.message).toMatch(/XML|CAMT/);
+  it('MT940 und CSV: gleiche Vorschläge, Duplikate erkannt; unbekannte Dateien abgelehnt', async () => {
+    const invoice = await issuedPartial(10);
+    const gross = Number(invoice.totalGross).toFixed(2).replace('.', ',');
+    const mt940 = [
+      ':20:STARTUMSE',
+      ':25:DE89370400440532013000',
+      ':60F:C260921EUR0,00',
+      `:61:2609240924CR${gross}NTRFNONREF`,
+      `:86:166?00GUTSCHRIFT?20SVWZ+Zahlung ${invoice.number}?31DE02120300000000202051?32Familie MT`,
+      `:62F:C260924EUR${gross}`,
+      '-',
+    ].join('\r\n');
+    const imported = (await upload(mt940).expect(201)).body;
+    expect(imported).toMatchObject({ imported: 1, credits: 1, duplicates: 0, balances: 1 });
+    expect((await upload(mt940).expect(201)).body).toMatchObject({ imported: 0, duplicates: 1 });
+    const tx = (await list()).find((t) => t.debtorName === 'Familie MT')!;
+    expect(tx.suggestion).toMatchObject({ invoiceId: invoice.id, reason: 'reference' });
+
+    // derselbe Umsatz als CSV aus einem anderen Export: neuer Umsatz (anderes Format)
+    const csv = [
+      'Auftragskonto;Buchungstag;Verwendungszweck;Beguenstigter/Zahlungspflichtiger;Kontonummer/IBAN;Betrag;Waehrung',
+      `DE89370400440532013000;24.09.2026;Rest ${invoice.number};Familie CSV;DE02120300000000202051;1,00;EUR`,
+    ].join('\n');
+    expect((await upload(csv).expect(201)).body).toMatchObject({ imported: 1, credits: 1 });
+    expect((await list()).find((t) => t.debtorName === 'Familie CSV')?.suggestion).toMatchObject({
+      invoiceId: invoice.id,
+    });
+
+    const res = await upload('Das ist kein Kontoauszug').expect(400);
+    expect(res.body.message).toMatch(/Buchungstag|Betrag/);
     await api().post('/bank/import').set(auth).expect(400);
   });
 });
