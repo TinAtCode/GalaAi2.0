@@ -4,8 +4,8 @@ GartenAI läuft komplett auf einem Rechner (Windows, macOS oder Linux), ohne Ser
 Internet während der Vorführung. Handys und Tablets im selben WLAN öffnen die App über die Adresse
 des Laptops – als Mitarbeiter auf der Baustelle, während der Laptop das Büro zeigt.
 
-**Nur für Vorführungen:** feste Demo-Passwörter, Mails werden nicht verschickt. Für echte Daten gilt
-`BETRIEB.md`.
+**Nur für Vorführungen:** feste Demo-Passwörter, Mails werden nicht verschickt. Für echte Daten auf
+einem Rechner im Büro gilt `BUERO.md`, für einen Server `BETRIEB.md`.
 
 ## Einmalig vorbereiten
 

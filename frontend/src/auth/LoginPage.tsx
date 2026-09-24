@@ -1,8 +1,9 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { ApiError } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { DemoPanel } from './DemoPanel';
+import { FirstSetup } from './FirstSetup';
 
 export function LoginPage() {
   const { login, sessionExpired } = useAuth();
@@ -11,6 +12,14 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // noch kein Zugang eingerichtet (Mini-Vollversion): Ersteinrichtung statt Anmeldung
+  const [setupNeeded, setSetupNeeded] = useState(false);
+  useEffect(() => {
+    api
+      .get<{ needed: boolean }>('/setup/status')
+      .then((r) => setSetupNeeded(r.needed))
+      .catch(() => setSetupNeeded(false));
+  }, []);
 
   const signIn = async (loginEmail: string, loginPassword: string) => {
     setError(null);
@@ -41,46 +50,50 @@ export function LoginPage() {
           </p>
         )}
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <label className="field">
-            <span>E-Mail</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="username"
-              required
-              data-testid="login-email"
-            />
-          </label>
+        {setupNeeded ? (
+          <FirstSetup onDone={(doneEmail, donePassword) => void signIn(doneEmail, donePassword)} />
+        ) : (
+          <form onSubmit={handleSubmit} className="login-form">
+            <label className="field">
+              <span>E-Mail</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
+                required
+                data-testid="login-email"
+              />
+            </label>
 
-          <label className="field">
-            <span>Passwort</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-              data-testid="login-password"
-            />
-          </label>
+            <label className="field">
+              <span>Passwort</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                data-testid="login-password"
+              />
+            </label>
 
-          {error && (
-            <p className="field-error" data-testid="login-error">
-              {error}
-            </p>
-          )}
+            {error && (
+              <p className="field-error" data-testid="login-error">
+                {error}
+              </p>
+            )}
 
-          <button
-            type="submit"
-            className="btn btn-primary btn-block"
-            disabled={submitting}
-            data-testid="login-submit"
-          >
-            {submitting ? 'Meldet an …' : 'Anmelden'}
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="btn btn-primary btn-block"
+              disabled={submitting}
+              data-testid="login-submit"
+            >
+              {submitting ? 'Meldet an …' : 'Anmelden'}
+            </button>
+          </form>
+        )}
         <DemoPanel
           onPick={(pickedEmail, pickedPassword) => {
             setEmail(pickedEmail);
