@@ -6,6 +6,10 @@ import { SEED } from './fixtures';
 // Worker (im Entwicklungsserver ist er aus). Der Test startet die Vorschau
 // selbst und stoppt sie dann: so ist der Server wirklich weg.
 // Läuft nur mit E2E_PWA=1 nach `npm run build` (siehe .github/workflows/ci-e2e.yml).
+// Volles Chromium (headless) statt der abgespeckten „headless shell“ – die
+// zeigt keine Benachrichtigungen an (Push-Test unten)
+test.use({ channel: 'chromium' });
+
 const PORT = 4173;
 const BASE = `http://localhost:${PORT}`;
 
@@ -64,9 +68,17 @@ test.describe('App ohne Netz', () => {
     await page.goto(`${BASE}/finanzen`);
     await expect(page.getByRole('heading', { level: 2, name: 'Finanzen' })).toBeVisible();
   });
+});
 
-  // Den Versand über Google/Mozilla/Apple kann der Testbrowser nicht; geprüft
-  // wird, dass der Service Worker eine ankommende Nachricht richtig anzeigt.
+// Den Versand über Google/Mozilla/Apple kann der Testbrowser nicht; geprüft
+// wird, dass der Service Worker eine ankommende Nachricht richtig anzeigt.
+test.describe('Push-Nachrichten im Service Worker', () => {
+  test.skip(!process.env.E2E_PWA, 'nur mit fertigem Build (E2E_PWA=1)');
+  let preview: ChildProcess | undefined;
+  test.afterEach(() => {
+    if (preview?.pid) process.kill(-preview.pid);
+  });
+
   test('Push-Nachricht: der Service Worker zeigt sie an', async ({ page, context }) => {
     preview = startPreview();
     await waitFor(true);
