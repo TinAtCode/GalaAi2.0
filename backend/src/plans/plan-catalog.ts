@@ -54,5 +54,7 @@ export interface PlanObject {
     icon?: Pictogram; // Piktogramm
     dn?: number; // Leitung/Rinne: Nennweite (DN)
     depth?: number; // Leitung: Verlegetiefe in m
+    locked?: boolean; // Lage fixiert: nicht verschieben
+    fixed?: number[]; // fixierte Punkte (Indizes)
   };
 }

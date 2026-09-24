@@ -70,3 +70,56 @@ const number = (value: number, decimals: number) =>
   value.toLocaleString('de-DE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 export const meters = (value: number) => `${number(value, 2)} m`;
 export const squareMeters = (value: number) => `${number(value, 2)} m²`;
+
+// Name eines Punkts: A, B, C … (ab dem 27. Punkt P27, P28 …)
+export const pointName = (index: number) => (index < 26 ? String.fromCharCode(65 + index) : `P${index + 1}`);
+
+// Kanten eines Objekts: [von, bis]; geschlossene Flächen mit der letzten Kante zurück zum Anfang
+export function segments(count: number, closed: boolean): [number, number][] {
+  const list: [number, number][] = [];
+  for (let i = 0; i < count - 1; i++) list.push([i, i + 1]);
+  if (closed && count > 2) list.push([count - 1, 0]);
+  return list;
+}
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+// Länge einer Kante (in Planeinheiten) setzen. Der Anfangspunkt bleibt; der
+// Endpunkt und die folgenden Punkte bis zum nächsten fixierten (bei Flächen
+// höchstens bis vor die Kante am Anfangspunkt) verschieben sich um denselben
+// Weg entlang der Kante – so behalten sie ihre Abstände.
+// Ist der Endpunkt fixiert, bewegt sich stattdessen der Anfangspunkt (mit
+// den vorigen Punkten). Beispiel: Rechteck ABCD, Kante AB fixiert – eine
+// neue Länge für BC verschiebt C und D, das Rechteck bleibt rechteckig.
+export function setSegmentLength(
+  points: Point[],
+  segment: [number, number],
+  closed: boolean,
+  length: number,
+  fixed: number[] = [],
+): Point[] | string {
+  const [a, b] = segment;
+  const current = distance(points[a], points[b]);
+  if (current <= 0) return 'Die Kante hat keine Länge.';
+  if (!(length > 0)) return 'Bitte eine Länge größer 0 angeben.';
+  const isFixed = (i: number) => fixed.includes(i);
+  if (isFixed(a) && isFixed(b)) return 'Beide Punkte der Kante sind fixiert.';
+  // bewegte Seite: normalerweise der Endpunkt b, vorwärts; sonst a, rückwärts
+  const [anchor, moving, step] = isFixed(b) ? [b, a, -1] : [a, b, 1];
+  const n = points.length;
+  const dx = ((points[moving][0] - points[anchor][0]) / current) * (length - current);
+  const dy = ((points[moving][1] - points[anchor][1]) / current) * (length - current);
+  // Flächen: die Kante vor dem Anker bleibt stehen (ihr anderer Punkt bewegt
+  // sich nicht) – so bleibt ein Rechteck auch ohne fixierte Punkte rechteckig
+  const stopAt = closed ? (anchor - step + n) % n : -1;
+  const moved = new Set<number>();
+  let k = moving;
+  for (;;) {
+    moved.add(k);
+    const next = closed ? (k + step + n) % n : k + step;
+    if (next < 0 || next >= n || next === anchor || next === stopAt || isFixed(next) || moved.has(next))
+      break;
+    k = next;
+  }
+  return points.map((p, i) => (moved.has(i) ? [round2(p[0] + dx), round2(p[1] + dy)] : p));
+}

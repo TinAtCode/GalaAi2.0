@@ -26,7 +26,15 @@ export interface PlanObject {
   type: ObjectType;
   points: Point[];
   label?: string;
-  props?: { mowingEdge?: boolean; spaces?: number; icon?: Pictogram; dn?: number; depth?: number };
+  props?: {
+    mowingEdge?: boolean;
+    spaces?: number;
+    icon?: Pictogram;
+    dn?: number;
+    depth?: number;
+    locked?: boolean; // Lage fixiert
+    fixed?: number[]; // fixierte Punkte (Indizes)
+  };
 }
 
 interface TypeInfo {

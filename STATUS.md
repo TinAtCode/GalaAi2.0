@@ -398,8 +398,12 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Leistung gelten wie immer. Leitungen liegen immer über den Flächen (auch mitten in Rasen oder Pflaster
   zeichenbar); Regenwasser, Schmutzwasser und Rinnen mit Nennweite (DN), Leitungen mit Verlegetiefe –
   beides im Plan beschriftet, Mengen je DN getrennt (eigene Leistungen im Angebot). Ebenen (Entwässerung,
-  Leitungen & Grenzen, Flächen, Symbole) ein- und ausblenden, „Flächen blass“. Nächste Schritte: Aufmaß-App
-  offline, DXF-Import.
+  Leitungen & Grenzen, Flächen, Symbole) ein- und ausblenden, „Flächen blass“. **Exakte Maße:** beim Zeichnen
+  die Länge der nächsten Strecke eintippen (Richtung zur Maus, Umschalt = rechtwinklig); beim ausgewählten
+  Objekt alle Kanten (A–B, B–C …) mit Länge im Plan und als Eingabefeld – eine neue Länge verschiebt den
+  Endpunkt und die folgenden Punkte bis zum nächsten fixierten (bei Flächen höchstens bis vor die Kante am
+  Anfangspunkt, ein Rechteck bleibt rechteckig). Einzelne Punkte oder das ganze Objekt lassen sich fixieren
+  (nicht verschiebbar). Nächste Schritte: Aufmaß-App offline, DXF-Import.
 
 - **Nachtrag – Einheiten und Rundung** (Stammdaten → Einheiten): Einheitenkatalog in `common/units.ts`
   (mm, cm, m, km, cm², m², ha, l, m³, g, kg, t, Stk, Sack, Palette, h, min, psch) mit Dimension,

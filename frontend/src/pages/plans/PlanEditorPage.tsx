@@ -32,6 +32,9 @@ import {
   meters,
   midpointAlong,
   Point,
+  pointName,
+  segments,
+  setSegmentLength,
   polygonArea,
   polygonPerimeter,
   polylineLength,
@@ -96,6 +99,8 @@ export function PlanEditorPage() {
   // Ebenen: ausgeblendete Gruppen; Flächen blass, damit Leitungen darunter lesbar sind
   const [hidden, setHidden] = useState<Group[]>([]);
   const [paleAreas, setPaleAreas] = useState(false);
+  // exakte Länge der nächsten Strecke beim Zeichnen (Richtung: Maus)
+  const [lengthEntry, setLengthEntry] = useState('');
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [background, setBackground] = useState<{ id: string; url: string } | null>(null);
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.7);
@@ -252,6 +257,30 @@ export function PlanEditorPage() {
     return best ? [best[0], best[1]] : p;
   };
 
+  // nächsten Punkt genau in der eingegebenen Entfernung setzen, Richtung zur Maus
+  // (ohne Mausposition: nach rechts)
+  const addPointAtLength = () => {
+    const last = draft[draft.length - 1];
+    const m = Number(lengthEntry.trim().replace(',', '.'));
+    if (!last || !Number.isFinite(m) || m <= 0) {
+      setError('Bitte eine Länge in Metern angeben, z. B. 4,5.');
+      return;
+    }
+    setError(null);
+    const target = cursor && distance(cursor, last) > 0 ? cursor : ([last[0] + 1, last[1]] as Point);
+    const d = distance(target, last);
+    const units = m * unitsPerMeter;
+    const next: Point = [
+      Math.round((last[0] + ((target[0] - last[0]) / d) * units) * 100) / 100,
+      Math.round((last[1] + ((target[1] - last[1]) / d) * units) * 100) / 100,
+    ];
+    const points = [...draft, next];
+    setLengthEntry('');
+    const kind = tool === 'select' || tool === 'pan' || tool === 'calibrate' ? null : TYPES[tool].kind;
+    if (kind === 'opening' && points.length === 2) finishDraft(points);
+    else setDraft(points);
+  };
+
   const finishDraft = (points = draft) => {
     if (tool === 'select' || tool === 'pan' || tool === 'calibrate') return;
     // doppelte Punkte (Doppelklick) entfernen
@@ -351,12 +380,15 @@ export function PlanEditorPage() {
     event.stopPropagation();
     setSelectedId(object.id);
     if (!canEdit) return;
+    // fixierte Objekte (oder mit fixierten Punkten) bleiben, wo sie sind
+    if (object.props?.locked || object.props?.fixed?.length) return;
     drag.current = { mode: 'move', id: object.id, start: toPlan(event), original: objects };
     svgRef.current?.setPointerCapture(event.pointerId);
   };
 
   const startVertexDrag = (event: ReactPointerEvent, object: PlanObject, index: number) => {
     event.stopPropagation();
+    if (object.props?.locked || object.props?.fixed?.includes(index)) return;
     drag.current = { mode: 'vertex', id: object.id, index, original: objects };
     svgRef.current?.setPointerCapture(event.pointerId);
   };
@@ -375,6 +407,27 @@ export function PlanEditorPage() {
     const cy = view.y + size[1] / view.zoom / 2;
     const zoom = Math.min(50, Math.max(0.01, view.zoom * factor));
     setView({ zoom, x: cx - size[0] / zoom / 2, y: cy - size[1] / zoom / 2 });
+  };
+
+  // Kantenlänge aus dem Maß-Feld übernehmen (Meter, Komma erlaubt)
+  const applySegmentLength = (segment: [number, number], raw: string) => {
+    if (!selected) return;
+    const m = Number(raw.trim().replace(',', '.'));
+    const current = toMeters(distance(selected.points[segment[0]], selected.points[segment[1]]));
+    if (!Number.isFinite(m) || Math.abs(m - current) < 0.005) return;
+    const result = setSegmentLength(
+      selected.points,
+      segment,
+      TYPES[selected.type].kind === 'area',
+      m * unitsPerMeter,
+      selected.props?.fixed,
+    );
+    if (typeof result === 'string') {
+      setError(result);
+      return;
+    }
+    setError(null);
+    updateSelected({ points: result });
   };
 
   const deleteSelected = () => {
@@ -702,22 +755,72 @@ export function PlanEditorPage() {
             {caption}
           </text>
         )}
+        {isSelected && tool === 'select' && t.kind !== 'symbol' && t.kind !== 'text' && (
+          <g data-ui pointerEvents="none" data-testid="plan-edge-labels">
+            {/* Kantenlängen und Punktnamen des ausgewählten Objekts */}
+            {segments(o.points.length, t.kind === 'area').map(([a, b]) => {
+              const mid: Point = [
+                (o.points[a][0] + o.points[b][0]) / 2,
+                (o.points[a][1] + o.points[b][1]) / 2,
+              ];
+              return (
+                <text
+                  key={`${a}-${b}`}
+                  x={mid[0]}
+                  y={mid[1] + fontSize * 1.2}
+                  fontSize={fontSize}
+                  textAnchor="middle"
+                  fill="#2a78d6"
+                  stroke="#ffffff"
+                  strokeWidth={3 * px}
+                  paintOrder="stroke"
+                >
+                  {meters(toMeters(distance(o.points[a], o.points[b])))}
+                </text>
+              );
+            })}
+            {o.points.map((p, i) => (
+              <text
+                key={i}
+                x={p[0] + 8 * px}
+                y={p[1] - 8 * px}
+                fontSize={fontSize}
+                fill="#2a78d6"
+                fontWeight={700}
+              >
+                {pointName(i)}
+              </text>
+            ))}
+          </g>
+        )}
         {isSelected && canEdit && tool === 'select' && (
           <g data-ui>
-            {o.points.map((p, i) => (
-              <circle
-                key={i}
-                cx={p[0]}
-                cy={p[1]}
-                r={6 * px}
-                fill="#ffffff"
-                stroke="#2a78d6"
-                strokeWidth={2 * px}
-                style={{ cursor: 'grab' }}
-                onPointerDown={(e) => startVertexDrag(e, o, i)}
-                data-testid="plan-vertex"
-              />
-            ))}
+            {o.points.map((p, i) =>
+              o.props?.locked || o.props?.fixed?.includes(i) ? (
+                <rect
+                  key={i}
+                  x={p[0] - 5 * px}
+                  y={p[1] - 5 * px}
+                  width={10 * px}
+                  height={10 * px}
+                  fill="#2a78d6"
+                  data-testid="plan-vertex-fixed"
+                />
+              ) : (
+                <circle
+                  key={i}
+                  cx={p[0]}
+                  cy={p[1]}
+                  r={6 * px}
+                  fill="#ffffff"
+                  stroke="#2a78d6"
+                  strokeWidth={2 * px}
+                  style={{ cursor: 'grab' }}
+                  onPointerDown={(e) => startVertexDrag(e, o, i)}
+                  data-testid="plan-vertex"
+                />
+              ),
+            )}
           </g>
         )}
       </g>
@@ -918,6 +1021,27 @@ export function PlanEditorPage() {
                   cursor &&
                   ` Fläche: ${squareMeters(toMeters(toMeters(polygonArea(preview))))}`}
               </span>
+              {draft.length > 0 && drawKind && drawKind !== 'symbol' && drawKind !== 'text' && (
+                <span className="plan-length-entry">
+                  <input
+                    value={lengthEntry}
+                    onChange={(e) => setLengthEntry(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addPointAtLength();
+                      }
+                    }}
+                    inputMode="decimal"
+                    placeholder="Länge m"
+                    aria-label="Länge der nächsten Strecke in Metern"
+                    data-testid="plan-length-entry"
+                  />
+                  <button className="btn" onClick={addPointAtLength}>
+                    Setzen
+                  </button>
+                </span>
+              )}
               {draft.length > 0 && (
                 <button className="btn btn-primary" onClick={() => finishDraft()} data-testid="plan-finish">
                   Fertig
@@ -930,6 +1054,11 @@ export function PlanEditorPage() {
             width={size[0]}
             height={size[1]}
             viewBox={`${view.x} ${view.y} ${size[0] / view.zoom} ${size[1] / view.zoom}`}
+            onPointerDownCapture={() => {
+              // offene Maßeingabe übernehmen, bevor ein Klick die Auswahl wechselt
+              const active = document.activeElement as HTMLElement | null;
+              if (active?.closest('.plan-dimensions')) active.blur();
+            }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
@@ -1063,6 +1192,72 @@ export function PlanEditorPage() {
               {TYPES[selected.type].kind === 'area' && (
                 <div className="list-item-meta">
                   Umfang {meters(toMeters(polygonPerimeter(selected.points)))}
+                </div>
+              )}
+              {TYPES[selected.type].kind !== 'symbol' && TYPES[selected.type].kind !== 'text' && (
+                <div className="plan-dimensions" data-testid="plan-dimensions">
+                  <div className="list-item-meta">Maße (m)</div>
+                  {segments(selected.points.length, TYPES[selected.type].kind === 'area').map(([a, b]) => (
+                    <label key={`${selected.id}-${a}-${b}`} className="plan-dimension">
+                      <span>
+                        {pointName(a)}–{pointName(b)}
+                      </span>
+                      <input
+                        key={`${selected.id}-${a}-${b}-${distance(selected.points[a], selected.points[b])}`}
+                        defaultValue={number(toMeters(distance(selected.points[a], selected.points[b])), 2)}
+                        disabled={!canEdit || !!selected.props?.locked}
+                        inputMode="decimal"
+                        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                        onBlur={(e) => applySegmentLength([a, b], e.target.value)}
+                        data-testid="plan-segment"
+                      />
+                    </label>
+                  ))}
+                  {canEdit && (
+                    <>
+                      <div className="list-item-meta" style={{ marginTop: 6 }}>
+                        Punkte fixieren (bleiben beim Ändern der Maße und beim Ziehen stehen)
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {selected.points.map((_, i) => {
+                          const fixed = selected.props?.fixed?.includes(i) ?? false;
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              className={`plan-tool${fixed ? ' active' : ''}`}
+                              aria-pressed={fixed}
+                              onClick={() => {
+                                const list = selected.props?.fixed ?? [];
+                                const next = fixed
+                                  ? list.filter((x) => x !== i)
+                                  : [...list, i].sort((x, y) => x - y);
+                                updateSelected({
+                                  props: { ...selected.props, fixed: next.length ? next : undefined },
+                                });
+                              }}
+                              data-testid="plan-fix-point"
+                            >
+                              {fixed ? '🔒' : ''} {pointName(i)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <label style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '6px 0' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!selected.props?.locked}
+                          onChange={(e) =>
+                            updateSelected({
+                              props: { ...selected.props, locked: e.target.checked || undefined },
+                            })
+                          }
+                          data-testid="plan-lock"
+                        />
+                        Lage fixieren (nicht verschieben)
+                      </label>
+                    </>
+                  )}
                 </div>
               )}
               {canEdit && (

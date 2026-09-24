@@ -636,6 +636,39 @@
   display: none;
 }
 
+.plan-length-entry {
+  display: inline-flex;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.plan-length-entry input {
+  width: 90px;
+  padding: 4px 6px;
+}
+
+.plan-dimensions {
+  margin: 8px 0;
+}
+
+.plan-dimension {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0;
+}
+
+.plan-dimension span {
+  width: 48px;
+  font-weight: 600;
+  color: #2a78d6;
+}
+
+.plan-dimension input {
+  width: 100px;
+  padding: 4px 6px;
+}
+
 .plan-scale {
   position: absolute;
   left: 10px;

@@ -150,4 +150,99 @@ test.describe('Lagepläne', () => {
     await item.getByRole('button', { name: 'Löschen' }).click();
     await expect(item).toHaveCount(0);
   });
+
+  test('exakte Maße: Rechteck per Längeneingabe, Kante fixieren, Tiefe ändern', async ({ page }) => {
+    const run = String(Date.now()).slice(-6);
+    await loginViaUi(page);
+    await page.goto(`/projekte/${SEED.projectId}`);
+    await page.getByTestId('plan-new-name').fill(`Maße ${run}`);
+    await page.getByTestId('plan-create').click();
+    await expect(page.getByTestId('plan-editor')).toBeVisible();
+    const box = (await page.getByTestId('plan-canvas').boundingBox())!;
+    const move = (x: number, y: number) => page.mouse.move(box.x + x, box.y + y);
+    const entry = page.getByTestId('plan-length-entry');
+
+    // Rechteck 10 × 4 m: Punkt A, dann Längen in Richtung der Maus; mit
+    // gedrückter Umschalttaste genau waagerecht bzw. senkrecht
+    await page.getByTestId('plan-tool-lawn').click();
+    await clickAt(page, 120, 80);
+    await page.keyboard.down('Shift');
+    for (const [x, y, m] of [
+      [400, 82, '10'],
+      [330, 300, '4'],
+      [20, 300, '10'],
+    ] as const) {
+      await move(x, y);
+      await entry.fill(m);
+      await entry.press('Enter');
+    }
+    await page.keyboard.up('Shift');
+    await page.getByTestId('plan-finish').click();
+    const quantities = page.getByTestId('plan-quantities');
+    await expect(quantities).toContainText('Rasen40,00 m²');
+
+    // Kanten A–B, B–C, C–D, D–A
+    const segment = page.getByTestId('plan-segment');
+    await expect(segment).toHaveCount(4);
+    await expect(segment.nth(0)).toHaveValue('10,00');
+    await expect(segment.nth(1)).toHaveValue('4,00');
+
+    // ohne Fixierung: Breite A–B auf 12 m, das Rechteck bleibt rechteckig (B und C wandern)
+    await segment.nth(0).fill('12');
+    await segment.nth(0).press('Enter');
+    await expect(quantities).toContainText('Rasen48,00 m²');
+    await expect(segment.nth(2)).toHaveValue('12,00');
+    await expect(segment.nth(3)).toHaveValue('4,00');
+    // Eingabe und direkt in die leere Zeichenfläche klicken (Auswahl endet): wird trotzdem übernommen
+    await page.getByTestId('plan-tool-select').click();
+    await segment.nth(0).fill('10');
+    await clickAt(page, 550, 330);
+    await expect(page.getByTestId('plan-selection')).toHaveCount(0);
+    await expect(quantities).toContainText('Rasen40,00 m²');
+    const lawnPath = page.locator('[data-testid="plan-object"][data-type="lawn"] path').first();
+    const area = (await lawnPath.boundingBox())!;
+    await page.mouse.click(area.x + area.width / 2, area.y + area.height / 2);
+    await expect(segment.nth(0)).toHaveValue('10,00');
+
+    // Kante A–B fixieren, Tiefe B–C auf 6 m: C und D wandern mit
+    const fix = page.getByTestId('plan-fix-point');
+    await fix.nth(0).click();
+    await fix.nth(1).click();
+    await segment.nth(1).fill('6');
+    await segment.nth(1).press('Enter');
+    await expect(quantities).toContainText('Rasen60,00 m²');
+    await expect(segment.nth(0)).toHaveValue('10,00');
+    await expect(segment.nth(2)).toHaveValue('10,00');
+    await expect(segment.nth(3)).toHaveValue('6,00');
+
+    // fixiert: Ziehen verschiebt nicht
+    await page.getByTestId('plan-tool-select').click();
+    await expect(page.getByTestId('plan-vertex-fixed')).toHaveCount(2);
+    const lawn = page.locator('[data-testid="plan-object"][data-type="lawn"] path').first();
+    const before = await lawn.getAttribute('d');
+    const inside = (await lawn.boundingBox())!;
+    await page.mouse.move(inside.x + inside.width / 2, inside.y + inside.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(inside.x + inside.width / 2 + 60, inside.y + inside.height / 2 + 40, { steps: 5 });
+    await page.mouse.up();
+    await expect(lawn).toHaveAttribute('d', before!);
+
+    // Fixierung lösen: jetzt verschiebt sich die ganze Fläche, Maße bleiben
+    await fix.nth(0).click();
+    await fix.nth(1).click();
+    await page.mouse.move(inside.x + inside.width / 2, inside.y + inside.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(inside.x + inside.width / 2 + 60, inside.y + inside.height / 2 + 40, { steps: 5 });
+    await page.mouse.up();
+    await expect(lawn).not.toHaveAttribute('d', before!);
+    await expect(quantities).toContainText('Rasen60,00 m²');
+
+    await page.getByTestId('plan-save').click();
+    await expect(page.getByTestId('plan-state')).toHaveText('gespeichert');
+    await page.goto(`/projekte/${SEED.projectId}`);
+    page.on('dialog', (dialog) => dialog.accept());
+    const item = page.getByTestId('plan-item').filter({ hasText: `Maße ${run}` });
+    await item.getByRole('button', { name: 'Löschen' }).click();
+    await expect(item).toHaveCount(0);
+  });
 });

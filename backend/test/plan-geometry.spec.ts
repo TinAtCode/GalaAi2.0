@@ -215,6 +215,27 @@ describe('Lageplan: Geometrie', () => {
     ).toMatch(/keine Verlegetiefe/);
   });
 
+  it('Fixierung: ganzes Objekt oder einzelne Punkte', () => {
+    const rect = [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ];
+    expect(
+      validateObjects([{ id: 'a', type: 'lawn', points: rect, props: { locked: true, fixed: [0, 1] } }]),
+    ).toBeNull();
+    expect(validateObjects([{ id: 'a', type: 'lawn', points: rect, props: { fixed: [0, 4] } }])).toMatch(
+      /fixierte Punkte/,
+    );
+    expect(validateObjects([{ id: 'a', type: 'lawn', points: rect, props: { fixed: [1, 1] } }])).toMatch(
+      /fixierte Punkte/,
+    );
+    expect(validateObjects([{ id: 'a', type: 'lawn', points: rect, props: { locked: 'ja' } }])).toMatch(
+      /Fixierung/,
+    );
+  });
+
   it('prüft Objekte', () => {
     expect(
       validateObjects([

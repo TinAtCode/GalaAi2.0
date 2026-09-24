@@ -71,9 +71,17 @@ export function validateObjects(objects: unknown): string | null {
     if (type.kind === 'text' && !o.label?.trim()) return 'Beschriftung ohne Text.';
     if (o.props !== undefined) {
       if (typeof o.props !== 'object' || o.props === null) return 'Ungültige Eigenschaften.';
-      const { mowingEdge, spaces, icon, dn, depth, ...rest } = o.props;
+      const { mowingEdge, spaces, icon, dn, depth, locked, fixed, ...rest } = o.props;
       if (Object.keys(rest).length) return 'Unbekannte Eigenschaft.';
       if (mowingEdge !== undefined && typeof mowingEdge !== 'boolean') return 'Ungültige Mähkante.';
+      if (locked !== undefined && typeof locked !== 'boolean') return 'Ungültige Fixierung.';
+      if (
+        fixed !== undefined &&
+        (!Array.isArray(fixed) ||
+          new Set(fixed).size !== fixed.length ||
+          !fixed.every((i) => Number.isInteger(i) && i >= 0 && i < (o.points?.length ?? 0)))
+      )
+        return 'Ungültige fixierte Punkte.';
       if (dn !== undefined && (!Number.isInteger(dn) || dn < 10 || dn > 2000))
         return 'Ungültige Nennweite (DN).';
       if (dn !== undefined && !PIPE_TYPES.includes(o.type as PlanObjectType))
