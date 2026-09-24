@@ -144,8 +144,8 @@ Teilbetrag buchen; unter „Offene Posten“ erscheint der Rest mit Fälligkeit.
 den Firmendaten auf 0 Tage setzen und eine Rechnung vom Vortag nehmen. Dann „Zahlungserinnerung erstellen“,
 PDF öffnen, per E-Mail senden; die nächste Stufe gibt es nach Ablauf der Frist.
 
-**Bankabgleich testen:** Im Online-Banking den Kontoauszug als CAMT.053 (XML) herunterladen – bei
-manchen Banken heißt der Export „ISO 20022“ oder „camt“. Unter „Bankabgleich“ einlesen: Zahlungen mit
+**Bankabgleich testen:** Im Online-Banking den Kontoauszug als CAMT.053 (XML), MT940 (STA) oder CSV
+herunterladen – bei manchen Banken heißt der Export „ISO 20022“ oder „camt“; das Format wird erkannt. Unter „Bankabgleich“ einlesen: Zahlungen mit
 Rechnungsnummer im Verwendungszweck zeigen den Vorschlag, „Buchen“ erfasst die Zahlung an der Rechnung.
 Zum Ausprobieren ohne Bank eignet sich `backend/test/fixtures/camt/camt053-v08.xml` (Platzhalter
 `__NUMBER1__` durch eine eigene Rechnungsnummer und `__AMOUNT1__` durch einen Betrag ersetzen).
@@ -169,7 +169,9 @@ mit der Zahlung (Rechnungsnummer im Verwendungszweck) einlesen: die Rechnung ste
 
 **Mahngebühren und Verzugszinsen testen:** Unter Einstellungen → Firmendaten Gebühren je Stufe, „Verzugszinsen
 berechnen“ mit dem aktuellen Basiszinssatz und ggf. die Pauschale einschalten; beim Kunden „Geschäftskunde“
-setzen. Die nächste Mahnung enthält dann die Aufstellung (Gebühren, Zinsen, Pauschale, zu zahlen).
+setzen. Die nächste Mahnung enthält dann die Aufstellung (Gebühren, Zinsen, Pauschale, zu zahlen). Zahlt der
+Kunde, wird die Zahlung erst auf Gebühren und Zinsen verrechnet (§ 367 BGB) – oder im Zahlungsformular „nur
+auf den Rechnungsbetrag“; offene Mahnkosten lassen sich an der Rechnung „erlassen“.
 
 **Lagepläne testen:** Auf einer Projektseite unter „Lagepläne“ einen Plan anlegen. Werkzeug wählen (z.B.
 „Rasen“), Eckpunkte anklicken, mit Doppelklick schließen; Leitungen mit Enter beenden. Unter „Hintergrund …“
@@ -185,6 +187,18 @@ z.B. A und B, dann ändert eine neue Länge von B–C nur die Tiefe. Rundungen: 
 Eckradius eintragen (z.B. 1), bei einer Kante „Bogen außen/innen“ wählen und den Radius anpassen. Kreise:
 beim Zeichnen einer Fläche „Kreis“ anhaken, Mittelpunkt und Rand anklicken oder den Durchmesser eintippen;
 „Schacht“ ist schon rund und erscheint in den Mengen je Durchmesser.
+
+**DXF-Import testen:** Im Lageplan „DXF …“ wählen und eine CAD-Zeichnung (DXF im Textformat) laden. Rechts
+erscheinen die Layer mit Vorschlag der Objektart; Einheit prüfen, „Übernehmen“ – Mengen stehen sofort in der
+Liste, „Rückgängig“ nimmt den ganzen Import zurück.
+
+**Offline testen:** Einen Lageplan einmal mit Netz öffnen. Dann das Netz trennen (Flugmodus bzw. in den
+Entwicklerwerkzeugen „Offline“): der Plan lässt sich weiter bearbeiten, „Speichern“ legt die Änderung auf dem
+Gerät ab („Offline-Pläne“ zeigt, was wartet). Mit Netz wird automatisch übertragen. Im fertigen Build (Docker)
+startet die App auch ohne Netz; auf Tablet/Handy lässt sie sich über „Zum Startbildschirm“ installieren.
+
+**Oberfläche:** Strg+K öffnet die Schnellsuche (Kunden, Projekte, Bereiche); unter Einstellungen → Darstellung
+„Hell“, „Dunkel“ oder „Automatisch“.
 
 **Dokumente testen:** Auf einer Projektseite unter „Dokumente“ die Art wählen und ein PDF oder Foto
 hochladen, „Text erkennen“ angehakt lassen. Nach wenigen Sekunden steht „Text erkannt“ mit einem Ausschnitt

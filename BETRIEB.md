@@ -75,7 +75,14 @@ Vorher sichern. Migrationen laufen beim Start des neuen Backends automatisch.
 
 Die Sprachdaten (Deutsch, Englisch) sind im Image enthalten, der Server braucht
 dafür kein Internet. Wie viele Erkennungen gleichzeitig laufen, regelt
-`OCR_CONCURRENCY` (Standard 2; je Erkennung etwa 200–400 MB RAM).
+`OCR_CONCURRENCY` (Standard 2; je Erkennung etwa 200–400 MB RAM) – bei mehreren Backend-Instanzen für alle
+zusammen (die Plätze liegen in der Datenbank).
+
+## App auf Tablet und Handy
+
+Die Oberfläche ist eine installierbare Web-App: `sw.js` und `manifest.webmanifest` liegen im Frontend-Image
+und werden von nginx ohne Cache-Header ausgeliefert. Installieren und offline nutzen geht nur über HTTPS
+(Reverse-Proxy davor). Nach einem Update lädt die App beim nächsten Öffnen mit Netz die neue Version.
 
 ## Überwachung
 
