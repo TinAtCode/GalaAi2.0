@@ -1,6 +1,8 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../../api/client';
 import { formatEuro, parseAmount } from '../../format';
+import { useAiTask } from '../../ai/tasks';
+import { useAuth } from '../../auth/AuthContext';
 import { Category, day } from './shared';
 
 type Status = 'open' | 'paid' | 'cancelled';
@@ -126,6 +128,8 @@ export function PayablesTab() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { hasPermission } = useAuth();
+  const aiRead = useAiTask('beleg_lesen') && hasPermission('ai.use');
   const latest = useRef(0);
 
   const load = useCallback(() => {
@@ -203,6 +207,46 @@ export function PayablesTab() {
   const close = () => {
     setForm(null);
     setExtracted(null);
+  };
+
+  // Beleg von der KI lesen lassen: erkannte Werte ersetzen die Vorschläge,
+  // leere Antworten lassen das Feld wie es ist
+  const readWithAi = () => {
+    const documentId = form?.documentId;
+    if (!documentId) return;
+    void run(async () => {
+      const result = await api.post<{
+        draft: Draft;
+        duplicateOf: Payable | null;
+        providerName: string;
+        readable: boolean;
+      }>(`/finance/payables/documents/${documentId}/ai-read`);
+      const d = result.draft;
+      setForm((current) =>
+        current
+          ? {
+              ...current,
+              supplierName: d.supplierName ?? current.supplierName,
+              supplierIban: d.supplierIban ?? current.supplierIban,
+              invoiceNumber: d.invoiceNumber ?? current.invoiceNumber,
+              invoiceDate: d.invoiceDate ?? current.invoiceDate,
+              dueDate: d.dueDate ?? current.dueDate,
+              amount: d.amount ? amountText(d.amount) : current.amount,
+              netAmount: d.netAmount ? amountText(d.netAmount) : current.netAmount,
+              vatAmount: d.vatAmount ? amountText(d.vatAmount) : current.vatAmount,
+              discountPercent: d.discountPercent ? percentText(d.discountPercent) : current.discountPercent,
+              discountUntil: d.discountUntil ?? current.discountUntil,
+              categoryId: current.categoryId || (d.categoryId ?? ''),
+            }
+          : current,
+      );
+      setExtracted((current) =>
+        current ? { ...current, duplicateOf: result.duplicateOf, warning: null } : current,
+      );
+      return result.readable
+        ? `Von der KI gelesen (${result.providerName}) – bitte prüfen.`
+        : 'Die KI konnte auf dem Beleg nichts erkennen.';
+    });
   };
 
   // eingelesenen Beleg nicht erfassen: Datei wieder entfernen
@@ -360,6 +404,19 @@ export function PayablesTab() {
                   ? 'aus dem Text erkannt – bitte prüfen'
                   : 'Angaben von Hand'}
             </p>
+          )}
+          {aiRead && form.documentId && form.source !== 'einvoice' && (
+            <div>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={readWithAi}
+                disabled={busy}
+                data-testid="payable-ai-read"
+              >
+                {busy ? 'Liest …' : 'Mit KI lesen'}
+              </button>
+            </div>
           )}
           {extracted?.warning && <p className="field-error">{extracted.warning}</p>}
           {extracted?.duplicateOf && (

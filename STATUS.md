@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 02.10.2026 – KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 03.10.2026 – KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -611,6 +611,17 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Aufgabe in `task` und entscheiden selbst, wie sie sie erledigen (z.B. mit Skills). Siehe
   `KI-ANBINDUNG.md`.
 
+- **Nachtrag – KI mit Bildern**: Zwei Aufgaben für Anbieter, die Bilder verstehen:
+  - **Beleg lesen** (Eingangsrechnungen, „Mit KI lesen“): Die KI bekommt das Foto oder die ersten zwei
+    Seiten der PDF als Bild. Ihre Antwort (JSON oder `data` eines Agenten) wird Feld für Feld geprüft,
+    auch die IBAN-Prüfsumme; die eigene IBAN wird verworfen. Das Ergebnis ist ein Vorschlag im
+    Formular.
+  - **Baustellenfoto beschreiben:** Knopf an jedem Foto in den Baustellen-Nachrichten.
+
+  Die Bilder gehen im Format des jeweiligen Anbieters mit (OpenAI `image_url`, Anthropic
+  `image`-Block, Agent `attachments`), höchstens 5 MB je Bild. Das Audit-Log zählt sie, speichert sie
+  aber nicht.
+
 ---
 
 ## 6. Qualitätssicherung
@@ -624,6 +635,7 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 - **Zurückgestellt:** GAEB-Import (braucht echte Beispieldateien), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Ausrollen auf einen echten Server, Hero-Vergleich.
 - **Erledigt am 29.09.2026:** offenes KI-Gateway und Demo-Paket (siehe Nachträge, `KI-ANBINDUNG.md`, `DEMO.md`).
 - **Erledigt am 01.10.2026:** Push-Nachrichten für die Baustelle (siehe Nachtrag).
+- **Erledigt am 03.10.2026:** KI mit Bildern: Beleg lesen, Baustellenfoto beschreiben (siehe Nachtrag).
 - **Erledigt am 02.10.2026:** KI-Aufgaben mit Zuordnung je Anbieter und Modell, Angebotstext,
   Zusammenfassung der Baustelle (siehe Nachtrag).
 - **Erledigt am 30.09.2026:** Abwesenheiten in der Plantafel, Sicherung und Zurückspielen als Skripte mit echtem Test in der CI (siehe Nachträge).
@@ -640,5 +652,5 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 
 ## 8. Nächste sinnvolle Schritte
 
-1. **KI mit Bildern:** Belege lesen und Baustellenfotos beschreiben (Anbieter mit „Bilder verstehen“), danach Zeichnungen für den Lageplan über einen eigenen Agenten („Bilder/Zeichnungen erzeugen“).
+1. **Zeichnungs-KI:** Zeichnungen für den Lageplan über einen eigenen Agenten („Bilder/Zeichnungen erzeugen“).
 2. **Dein Test** mit einem echten Projekt (siehe `TESTANLEITUNG.md`, für einen Server `BETRIEB.md`) – danach mit echten Rückmeldungen weiterplanen.

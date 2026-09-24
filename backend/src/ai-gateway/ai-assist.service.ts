@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { FILE_STORAGE, FileStorage } from '../documents/storage/file-storage.interface';
+import { imagesForAi } from './images';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiGatewayService, Caller } from './ai-gateway.service';
-import { QuoteTextDto, SiteSummaryDto } from './dto/assist.dto';
+import { PhotoDescriptionDto, QuoteTextDto, SiteSummaryDto } from './dto/assist.dto';
 
 // so viele Nachrichten gehen höchstens in eine Zusammenfassung
 const SUMMARY_MESSAGES = 100;
@@ -14,6 +16,7 @@ export class AiAssistService {
   constructor(
     private prisma: PrismaService,
     private ai: AiGatewayService,
+    @Inject(FILE_STORAGE) private storage: FileStorage,
   ) {}
 
   private async project(companyId: string, projectId: string) {
@@ -115,6 +118,34 @@ export class AiAssistService {
       kunde: project.property.customer.name,
       nachrichten: verlauf,
     });
+    return { text: result.text.trim(), providerName: result.providerName, model: result.model ?? null };
+  }
+
+  // Baustellenfoto beschreiben (Aufgabe „foto_beschreiben“, Anbieter mit
+  // „Bilder verstehen“). Nur Fotos aus den Baustellen-Nachrichten.
+  async photoDescription(caller: Caller, dto: PhotoDescriptionDto) {
+    const message = await this.prisma.projectMessage.findFirst({
+      where: { companyId: caller.companyId, documentId: dto.documentId },
+      select: {
+        text: true,
+        project: { select: { title: true } },
+        document: { select: { storagePath: true } },
+      },
+    });
+    if (!message?.document) throw new NotFoundException('Foto nicht gefunden.');
+    const images = await imagesForAi(await this.storage.read(caller.companyId, message.document.storagePath));
+    const prompt = [
+      'Beschreibe dieses Foto von einer Baustelle im Garten- und Landschaftsbau für das Büro (Deutsch, 2–5 Sätze).',
+      'Was ist zu sehen: Stand der Arbeiten, verbautes oder fehlendes Material, Schäden oder Auffälligkeiten.',
+      'Nur was auf dem Foto zu erkennen ist, nichts erfinden.',
+    ].join('\n');
+    const result = await this.ai.runTask(
+      caller,
+      'foto_beschreiben',
+      prompt,
+      { projekt: message.project.title, ...(message.text ? { nachricht: message.text } : {}) },
+      images,
+    );
     return { text: result.text.trim(), providerName: result.providerName, model: result.model ?? null };
   }
 }

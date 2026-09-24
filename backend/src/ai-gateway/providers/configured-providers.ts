@@ -27,6 +27,31 @@ function userMessage(request: AiCompletionRequest) {
   return `${request.prompt}\n\nDaten aus GartenAI (JSON):\n${JSON.stringify(request.context, null, 2)}`;
 }
 
+// Nachricht mit Bildern im Format des jeweiligen Anbieters
+function openAiContent(request: AiCompletionRequest) {
+  const text = userMessage(request);
+  if (!request.images?.length) return text;
+  return [
+    { type: 'text', text },
+    ...request.images.map((image) => ({
+      type: 'image_url',
+      image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+    })),
+  ];
+}
+
+function anthropicContent(request: AiCompletionRequest) {
+  const text = userMessage(request);
+  if (!request.images?.length) return text;
+  return [
+    ...request.images.map((image) => ({
+      type: 'image',
+      source: { type: 'base64', media_type: image.mediaType, data: image.data },
+    })),
+    { type: 'text', text },
+  ];
+}
+
 const trimSlash = (url: string) => url.replace(/\/+$/, '');
 
 // OpenAI-kompatible Chat-API: OpenAI, OpenRouter, Mistral, Azure-Proxys und
@@ -48,7 +73,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
         max_tokens: s.maxTokens,
         messages: [
           { role: 'system', content: s.systemPrompt || DEFAULT_SYSTEM },
-          { role: 'user', content: userMessage(request) },
+          { role: 'user', content: openAiContent(request) },
         ],
       },
       { timeoutSeconds: s.timeoutSeconds, headers: s.apiKey ? { Authorization: `Bearer ${s.apiKey}` } : {} },
@@ -77,7 +102,7 @@ export class AnthropicProvider implements AiProvider {
         model: s.model,
         max_tokens: s.maxTokens,
         system: s.systemPrompt || DEFAULT_SYSTEM,
-        messages: [{ role: 'user', content: userMessage(request) }],
+        messages: [{ role: 'user', content: anthropicContent(request) }],
       },
       {
         timeoutSeconds: s.timeoutSeconds,
@@ -121,6 +146,8 @@ export class AgentProvider implements AiProvider {
       model: s.model,
       maxTokens: s.maxTokens,
       systemPrompt: s.systemPrompt,
+      // Bilder als Anhänge (Base64), nur bei Aufgaben mit Bildern
+      attachments: request.images ?? [],
     });
     const timestamp = String(Math.floor(Date.now() / 1000));
     const headers: Record<string, string> = { 'X-GartenAI-Timestamp': timestamp };

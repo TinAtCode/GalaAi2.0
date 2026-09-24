@@ -1,3 +1,4 @@
+import { AiGatewayModule } from '../ai-gateway/ai-gateway.module';
 import { Module } from '@nestjs/common';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { FinanceController } from './finance.controller';
@@ -10,7 +11,7 @@ import { PayablesController } from './payables/payables.controller';
 import { PayablesService } from './payables/payables.service';
 
 @Module({
-  imports: [InvoicesModule, DocumentsModule, OcrModule],
+  imports: [InvoicesModule, DocumentsModule, OcrModule, AiGatewayModule],
   controllers: [FinanceController, PayablesController],
   providers: [FinanceService, CategoriesService, RecurringService, PayablesService],
   exports: [CategoriesService, PayablesService],

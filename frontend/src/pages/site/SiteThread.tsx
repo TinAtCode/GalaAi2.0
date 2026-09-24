@@ -63,6 +63,47 @@ function PendingPhoto({ blob }: { blob: Blob }) {
   return <img className="site-photo" src={url} alt="Foto wartet auf Übertragung" />;
 }
 
+// Foto von der KI beschreiben lassen (nur mit Anbieter, der Bilder versteht)
+function PhotoDescription({ documentId }: { documentId: string }) {
+  const { hasPermission } = useAuth();
+  const available = useAiTask('foto_beschreiben');
+  const online = useOnline();
+  const [text, setText] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!available || !hasPermission('ai.use')) return null;
+  const run = async () => {
+    setBusy(true);
+    try {
+      setText((await api.post<{ text: string }>('/ai/assist/photo-description', { documentId })).text);
+    } catch (err) {
+      setText(err instanceof ApiError ? err.message : 'Keine Beschreibung möglich.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (text) {
+    return (
+      <div
+        className="site-message-text list-item-meta"
+        style={{ whiteSpace: 'pre-wrap' }}
+        data-testid="photo-description"
+      >
+        KI: {text}
+      </div>
+    );
+  }
+  return (
+    <button
+      className="btn btn-sm btn-ghost"
+      onClick={run}
+      disabled={busy || !online}
+      data-testid="photo-describe"
+    >
+      {busy ? 'KI schaut …' : 'Foto beschreiben'}
+    </button>
+  );
+}
+
 // Zusammenfassung des Verlaufs durch die KI (nur mit eingerichtetem Anbieter)
 function SiteSummary({ projectId }: { projectId: string }) {
   const { hasPermission } = useAuth();
@@ -192,6 +233,7 @@ export function SiteThread({ projectId, compact }: { projectId: string; compact?
             </div>
             {m.documentId && <Photo documentId={m.documentId} />}
             {m.text && <div className="site-message-text">{m.text}</div>}
+            {m.documentId && <PhotoDescription documentId={m.documentId} />}
           </li>
         ))}
         {outbox.map((entry) => (

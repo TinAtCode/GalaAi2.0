@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { DocumentsModule } from '../documents/documents.module';
 import { AiGatewayController } from './ai-gateway.controller';
 import { AiGatewayService } from './ai-gateway.service';
 import { AiAssistService } from './ai-assist.service';
@@ -7,6 +8,7 @@ import { AiAssistService } from './ai-assist.service';
 // nicht im Code: OpenAI-kompatibel (auch selbst gehostet), Anthropic oder ein
 // eigener Agent. Ohne Einrichtung antwortet der Platzhalter (NoopAiProvider).
 @Module({
+  imports: [DocumentsModule],
   controllers: [AiGatewayController],
   providers: [AiGatewayService, AiAssistService],
   exports: [AiGatewayService],
