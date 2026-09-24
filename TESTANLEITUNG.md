@@ -203,6 +203,20 @@ Entwicklerwerkzeugen „Offline“): der Plan lässt sich weiter bearbeiten, „
 Gerät ab („Offline-Pläne“ zeigt, was wartet). Mit Netz wird automatisch übertragen. Im fertigen Build (Docker)
 startet die App auch ohne Netz; auf Tablet/Handy lässt sie sich über „Zum Startbildschirm“ installieren.
 
+**Pflegeverträge testen:** Auf einer Projektseite unter „Pflegeverträge“ „+ Vertrag“: Positionen je
+Zeitraum (z.B. Rasenpflege pauschal 180 €) und Einsätze (z.B. Rasen mähen alle 2 Wochen, Saison Apr–Okt,
+ab einem Datum, Uhrzeit, Mitarbeiter). „Termine planen (4 Wochen)“ legt die Einsätze als Termine an (ein
+zweiter Klick legt nichts doppelt an), „Nächsten Zeitraum abrechnen“ erstellt einen Rechnungsentwurf mit
+Leistungszeitraum – ausstellen wie jede Rechnung. Die Seite „Pflegeverträge“ zeigt alle Verträge, plant alle
+Einsätze bis zu einem Datum und erstellt alle fälligen Rechnungen auf einmal. Ein Storno gibt den Zeitraum
+wieder frei; Pausieren oder Beenden sagt die künftigen Termine ab.
+
+**Plantafel testen:** „Plantafel“ zeigt die Woche: Mitarbeiter in den Zeilen, Tage in den Spalten, darunter
+„Nicht zugeteilt“. Einen Termin mit der Maus auf einen anderen Tag oder Mitarbeiter ziehen (Uhrzeit und
+Dauer bleiben) oder antippen und im Dialog Tag, Zeit und Mitarbeiter ändern. Überschneidet sich der Termin
+mit einem anderen desselben Mitarbeiters, kommt eine Meldung und nichts wird verschoben. Tage mit mehr als
+8 Stunden sind rot markiert.
+
 **Oberfläche:** Strg+K öffnet die Schnellsuche (Kunden, Projekte, Bereiche); unter Einstellungen → Darstellung
 „Hell“, „Dunkel“ oder „Automatisch“.
 
