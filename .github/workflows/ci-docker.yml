@@ -27,3 +27,6 @@ jobs:
         run: POSTGRES_PASSWORD=x JWT_SECRET=x docker compose -f docker-compose.prod.yml config --quiet
       - name: Rauchtest
         run: bash ops/smoke-test.sh
+      # Sicherung zurückspielen – mit gelöschten Volumes, Dokument Byte für Byte
+      - name: Sicherung und Zurückspielen
+        run: bash ops/tests/backup-restore.sh
