@@ -509,6 +509,16 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Schlüssel, Prüfung von Bucket und Zugang beim Start. `dist/cli/migrate-storage.js [--dry-run]` zieht
   vorhandene Dateien um (Rücklesen und Vergleich, wiederholbar, Pfade bleiben gleich). Tests gegen moto
   (S3-Nachbau) in der CI.
+- **Nachtrag – Baustelle auf dem Handy**: Menüpunkt „Baustelle“ (Recht `site.use`, per Migration für alle Rollen
+  mit `customer.read` außer der Buchhaltung). Heute/morgen: eigene Termine mit Adresse und Navigation (Karten-App),
+  Notizen, „Hier anfangen“ (Zeiterfassung für diese Baustelle; eine laufende wird beendet), „Erledigt“ (eigener
+  Termin, ohne `customer.write`). Der zuletzt geladene Tag liegt auf dem Gerät und erscheint auch ohne Netz. Je
+  Projekt ein Verlauf „Fotos & Nachrichten“ zwischen Büro und Baustelle (`ProjectMessage`, Lesestand je Nutzer,
+  Zähler ungelesener Nachrichten im Menü); Fotos werden auf dem Handy auf 1920 px verkleinert (Metadaten und GPS
+  fallen weg), als Dokument der Art `photo` am Projekt gespeichert und stehen im Verlauf. Ohne Netz gehen
+  Nachrichten und Fotos in eine Warteschlange auf dem Gerät und werden übertragen, sobald Netz da ist; eine vom
+  Gerät vergebene `clientId` verhindert Doppelte. Im Büro steht derselbe Verlauf auf der Projektseite. Über
+  `/site` sind nur Fotos aus Nachrichten abrufbar, keine anderen Dokumente.
 
 ---
 
@@ -526,7 +536,7 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 - **Im Betrieb:** Schwellen der Alarmregeln nach einigen Wochen anpassen. Das Backend zeichnet die Werte dafür ab jetzt selbst auf; die Auswertung macht Vorschläge (siehe Nachtrag „Verlauf für die Alarmschwellen“ und BETRIEB.md).
 - **Erledigt am 26.09.2026:** Pflege- und Wartungsverträge (Einsätze als Termine, Abrechnung je Zeitraum), Plantafel (siehe Nachträge).
 - **Erledigt am 27.09.2026:** Stammdaten-Import aus beliebigen Quellen mit Abgleich, Dokumente im S3-kompatiblen Objektspeicher (siehe Nachträge).
-- **Später:** Mobile App für die Baustelle (Zeiten, Tagesplan, Fotos, Nachrichten), automatisches Ausrollen auf einen Server.
+- **Erledigt am 28.09.2026:** Baustelle auf dem Handy (Tagesplan, Zeiten, Fotos, Nachrichten) als Teil der installierbaren App, automatisches Ausrollen auf einen Server (siehe Nachträge).
 - Dokumente liegen auf dem lokalen Dateisystem (bzw. im Volume); bei gescannten PDFs werden höchstens die ersten 10 Seiten per Bild-OCR gelesen.
 
 ---

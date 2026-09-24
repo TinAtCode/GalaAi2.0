@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Icon, IconName } from './icons';
 import { CommandPalette } from './CommandPalette';
 import { offlineDb } from '../offline/db';
+import { api } from '../api/client';
 import { startOfflineSync, useOnline, useOutbox } from '../offline/sync';
 
 export interface NavItem {
@@ -19,6 +20,16 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Mein Tag', icon: 'sun', testId: 'nav-my-day', group: 'Arbeit', primary: true },
+  // Handy auf der Baustelle: eigene Termine, Zeit, Fotos, Nachrichten
+  {
+    to: '/baustelle',
+    label: 'Baustelle',
+    icon: 'hardhat',
+    permission: 'site.use',
+    testId: 'nav-site',
+    group: 'Arbeit',
+    primary: true,
+  },
   {
     to: '/projekte',
     label: 'Projekte',
@@ -153,6 +164,21 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // ungelesene Nachrichten von Baustelle bzw. Büro (alle 60 s)
+  const canUseSite = hasPermission('site.use');
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!canUseSite) return;
+    const load = () =>
+      api
+        .get<{ count: number }[]>('/site/unread')
+        .then((list) => setUnread(list.reduce((sum, u) => sum + u.count, 0)))
+        .catch(() => undefined);
+    load();
+    const timer = window.setInterval(load, 60_000);
+    return () => window.clearInterval(timer);
+  }, [canUseSite]);
+
   const link = (item: NavItem) => (
     <NavLink
       to={item.to}
@@ -162,6 +188,11 @@ export function AppShell() {
     >
       <span className="app-nav-icon">
         <Icon name={item.icon} size={22} />
+        {item.to === '/baustelle' && unread > 0 && (
+          <span className="nav-badge" data-testid="nav-site-unread">
+            {unread}
+          </span>
+        )}
       </span>
       <span className="app-nav-label">{item.label}</span>
     </NavLink>

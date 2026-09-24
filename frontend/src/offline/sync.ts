@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { api, ApiError } from '../api/client';
-import { offlineDb, OutboxEntry } from './db';
+import { offlineDb, OutboxEntry, SiteOutboxEntry } from './db';
 
 // Offline gespeicherte Lagepläne zum Server übertragen – beim Start, sobald
 // das Netz wieder da ist und alle 60 Sekunden, solange etwas wartet.
@@ -63,13 +63,46 @@ async function syncEntry(entry: OutboxEntry) {
   }
 }
 
+// Nachricht oder Foto von der Baustelle übertragen; clientId schützt vor Doppelten
+async function syncSiteEntry(entry: SiteOutboxEntry) {
+  try {
+    if (entry.kind === 'photo') {
+      const form = new FormData();
+      form.append('file', entry.photo!, entry.fileName ?? 'foto.jpg');
+      form.append('clientId', entry.clientId);
+      if (entry.text) form.append('caption', entry.text);
+      await api.postForm(`/site/projects/${entry.projectId}/photos`, form);
+    } else {
+      await api.post(`/site/projects/${entry.projectId}/messages`, {
+        text: entry.text,
+        clientId: entry.clientId,
+      });
+    }
+    await offlineDb.deleteSite(entry.clientId);
+    return 'saved' as const;
+  } catch (err) {
+    if (isNetworkError(err)) return 'offline' as const;
+    if (err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 401) {
+      await offlineDb.putSite({ ...entry, error: err.message });
+      return 'rejected' as const;
+    }
+    throw err;
+  }
+}
+
 export function flushOutbox(): Promise<void> {
   if (running) return running;
   running = (async () => {
     try {
       const entries = (await offlineDb.allOutbox()).filter((e) => !e.conflict);
       for (const entry of entries) {
-        if ((await syncEntry(entry)) === 'offline') break;
+        if ((await syncEntry(entry)) === 'offline') return;
+      }
+      const site = (await offlineDb.allSite())
+        .filter((e) => !e.error)
+        .sort((a, b) => a.queuedAt - b.queuedAt);
+      for (const entry of site) {
+        if ((await syncSiteEntry(entry)) === 'offline') return;
       }
     } catch {
       // Speicher nicht verfügbar oder unerwartete Antwort: beim nächsten Mal wieder
@@ -114,6 +147,40 @@ export function useOutbox() {
     };
   }, []);
   return entries;
+}
+
+// Wartende Nachrichten und Fotos von der Baustelle
+export function useSiteOutbox() {
+  const [entries, setEntries] = useState<SiteOutboxEntry[]>([]);
+  useEffect(() => {
+    let current = true;
+    const load = () =>
+      offlineDb
+        .allSite()
+        .then((list) => current && setEntries(list.sort((a, b) => a.queuedAt - b.queuedAt)))
+        .catch(() => current && setEntries([]));
+    load();
+    const unsubscribe = subscribeOffline(load);
+    return () => {
+      current = false;
+      unsubscribe();
+    };
+  }, []);
+  return entries;
+}
+
+// In die Warteschlange und – wenn Netz da ist – gleich übertragen
+export async function queueSiteEntry(entry: Omit<SiteOutboxEntry, 'clientId' | 'queuedAt'>) {
+  const clientId = crypto.randomUUID();
+  await offlineDb.putSite({ ...entry, clientId, queuedAt: Date.now() });
+  notifyOfflineChange();
+  if (navigator.onLine) await flushOutbox();
+  return clientId;
+}
+
+export async function discardSiteEntry(clientId: string) {
+  await offlineDb.deleteSite(clientId);
+  notifyOfflineChange();
 }
 
 // Einmal in der App: bei Netz und regelmäßig übertragen

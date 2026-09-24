@@ -1,11 +1,13 @@
 // Kleiner Speicher im Browser (IndexedDB) für das Arbeiten ohne Netz:
 // - plans: zuletzt geöffnete Lagepläne (Stand vom Server) samt Hintergrundbild
 // - outbox: offline gespeicherte Änderungen, die noch zum Server müssen
+// - site: Nachrichten und Fotos von der Baustelle, die noch zum Server müssen
+// - cache: zuletzt geladener Tag auf der Baustelle
 // Ohne IndexedDB (z. B. manche private Fenster) geht offline nichts – online
 // arbeitet die App dann wie bisher.
 
 const DB_NAME = 'gartenai-offline';
-const VERSION = 1;
+const VERSION = 2;
 
 export interface CachedPlan {
   id: string;
@@ -29,6 +31,18 @@ export interface OutboxEntry {
   conflict?: boolean;
 }
 
+export interface SiteOutboxEntry {
+  clientId: string; // vom Gerät vergeben, der Server legt nichts doppelt an
+  projectId: string;
+  kind: 'text' | 'photo';
+  text?: string;
+  photo?: Blob;
+  fileName?: string;
+  queuedAt: number;
+  // vom Server abgelehnt (z.B. Projekt gelöscht): bleibt zur Anzeige stehen
+  error?: string;
+}
+
 let opening: Promise<IDBDatabase> | null = null;
 
 function open(): Promise<IDBDatabase> {
@@ -40,6 +54,8 @@ function open(): Promise<IDBDatabase> {
       const db = request.result;
       if (!db.objectStoreNames.contains('plans')) db.createObjectStore('plans', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('outbox')) db.createObjectStore('outbox', { keyPath: 'planId' });
+      if (!db.objectStoreNames.contains('site')) db.createObjectStore('site', { keyPath: 'clientId' });
+      if (!db.objectStoreNames.contains('cache')) db.createObjectStore('cache', { keyPath: 'key' });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -49,7 +65,7 @@ function open(): Promise<IDBDatabase> {
 }
 
 function run<T>(
-  store: 'plans' | 'outbox',
+  store: 'plans' | 'outbox' | 'site' | 'cache',
   mode: IDBTransactionMode,
   action: (s: IDBObjectStore) => IDBRequest<T>,
 ) {
@@ -74,7 +90,20 @@ export const offlineDb = {
   putOutbox: (entry: OutboxEntry) => run('outbox', 'readwrite', (s) => s.put(entry)),
   deleteOutbox: (planId: string) => run('outbox', 'readwrite', (s) => s.delete(planId)),
   allOutbox: () => run<OutboxEntry[]>('outbox', 'readonly', (s) => s.getAll()),
+  putSite: (entry: SiteOutboxEntry) => run('site', 'readwrite', (s) => s.put(entry)),
+  deleteSite: (clientId: string) => run('site', 'readwrite', (s) => s.delete(clientId)),
+  allSite: () => run<SiteOutboxEntry[]>('site', 'readonly', (s) => s.getAll()),
+  // zuletzt geladene Antworten (z.B. der Tag auf der Baustelle) für ohne Netz
+  getCache: <T>(key: string) =>
+    run<{ key: string; value: T; savedAt: number } | undefined>('cache', 'readonly', (s) => s.get(key)),
+  putCache: (key: string, value: unknown) =>
+    run('cache', 'readwrite', (s) => s.put({ key, value, savedAt: Date.now() })),
   // beim Abmelden: nichts von dieser Sitzung im Browser lassen
   clear: () =>
-    Promise.all([run('plans', 'readwrite', (s) => s.clear()), run('outbox', 'readwrite', (s) => s.clear())]),
+    Promise.all([
+      run('plans', 'readwrite', (s) => s.clear()),
+      run('outbox', 'readwrite', (s) => s.clear()),
+      run('site', 'readwrite', (s) => s.clear()),
+      run('cache', 'readwrite', (s) => s.clear()),
+    ]),
 };
