@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { BOOKKEEPING_PERMISSIONS, EMPLOYEE_PERMISSIONS, PERMISSIONS } from '../common/permissions';
 import { hashPassword, normalizeEmail, PASSWORD_MIN_LENGTH } from '../auth/passwords';
 
@@ -14,7 +14,12 @@ export interface SetupInput {
 // "Geschäftsführung" (alle Rechte), "Buchhaltung" und "Mitarbeiter", erster Administrator
 // mit Mitarbeiterprofil. Anders als der Seed (prisma/seed.ts) ohne
 // Demo-Daten und ohne bekanntes Passwort. Alles in einer Transaktion.
-export async function setupCompany(prisma: PrismaClient, input: SetupInput) {
+export async function setupCompany(
+  prisma: PrismaClient,
+  input: SetupInput,
+  // zusätzliche Prüfung in derselben Transaktion (Ersteinrichtung in der App: nur einmal)
+  guard?: (tx: Prisma.TransactionClient) => Promise<void>,
+) {
   const companyName = input.companyName.trim();
   const email = normalizeEmail(input.email);
   const firstName = input.firstName.trim();
@@ -27,6 +32,7 @@ export async function setupCompany(prisma: PrismaClient, input: SetupInput) {
   const passwordHash = await hashPassword(input.password);
 
   return prisma.$transaction(async (tx) => {
+    if (guard) await guard(tx);
     if (await tx.user.findUnique({ where: { email } })) {
       throw new Error(`Es gibt bereits einen Nutzer mit ${email}.`);
     }

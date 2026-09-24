@@ -27,6 +27,7 @@ import { AiGatewayModule } from './ai-gateway/ai-gateway.module';
 import { AbsencesModule } from './absences/absences.module';
 import { PushModule } from './push/push.module';
 import { DemoModule } from './demo/demo.module';
+import { SetupModule } from './setup/setup.module';
 import { MaterialUsageModule } from './material-usage/material-usage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
@@ -80,6 +81,7 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     AbsencesModule,
     PushModule,
     DemoModule,
+    SetupModule,
     MaterialUsageModule,
     OcrModule,
     HealthModule,
