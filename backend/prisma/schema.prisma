@@ -117,6 +117,7 @@ model Company {
   contractTasks        ContractTask[]
   importSessions       ImportSession[]
   aiProviders          AiProviderConfig[]
+  absences             Absence[]
   projectMessages      ProjectMessage[]
   projectMessageReads  ProjectMessageRead[]
 }
@@ -145,6 +146,7 @@ model User {
   contractTasks       ContractTask[]
   projectMessages     ProjectMessage[]
   projectMessageReads ProjectMessageRead[]
+  absences            Absence[]
 
   @@index([companyId])
 }
@@ -774,6 +776,36 @@ model ImportSession {
   createdAt DateTime @default(now())
 
   @@index([companyId])
+}
+
+// ─────────────────────────────────────────────
+// Abwesenheiten (Urlaub, Krankheit, Schulung) je Nutzer – ganze Kalendertage.
+// Die Plantafel zeigt sie, Termine lassen sich an diesen Tagen nicht
+// zuteilen. Die Art sieht nur, wer Mitarbeiterdaten sehen darf (Krankheit
+// ist ein Gesundheitsdatum), alle anderen nur „abwesend“.
+// ─────────────────────────────────────────────
+model Absence {
+  id              String      @id @default(uuid())
+  companyId       String
+  company         Company     @relation(fields: [companyId], references: [id])
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  kind            AbsenceKind
+  startDate       DateTime    @db.Date
+  endDate         DateTime    @db.Date
+  note            String?
+  createdByUserId String
+  createdAt       DateTime    @default(now())
+
+  @@index([companyId, startDate])
+  @@index([userId, startDate])
+}
+
+enum AbsenceKind {
+  vacation
+  sick
+  training
+  other
 }
 
 // ─────────────────────────────────────────────

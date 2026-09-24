@@ -48,6 +48,7 @@ describe('Demo', () => {
     expect(await prisma.invoicePayment.count({ where: { companyId } })).toBe(1);
     expect(await prisma.maintenanceContract.count({ where: { companyId } })).toBe(1);
     expect(await prisma.projectMessage.count({ where: { companyId } })).toBe(2);
+    expect(await prisma.absence.count({ where: { companyId } })).toBe(1);
     expect(await prisma.appointment.count({ where: { companyId } })).toBeGreaterThan(6);
 
     // alle drei Zugänge melden sich an; der Mitarbeiter hat heute Termine auf der Baustelle

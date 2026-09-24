@@ -29,6 +29,9 @@ jobs:
           docker compose -f docker-compose.demo.yml --profile https config --quiet
       - name: Rauchtest
         run: bash ops/smoke-test.sh
+      # Sicherung zurückspielen – mit gelöschten Volumes, Dokument Byte für Byte
+      - name: Sicherung und Zurückspielen
+        run: bash ops/tests/backup-restore.sh
       # Demo für Vorführungen (Laptop + Handys im WLAN) mit HTTPS
       - name: Rauchtest Demo
         run: bash ops/tests/demo-smoke.sh

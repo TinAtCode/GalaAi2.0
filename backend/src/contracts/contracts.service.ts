@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { lockFor } from '../common/advisory-lock';
 import { writeAudit } from '../common/audit';
 import { addCalendarDays, localDayString, localTimeInZone } from '../common/time-zone';
+import { absenceOn } from '../absences/absences.service';
 import { resolveVatTreatment } from '../common/vat-treatment';
 import { totals } from '../invoices/invoices.service';
 import { CreateContractDto, ScheduleDto, UpdateContractDto } from './contract.dto';
@@ -309,9 +310,10 @@ export class ContractsService {
                 },
                 select: { startTime: true, endTime: true },
               });
-              const clash = sameDay.some(
-                (a) => (a.endTime ?? new Date(a.startTime.getTime() + 3_600_000)) > startTime,
-              );
+              // anderer Termin zur selben Zeit oder abwesend (Urlaub, Krankheit): offen lassen
+              const clash =
+                sameDay.some((a) => (a.endTime ?? new Date(a.startTime.getTime() + 3_600_000)) > startTime) ||
+                Boolean(await absenceOn(tx, companyId, assignedUserId, day));
               if (clash) {
                 assignedUserId = null;
                 unassigned++;

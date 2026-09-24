@@ -43,6 +43,7 @@ export const TENANT_MODELS = new Set([
   'ProjectMessage',
   'ProjectMessageRead',
   'AiProviderConfig',
+  'Absence',
 ]);
 
 const GUARDED_ACTIONS = new Set([

@@ -14,12 +14,32 @@ interface BoardAppointment {
   project: { id: string; title: string; property: { city: string | null; customer: { name: string } } };
 }
 
+type AbsenceKind = 'vacation' | 'sick' | 'training' | 'other' | 'absent';
+interface Absence {
+  id: string;
+  userId: string;
+  startDate: string;
+  endDate: string;
+  kind: AbsenceKind;
+  note: string | null;
+}
+
 interface Board {
   from: string;
   days: number;
   assignees: { id: string; firstName: string; lastName: string }[];
   appointments: BoardAppointment[];
+  absences: Absence[];
 }
+
+// „absent“: ohne Recht für Mitarbeiterdaten ist die Art nicht zu sehen
+const ABSENCE_LABELS: Record<AbsenceKind, string> = {
+  vacation: 'Urlaub',
+  sick: 'Krank',
+  training: 'Schulung',
+  other: 'Abwesend',
+  absent: 'Abwesend',
+};
 
 const UNASSIGNED = 'none';
 const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
@@ -59,6 +79,9 @@ const onDay = (value: string, day: string) => {
 export function PlanBoardPage() {
   const { hasPermission } = useAuth();
   const canEdit = hasPermission('customer.write');
+  const canManageAbsences = hasPermission('employee.data.read');
+  const [absenceOpen, setAbsenceOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [from, setFrom] = useState(() => mondayOf(new Date()));
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +114,8 @@ export function PlanBoardPage() {
     (board?.appointments ?? []).filter(
       (a) => (a.assignedUserId ?? UNASSIGNED) === rowId && iso(new Date(a.startTime)) === day,
     );
+  const absenceOf = (rowId: string, day: string) =>
+    (board?.absences ?? []).find((a) => a.userId === rowId && a.startDate <= day && a.endDate >= day);
   const plannedHours = (rowId: string, day: string) =>
     cell(rowId, day).reduce((sum, a) => {
       const end = a.endTime ? new Date(a.endTime) : new Date(new Date(a.startTime).getTime() + 3_600_000);
@@ -152,9 +177,19 @@ export function PlanBoardPage() {
             →
           </button>
           <strong data-testid="board-week">{weekLabel}</strong>
+          {canManageAbsences && (
+            <button className="btn btn-sm" onClick={() => setAbsenceOpen(true)} data-testid="absence-open">
+              Abwesenheit eintragen
+            </button>
+          )}
         </div>
       </header>
 
+      {notice && (
+        <p className="list-item-meta" data-testid="board-notice">
+          {notice}
+        </p>
+      )}
       {error && (
         <p className="field-error" role="alert" data-testid="board-error">
           {error}
@@ -183,12 +218,14 @@ export function PlanBoardPage() {
                 {days.map((day) => {
                   const key = `${row.id}|${day}`;
                   const hours = plannedHours(row.id, day);
+                  const absence = row.id === UNASSIGNED ? undefined : absenceOf(row.id, day);
                   return (
                     <td
                       key={day}
                       className={[
                         day === today ? 'board-today' : '',
                         dropTarget === key ? 'board-drop' : '',
+                        absence ? 'board-absent' : '',
                       ].join(' ')}
                       onDragOver={
                         canEdit
@@ -203,6 +240,33 @@ export function PlanBoardPage() {
                       data-testid="board-cell"
                       data-day={day}
                     >
+                      {absence && (
+                        <span
+                          className="board-absence"
+                          data-testid="board-absence"
+                          title={absence.note ?? undefined}
+                        >
+                          {ABSENCE_LABELS[absence.kind]}
+                          {canManageAbsences && day === absence.startDate && (
+                            <button
+                              type="button"
+                              className="board-absence-remove"
+                              aria-label="Abwesenheit löschen"
+                              onClick={async () => {
+                                if (!window.confirm('Abwesenheit löschen?')) return;
+                                try {
+                                  await api.delete(`/absences/${absence.id}`);
+                                  load();
+                                } catch (err) {
+                                  setError(err instanceof ApiError ? err.message : 'Löschen fehlgeschlagen.');
+                                }
+                              }}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </span>
+                      )}
                       {cell(row.id, day).map((a) => (
                         <button
                           key={a.id}
@@ -238,6 +302,23 @@ export function PlanBoardPage() {
           </tbody>
         </table>
       </div>
+
+      {absenceOpen && board && (
+        <AbsenceDialog
+          assignees={board.assignees}
+          defaultDay={from}
+          onClose={() => setAbsenceOpen(false)}
+          onSaved={(conflicts) => {
+            setAbsenceOpen(false);
+            setNotice(
+              conflicts.length
+                ? `Abwesenheit eingetragen. Noch zugeteilt in dieser Zeit: ${conflicts.map((c) => c.title).join(', ')} – bitte neu verteilen.`
+                : 'Abwesenheit eingetragen.',
+            );
+            load();
+          }}
+        />
+      )}
 
       {editing && board && (
         <AppointmentDialog
@@ -355,6 +436,116 @@ function AppointmentDialog({
           )}
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             {canEdit ? 'Abbrechen' : 'Schließen'}
+          </button>
+        </div>
+      </form>
+    </>
+  );
+}
+
+function AbsenceDialog({
+  assignees,
+  defaultDay,
+  onClose,
+  onSaved,
+}: {
+  assignees: Board['assignees'];
+  defaultDay: string;
+  onClose: () => void;
+  onSaved: (conflicts: { title: string }[]) => void;
+}) {
+  const [userId, setUserId] = useState(assignees[0]?.id ?? '');
+  const [kind, setKind] = useState<AbsenceKind>('vacation');
+  const [startDate, setStartDate] = useState(defaultDay);
+  const [endDate, setEndDate] = useState(defaultDay);
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      const result = await api.post<{ conflicts: { title: string }[] }>('/absences', {
+        userId,
+        kind,
+        startDate,
+        endDate,
+        ...(note.trim() ? { note } : {}),
+      });
+      onSaved(result.conflicts);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Speichern fehlgeschlagen.');
+    }
+  };
+
+  return (
+    <>
+      <div className="nav-sheet-backdrop" onClick={onClose} />
+      <form
+        className="board-dialog"
+        onSubmit={submit}
+        role="dialog"
+        aria-label="Abwesenheit eintragen"
+        data-testid="absence-dialog"
+      >
+        <h3>Abwesenheit eintragen</h3>
+        <label className="field">
+          <span>Mitarbeiter</span>
+          <select value={userId} onChange={(e) => setUserId(e.target.value)} data-testid="absence-user">
+            {assignees.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.firstName} {a.lastName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Art</span>
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as AbsenceKind)}
+            data-testid="absence-kind"
+          >
+            <option value="vacation">Urlaub</option>
+            <option value="sick">Krank</option>
+            <option value="training">Schulung</option>
+            <option value="other">Sonstiges</option>
+          </select>
+        </label>
+        <div className="btn-row">
+          <label className="field">
+            <span>Von</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                if (e.target.value > endDate) setEndDate(e.target.value);
+              }}
+              data-testid="absence-from"
+            />
+          </label>
+          <label className="field">
+            <span>Bis</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              data-testid="absence-to"
+            />
+          </label>
+        </div>
+        <label className="field">
+          <span>Notiz (optional)</span>
+          <input value={note} onChange={(e) => setNote(e.target.value)} />
+        </label>
+        {error && <p className="field-error">{error}</p>}
+        <div className="btn-row">
+          <button type="submit" className="btn btn-primary" data-testid="absence-save">
+            Eintragen
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            Abbrechen
           </button>
         </div>
       </form>

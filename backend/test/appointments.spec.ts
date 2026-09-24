@@ -24,6 +24,11 @@ function createPrismaMock() {
         Promise.resolve(users.find((u) => u.id === where.id && u.companyId === where.companyId) ?? null),
       ),
     },
+    // keine Abwesenheiten (die prüft test/integration/absences.int-spec.ts)
+    absence: {
+      findFirst: jest.fn(() => Promise.resolve(null)),
+      findMany: jest.fn(() => Promise.resolve([])),
+    },
     appointment: {
       findFirst: jest.fn(({ where }: any) =>
         Promise.resolve(appointments.find((a) => a.id === where.id) ?? null),

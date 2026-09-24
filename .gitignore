@@ -25,3 +25,4 @@ backend/.verapdf/
 
 # Stand und Sicherungen von ops/deploy.sh auf dem Server
 .deploy/
+backups/

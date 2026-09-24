@@ -6,7 +6,14 @@ import {
   UpdateAppointmentDto,
   UpdateAppointmentStatusDto,
 } from './dto/appointment.dto';
-import { addCalendarDays, dayRangeInZone, formatTimeInZone, isValidDay } from '../common/time-zone';
+import {
+  addCalendarDays,
+  dayRangeInZone,
+  formatTimeInZone,
+  isValidDay,
+  localDayString,
+} from '../common/time-zone';
+import { absenceMessage, absenceOn, publicAbsence } from '../absences/absences.service';
 import { lockFor } from '../common/advisory-lock';
 import { Prisma } from '@prisma/client';
 
@@ -67,6 +74,8 @@ export class AppointmentsService {
     excludeAppointmentId?: string,
   ) {
     const { start: dayStart, end: dayEnd } = dayRangeInZone(newStart, timeZone);
+    const absent = await absenceOn(db, companyId, assignedUserId, localDayString(newStart, timeZone));
+    if (absent) throw new BadRequestException(absenceMessage(absent));
 
     const candidates = await db.appointment.findMany({
       where: {
@@ -151,7 +160,7 @@ export class AppointmentsService {
   }
 
   // Plantafel: alle nicht abgesagten Termine im Zeitraum, mit Baustelle und Kunde
-  async board(companyId: string, query: BoardQueryDto) {
+  async board(companyId: string, query: BoardQueryDto, permissions: string[] = []) {
     if (!isValidDay(query.from)) throw new BadRequestException('Ungültiges Datum.');
     const timeZone = await this.getTimeZone(companyId);
     const days = query.days ?? 7;
@@ -181,7 +190,23 @@ export class AppointmentsService {
       }),
       this.assignees(companyId),
     ]);
-    return { from: query.from, days, timeZone, assignees, appointments };
+    const lastDay = addCalendarDays(query.from, days - 1);
+    const absences = await this.prisma.absence.findMany({
+      where: {
+        companyId,
+        startDate: { lte: new Date(`${lastDay}T00:00:00Z`) },
+        endDate: { gte: new Date(`${query.from}T00:00:00Z`) },
+      },
+      orderBy: { startDate: 'asc' },
+    });
+    return {
+      from: query.from,
+      days,
+      timeZone,
+      assignees,
+      appointments,
+      absences: absences.map((a) => publicAbsence(a, permissions)),
+    };
   }
 
   // Verschieben und neu zuteilen – mit derselben Kollisionsprüfung wie beim Anlegen

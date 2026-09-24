@@ -313,6 +313,16 @@ export async function createDemo(
   await appointment(pond, 'Aufmaß Teich', at(1, 9), 2);
   await appointment(garden, 'Material anliefern (Grauwacke)', at(3, 7), 1);
 
+  // Büro nächste Woche im Urlaub (Plantafel: Abwesenheiten)
+  const weekday = (new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7;
+  const nextMonday = addCalendarDays(today, 7 - weekday);
+  await chef.post('/absences', {
+    userId: office.id,
+    kind: 'vacation',
+    startDate: nextMonday,
+    endDate: addCalendarDays(nextMonday, 4),
+  });
+
   log('Nachrichten von der Baustelle …');
   const onSite = await new Api(base).login('mitarbeiter@musterbetrieb.de', DEMO_PASSWORD);
   await onSite.post(`/site/projects/${garden}/messages`, {

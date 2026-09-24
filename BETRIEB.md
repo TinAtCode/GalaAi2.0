@@ -54,13 +54,33 @@ ohne HTTPS: `COOKIE_SECURE=0`.
 
 ## Daten und Sicherung
 
-| Was | Wo | Sichern mit |
-| --- | --- | --- |
-| Datenbank | Volume `pg_data` | `docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U gartenai -Fc gartenai > gartenai-$(date +%F).dump` |
-| Dokumente | Volume `uploads` (`/data/uploads`) | `docker run --rm -v <projekt>_uploads:/data -v "$PWD":/backup alpine tar czf /backup/uploads-$(date +%F).tgz -C /data .` |
+| Was | Wo |
+| --- | --- |
+| Datenbank | Volume `pg_data` |
+| Dokumente | Volume `uploads` (`/data/uploads`), mit `STORAGE=s3` im Objektspeicher |
 
-Beides gehört zusammen: Die Datenbank verweist auf die Dateien. Zurückspielen
-der Datenbank mit `pg_restore -U gartenai -d gartenai --clean`.
+Beides gehört zusammen: Die Datenbank verweist auf die Dateien.
+
+```bash
+ops/backup.sh                      # nach backups/<Datum-Uhrzeit>/ (Datenbank, Dokumente, Prüfsummen)
+ops/restore.sh backups/20260930-021500   # zurückspielen – ersetzt den aktuellen Stand, fragt nach
+```
+
+`ops/backup.sh` prüft die Datenbank-Sicherung gleich nach dem Schreiben und
+behält die letzten 14 Sicherungen (`KEEP=30` für mehr). `ops/restore.sh` prüft
+zuerst die Prüfsummen und ändert bei einer beschädigten Sicherung nichts. Eine
+Sicherung einer älteren Version lässt sich in eine neuere zurückspielen: Die
+Migrationen laufen beim Neustart nach. Täglich per Cronjob:
+
+```
+15 2 * * * cd /srv/gartenai && ops/backup.sh >> backups/backup.log 2>&1
+```
+
+Die Sicherungen gehören zusätzlich **weg vom Server** (anderer Rechner,
+Objektspeicher, NAS) – eine Sicherung auf derselben Platte hilft bei einem
+Plattenschaden nicht. Die CI spielt bei jedem Push eine Sicherung zurück:
+alles löschen (auch die Volumes), zurückspielen, Anmeldung, Daten und
+Dokumente prüfen (`ops/tests/backup-restore.sh`).
 
 ### Dokumente im Objektspeicher (S3)
 
