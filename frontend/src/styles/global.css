@@ -665,7 +665,7 @@
 }
 
 .plan-dimension input {
-  width: 100px;
+  width: 76px;
   padding: 4px 6px;
 }
 
@@ -766,4 +766,24 @@
 .settings-fieldset legend {
   font-weight: 600;
   padding: 0 4px;
+}
+
+.plan-dimension select {
+  width: 118px;
+  padding: 3px 4px;
+}
+
+.plan-dimension input.plan-radius {
+  width: 56px;
+}
+
+.plan-hint .plan-shape-toggle {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.88);
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
 }

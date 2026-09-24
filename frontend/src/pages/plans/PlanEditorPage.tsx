@@ -29,6 +29,7 @@ import {
 import {
   bounds,
   distance,
+  insertPoint,
   meters,
   midpointAlong,
   Point,
@@ -38,8 +39,11 @@ import {
   polygonArea,
   polygonPerimeter,
   polylineLength,
+  removePoint,
+  setListValue,
   squareMeters,
 } from './geometry';
+import { edgeMidpoint, isCircle, outline } from './outline';
 
 interface Plan {
   id: string;
@@ -101,6 +105,9 @@ export function PlanEditorPage() {
   const [paleAreas, setPaleAreas] = useState(false);
   // exakte Länge der nächsten Strecke beim Zeichnen (Richtung: Maus)
   const [lengthEntry, setLengthEntry] = useState('');
+  // Flächen als Kreis zeichnen (Mittelpunkt, dann Rand); beim Schacht Standard
+  const [circleChoice, setCircleChoice] = useState<Partial<Record<Tool, boolean>>>({});
+  const circleMode = circleChoice[tool] ?? tool === 'manhole';
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [background, setBackground] = useState<{ id: string; url: string } | null>(null);
   const [backgroundOpacity, setBackgroundOpacity] = useState(0.7);
@@ -116,6 +123,19 @@ export function PlanEditorPage() {
 
   const extent: Point = plan?.background ? [plan.background.width, plan.background.height] : DEFAULT_EXTENT;
   const toMeters = (units: number) => units / unitsPerMeter;
+  // Umriss mit Rundungen und Bögen (in Planeinheiten); Maße daraus wie im Backend
+  const outlineOf = (o: PlanObject) => {
+    const kind = TYPES[o.type].kind;
+    return kind === 'line' || kind === 'area'
+      ? outline(o.points, kind === 'area', o.props, unitsPerMeter)
+      : o.points;
+  };
+  const radiusOf = (o: PlanObject) => toMeters(distance(o.points[0], o.points[1]));
+  const lengthOf = (o: PlanObject) => toMeters(polylineLength(outlineOf(o)));
+  const areaOf = (o: PlanObject) =>
+    isCircle(o.props) ? Math.PI * radiusOf(o) ** 2 : toMeters(toMeters(polygonArea(outlineOf(o))));
+  const perimeterOf = (o: PlanObject) =>
+    isCircle(o.props) ? 2 * Math.PI * radiusOf(o) : toMeters(polygonPerimeter(outlineOf(o)));
 
   // Laden
   const apply = (loaded: Plan) => {
@@ -269,15 +289,17 @@ export function PlanEditorPage() {
     setError(null);
     const target = cursor && distance(cursor, last) > 0 ? cursor : ([last[0] + 1, last[1]] as Point);
     const d = distance(target, last);
-    const units = m * unitsPerMeter;
+    const kind = tool === 'select' || tool === 'pan' || tool === 'calibrate' ? null : TYPES[tool].kind;
+    const circle = kind === 'area' && circleMode && draft.length === 1;
+    // beim Kreis ist die Eingabe der Durchmesser
+    const units = (circle ? m / 2 : m) * unitsPerMeter;
     const next: Point = [
       Math.round((last[0] + ((target[0] - last[0]) / d) * units) * 100) / 100,
       Math.round((last[1] + ((target[1] - last[1]) / d) * units) * 100) / 100,
     ];
     const points = [...draft, next];
     setLengthEntry('');
-    const kind = tool === 'select' || tool === 'pan' || tool === 'calibrate' ? null : TYPES[tool].kind;
-    if (kind === 'opening' && points.length === 2) finishDraft(points);
+    if ((kind === 'opening' || circle) && points.length === 2) finishDraft(points);
     else setDraft(points);
   };
 
@@ -286,9 +308,15 @@ export function PlanEditorPage() {
     // doppelte Punkte (Doppelklick) entfernen
     const clean = points.filter((p, i) => i === 0 || distance(p, points[i - 1]) > 1e-6);
     const kind = TYPES[tool].kind;
-    const enough = kind === 'area' ? clean.length >= 3 : clean.length >= 2;
+    const circle = kind === 'area' && circleMode;
+    const enough = circle ? clean.length === 2 : kind === 'area' ? clean.length >= 3 : clean.length >= 2;
     if (enough) {
-      const object: PlanObject = { id: newId(), type: tool, points: clean };
+      const object: PlanObject = {
+        id: newId(),
+        type: tool,
+        points: clean,
+        ...(circle ? { props: { shape: 'circle' as const } } : {}),
+      };
       commit([...objects, object]);
       setSelectedId(object.id);
     }
@@ -324,7 +352,7 @@ export function PlanEditorPage() {
       return;
     }
     const next = [...draft, p];
-    if (kind === 'opening' && next.length === 2) finishDraft(next);
+    if ((kind === 'opening' || (kind === 'area' && circleMode)) && next.length === 2) finishDraft(next);
     else setDraft(next);
   };
 
@@ -356,9 +384,15 @@ export function PlanEditorPage() {
       d.moved = true;
       const q = snap(p, false, d.id);
       setObjects(
-        d.original.map((o) =>
-          o.id === d.id ? { ...o, points: o.points.map((pt, i) => (i === d.index ? q : pt)) } : o,
-        ),
+        d.original.map((o) => {
+          if (o.id !== d.id) return o;
+          // Kreis: Mittelpunkt ziehen verschiebt den ganzen Kreis
+          if (isCircle(o.props) && d.index === 0) {
+            const [dx, dy] = [q[0] - o.points[0][0], q[1] - o.points[0][1]];
+            return { ...o, points: o.points.map(([x, y]) => [round(x + dx), round(y + dy)] as Point) };
+          }
+          return { ...o, points: o.points.map((pt, i) => (i === d.index ? q : pt)) };
+        }),
       );
       return;
     }
@@ -434,6 +468,118 @@ export function PlanEditorPage() {
     if (!selected) return;
     commit(objects.filter((o) => o.id !== selected.id));
     setSelectedId(null);
+  };
+
+  // Punkt auf einer Kante einfügen (in der Mitte, bei Bögen auf dem Bogen)
+  const insertOnEdge = (o: PlanObject, edge: number) => {
+    const closed = TYPES[o.type].kind === 'area';
+    const [x, y] = edgeMidpoint(o.points, closed, o.props, unitsPerMeter, edge);
+    const next = insertPoint(o.points, o.props, edge, [round(x), round(y)]);
+    commit(objects.map((item) => (item.id === o.id ? { ...item, ...next } : item)));
+  };
+
+  const deletePoint = (index: number) => {
+    if (!selected) return;
+    const result = removePoint(selected.points, selected.props, index, TYPES[selected.type].kind === 'area');
+    if (typeof result === 'string') {
+      setError(result);
+      return;
+    }
+    setError(null);
+    updateSelected(result);
+  };
+
+  // Meterwert aus einem Eingabefeld (leer = 0); null bei ungültiger Eingabe
+  const parseMeters = (raw: string, max: number) => {
+    const value = raw.trim() ? Number(raw.trim().replace(',', '.')) : 0;
+    return Number.isFinite(value) && value >= 0 && value <= max ? value : null;
+  };
+
+  const setCornerRadius = (index: number, raw: string) => {
+    if (!selected) return;
+    const radius = parseMeters(raw, 1000);
+    if (radius === null) {
+      setError('Radius bitte in Metern angeben, z. B. 0,5.');
+      return;
+    }
+    const radii = setListValue(selected.props?.radii, selected.points.length, index, radius);
+    if ((radii ?? []).join() === (selected.props?.radii ?? []).join()) return;
+    setError(null);
+    updateSelected({ props: { ...selected.props, radii } });
+  };
+
+  // Kante als Bogen: Richtung (1 = außen/links, -1 = innen/rechts, 0 = gerade)
+  // und Radius; ohne Radius ein Halbkreis
+  const setEdgeBulge = (edge: number, direction: number, raw?: string) => {
+    if (!selected) return;
+    const closed = TYPES[selected.type].kind === 'area';
+    const [a, b] = [selected.points[edge], selected.points[(edge + 1) % selected.points.length]];
+    const half = toMeters(distance(a, b)) / 2;
+    const current = Math.abs(selected.props?.bulges?.[edge] ?? 0);
+    let radius = raw === undefined ? current || half : parseMeters(raw, 100_000);
+    if (radius === null || (direction !== 0 && radius <= 0)) {
+      setError('Radius bitte in Metern angeben.');
+      return;
+    }
+    radius = Math.max(radius, Math.ceil(half * 100) / 100);
+    const edges = closed ? selected.points.length : selected.points.length - 1;
+    const bulges = setListValue(selected.props?.bulges, edges, edge, direction * radius);
+    setError(null);
+    updateSelected({ props: { ...selected.props, bulges } });
+  };
+
+  const setDiameter = (raw: string) => {
+    if (!selected) return;
+    const diameter = parseMeters(raw, 1000);
+    if (!diameter) {
+      setError('Durchmesser bitte in Metern angeben, z. B. 1,00.');
+      return;
+    }
+    if (Math.abs(diameter - 2 * radiusOf(selected)) < 0.005) return;
+    const [c, rim] = selected.points;
+    const d = distance(c, rim);
+    const units = (diameter / 2) * unitsPerMeter;
+    setError(null);
+    updateSelected({
+      points: [c, [round(c[0] + ((rim[0] - c[0]) / d) * units), round(c[1] + ((rim[1] - c[1]) / d) * units)]],
+    });
+  };
+
+  // Fläche zwischen Vieleck und Kreis umstellen: Kreis gleicher Fläche um den
+  // Schwerpunkt; ein Kreis wird zum Quadrat mit vollen Eckrundungen (sieht
+  // gleich aus, lässt sich dann aber weiter formen)
+  const setShape = (circle: boolean) => {
+    if (!selected || circle === isCircle(selected.props)) return;
+    // punkt- und kantenbezogene Angaben passen nicht mehr zur neuen Form
+    const rest = { ...selected.props };
+    delete rest.radii;
+    delete rest.bulges;
+    delete rest.fixed;
+    delete rest.shape;
+    if (circle) {
+      const c = labelAnchor(selected);
+      const units = Math.sqrt(areaOf(selected) / Math.PI) * unitsPerMeter;
+      updateSelected({
+        points: [
+          [round(c[0]), round(c[1])],
+          [round(c[0] + units), round(c[1])],
+        ],
+        props: { ...rest, shape: 'circle' },
+      });
+    } else {
+      const [c] = selected.points;
+      const units = radiusOf(selected) * unitsPerMeter;
+      const r = Math.floor(radiusOf(selected) * 100) / 100;
+      updateSelected({
+        points: [
+          [round(c[0] - units), round(c[1] - units)],
+          [round(c[0] + units), round(c[1] - units)],
+          [round(c[0] + units), round(c[1] + units)],
+          [round(c[0] - units), round(c[1] + units)],
+        ],
+        props: { ...rest, radii: [r, r, r, r] },
+      });
+    }
   };
 
   // Stand, der gerade gespeichert wird: danach nur "gespeichert", wenn
@@ -552,6 +698,17 @@ export function PlanEditorPage() {
           points: o.points.map(([x, y]) => [round(x * factor), round(y * factor)] as Point),
         })),
       );
+    } else if (objects.some((o) => o.props?.radii || o.props?.bulges)) {
+      // Objekte bleiben am Bild: Radien (in m) mit dem neuen Maßstab umrechnen
+      const factor = unitsPerMeter / next;
+      const scale = (list?: number[]) => list?.map((v) => Math.round(v * factor * 100) / 100);
+      commit(
+        objects.map((o) =>
+          o.props?.radii || o.props?.bulges
+            ? { ...o, props: { ...o.props, radii: scale(o.props.radii), bulges: scale(o.props.bulges) } }
+            : o,
+        ),
+      );
     }
     setUnitsPerMeter(next);
     setKeepSizes(false);
@@ -601,17 +758,22 @@ export function PlanEditorPage() {
       const t = TYPES[o.type];
       if (t.kind === 'line') {
         const dn = PIPE_TYPES.includes(o.type) ? o.props?.dn : undefined;
-        if (dn) add(`${o.type}:dn${dn}`, `${t.label} DN ${dn}`, 'm', toMeters(polylineLength(o.points)));
-        else add(o.type, t.label, 'm', toMeters(polylineLength(o.points)));
+        if (dn) add(`${o.type}:dn${dn}`, `${t.label} DN ${dn}`, 'm', lengthOf(o));
+        else add(o.type, t.label, 'm', lengthOf(o));
       }
       if (t.kind === 'opening') {
         add(o.type, t.label, 'Stk', 1);
         add(`${o.type}:w`, `${t.label} (Breite gesamt)`, 'm', toMeters(polylineLength(o.points)));
       }
-      if (t.kind === 'area') {
-        add(o.type, t.label, 'm²', toMeters(toMeters(polygonArea(o.points))));
-        if (o.type === 'lawn' && o.props?.mowingEdge)
-          add('lawn:edge', 'Mähkante', 'm', toMeters(polygonPerimeter(o.points)));
+      if (o.type === 'manhole') {
+        // Schächte zählen, runde je Durchmesser
+        if (isCircle(o.props)) {
+          const cm = Math.round(radiusOf(o) * 200);
+          add(`manhole:d${cm}`, `${t.label} Ø ${number(cm / 100, 2)} m`, 'Stk', 1);
+        } else add(o.type, t.label, 'Stk', 1);
+      } else if (t.kind === 'area') {
+        add(o.type, t.label, 'm²', areaOf(o));
+        if (o.type === 'lawn' && o.props?.mowingEdge) add('lawn:edge', 'Mähkante', 'm', perimeterOf(o));
         if (o.type === 'parking' && o.props?.spaces)
           add('parking:spaces', 'Stellplätze', 'Stk', o.props.spaces);
       }
@@ -636,8 +798,11 @@ export function PlanEditorPage() {
     [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500].find((m) => m * unitsPerMeter * view.zoom >= 80) ?? 500;
   const metric = (o: PlanObject) => {
     const kind = TYPES[o.type].kind;
-    if (kind === 'area') return squareMeters(toMeters(toMeters(polygonArea(o.points))));
-    if (kind === 'line' || kind === 'opening') return meters(toMeters(polylineLength(o.points)));
+    if (isCircle(o.props)) return `Ø ${meters(2 * radiusOf(o))}`;
+    if (o.type === 'manhole') return null;
+    if (kind === 'area') return squareMeters(areaOf(o));
+    if (kind === 'line') return meters(lengthOf(o));
+    if (kind === 'opening') return meters(toMeters(polylineLength(o.points)));
     return null;
   };
 
@@ -646,7 +811,10 @@ export function PlanEditorPage() {
   const renderObject = (o: PlanObject) => {
     const t = TYPES[o.type];
     const isSelected = o.id === selectedId;
-    const d = `M${o.points.map((p) => p.join(' ')).join(' L')}${t.kind === 'area' ? ' Z' : ''}`;
+    const circle = isCircle(o.props);
+    const d = `M${outlineOf(o)
+      .map((p) => `${round(p[0])} ${round(p[1])}`)
+      .join(' L')}${t.kind === 'area' ? ' Z' : ''}`;
     const handlers = {
       onPointerDown: (e: ReactPointerEvent) => startObjectDrag(e, o),
       style: { cursor: tool === 'select' ? 'move' : undefined },
@@ -755,7 +923,7 @@ export function PlanEditorPage() {
             {caption}
           </text>
         )}
-        {isSelected && tool === 'select' && t.kind !== 'symbol' && t.kind !== 'text' && (
+        {isSelected && tool === 'select' && t.kind !== 'symbol' && t.kind !== 'text' && !circle && (
           <g data-ui pointerEvents="none" data-testid="plan-edge-labels">
             {/* Kantenlängen und Punktnamen des ausgewählten Objekts */}
             {segments(o.points.length, t.kind === 'area').map(([a, b]) => {
@@ -793,6 +961,37 @@ export function PlanEditorPage() {
             ))}
           </g>
         )}
+        {isSelected &&
+          canEdit &&
+          tool === 'select' &&
+          (t.kind === 'line' || t.kind === 'area') &&
+          !circle &&
+          !o.props?.locked && (
+            <g data-ui>
+              {/* "+" auf jeder Kante: dort einen Punkt einfügen */}
+              {segments(o.points.length, t.kind === 'area').map(([a]) => {
+                const [x, y] = edgeMidpoint(o.points, t.kind === 'area', o.props, unitsPerMeter, a);
+                return (
+                  <g
+                    key={`insert-${a}`}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      insertOnEdge(o, a);
+                    }}
+                    style={{ cursor: 'copy' }}
+                    data-testid="plan-insert-point"
+                  >
+                    <circle cx={x} cy={y} r={5 * px} fill="#2a78d6" fillOpacity={0.8} />
+                    <path
+                      d={`M${x - 3 * px} ${y} H${x + 3 * px} M${x} ${y - 3 * px} V${y + 3 * px}`}
+                      stroke="#ffffff"
+                      strokeWidth={1.5 * px}
+                    />
+                  </g>
+                );
+              })}
+            </g>
+          )}
         {isSelected && canEdit && tool === 'select' && (
           <g data-ui>
             {o.points.map((p, i) =>
@@ -829,18 +1028,21 @@ export function PlanEditorPage() {
 
   const drawKind = tool !== 'select' && tool !== 'pan' && tool !== 'calibrate' ? TYPES[tool].kind : null;
   const preview = draft.length && cursor ? [...draft, cursor] : draft;
+  const drawCircle = drawKind === 'area' && circleMode;
   const hint =
     tool === 'calibrate'
       ? 'Maßstab: Anfang und Ende einer bekannten Strecke anklicken (z.B. Hauslänge aus dem Plan).'
       : drawKind === 'line'
         ? 'Punkte setzen; Doppelklick oder Enter beendet, Rücktaste nimmt den letzten Punkt zurück, Umschalt = rechtwinklig.'
-        : drawKind === 'area'
-          ? 'Eckpunkte setzen; Doppelklick oder Enter schließt die Fläche.'
-          : drawKind === 'opening'
-            ? 'Anfang und Ende der Öffnung anklicken.'
-            : drawKind
-              ? 'Klicken, um das Symbol zu setzen.'
-              : 'Objekt anklicken zum Auswählen und Verschieben, Punkte ziehen; freie Fläche ziehen = verschieben, Mausrad = zoomen.';
+        : drawCircle
+          ? 'Mittelpunkt anklicken, dann einen Punkt auf dem Rand (oder den Durchmesser eingeben).'
+          : drawKind === 'area'
+            ? 'Eckpunkte setzen; Doppelklick oder Enter schließt die Fläche. Rundungen danach im Maß-Feld.'
+            : drawKind === 'opening'
+              ? 'Anfang und Ende der Öffnung anklicken.'
+              : drawKind
+                ? 'Klicken, um das Symbol zu setzen.'
+                : 'Objekt anklicken zum Auswählen und Verschieben, Punkte ziehen; freie Fläche ziehen = verschieben, Mausrad = zoomen.';
 
   return (
     <div className="plan-editor" data-testid="plan-editor">
@@ -1016,11 +1218,30 @@ export function PlanEditorPage() {
                   drawKind === 'line' &&
                   cursor &&
                   ` Länge: ${meters(toMeters(polylineLength(preview)))}`}
+                {draft.length > 0 &&
+                  drawCircle &&
+                  cursor &&
+                  ` Ø ${meters(2 * toMeters(distance(draft[0], cursor)))}`}
                 {draft.length > 1 &&
                   drawKind === 'area' &&
+                  !drawCircle &&
                   cursor &&
                   ` Fläche: ${squareMeters(toMeters(toMeters(polygonArea(preview))))}`}
               </span>
+              {drawKind === 'area' && (
+                <label className="plan-shape-toggle">
+                  <input
+                    type="checkbox"
+                    checked={circleMode}
+                    onChange={(e) => {
+                      setCircleChoice({ ...circleChoice, [tool]: e.target.checked });
+                      setDraft([]);
+                    }}
+                    data-testid="plan-draw-circle"
+                  />
+                  Kreis
+                </label>
+              )}
               {draft.length > 0 && drawKind && drawKind !== 'symbol' && drawKind !== 'text' && (
                 <span className="plan-length-entry">
                   <input
@@ -1033,8 +1254,8 @@ export function PlanEditorPage() {
                       }
                     }}
                     inputMode="decimal"
-                    placeholder="Länge m"
-                    aria-label="Länge der nächsten Strecke in Metern"
+                    placeholder={drawCircle ? 'Ø m' : 'Länge m'}
+                    aria-label={drawCircle ? 'Durchmesser in Metern' : 'Länge der nächsten Strecke in Metern'}
                     data-testid="plan-length-entry"
                   />
                   <button className="btn" onClick={addPointAtLength}>
@@ -1111,6 +1332,19 @@ export function PlanEditorPage() {
             {/* Flächen unten, Leitungen und Symbole darüber */}
             {visible.filter((o) => TYPES[o.type].kind === 'area').map(renderObject)}
             {visible.filter((o) => TYPES[o.type].kind !== 'area').map(renderObject)}
+            {drawCircle && preview.length === 2 && (
+              <circle
+                data-ui
+                cx={preview[0][0]}
+                cy={preview[0][1]}
+                r={distance(preview[0], preview[1])}
+                fill="rgba(42,120,214,0.12)"
+                stroke="#2a78d6"
+                strokeWidth={2 * px}
+                strokeDasharray={`${6 * px} ${4 * px}`}
+                pointerEvents="none"
+              />
+            )}
             {preview.length > 0 && drawKind && (
               <path
                 data-ui
@@ -1185,45 +1419,118 @@ export function PlanEditorPage() {
               <strong>{TYPES[selected.type].label}</strong>
               {metric(selected) && <div data-testid="plan-selection-metric">{metric(selected)}</div>}
               {selected.type === 'lawn' && selected.props?.mowingEdge && (
-                <div className="list-item-meta">
-                  Mähkante {meters(toMeters(polygonPerimeter(selected.points)))}
-                </div>
+                <div className="list-item-meta">Mähkante {meters(perimeterOf(selected))}</div>
               )}
               {TYPES[selected.type].kind === 'area' && (
-                <div className="list-item-meta">
-                  Umfang {meters(toMeters(polygonPerimeter(selected.points)))}
+                <div className="list-item-meta" data-testid="plan-selection-perimeter">
+                  {/* bei Kreisen und Schächten steht oben der Durchmesser bzw. nichts */}
+                  {(isCircle(selected.props) || selected.type === 'manhole') &&
+                    `${squareMeters(areaOf(selected))} · `}
+                  Umfang {meters(perimeterOf(selected))}
                 </div>
               )}
               {TYPES[selected.type].kind !== 'symbol' && TYPES[selected.type].kind !== 'text' && (
                 <div className="plan-dimensions" data-testid="plan-dimensions">
                   <div className="list-item-meta">Maße (m)</div>
-                  {segments(selected.points.length, TYPES[selected.type].kind === 'area').map(([a, b]) => (
-                    <label key={`${selected.id}-${a}-${b}`} className="plan-dimension">
-                      <span>
-                        {pointName(a)}–{pointName(b)}
-                      </span>
+                  {isCircle(selected.props) ? (
+                    <label className="plan-dimension">
+                      <span>Ø</span>
                       <input
-                        key={`${selected.id}-${a}-${b}-${distance(selected.points[a], selected.points[b])}`}
-                        defaultValue={number(toMeters(distance(selected.points[a], selected.points[b])), 2)}
+                        key={`${selected.id}-d-${radiusOf(selected)}`}
+                        defaultValue={number(2 * radiusOf(selected), 2)}
                         disabled={!canEdit || !!selected.props?.locked}
                         inputMode="decimal"
                         onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                        onBlur={(e) => applySegmentLength([a, b], e.target.value)}
-                        data-testid="plan-segment"
+                        onBlur={(e) => setDiameter(e.target.value)}
+                        aria-label="Durchmesser in Metern"
+                        data-testid="plan-diameter"
                       />
                     </label>
-                  ))}
-                  {canEdit && (
+                  ) : (
+                    segments(selected.points.length, TYPES[selected.type].kind === 'area').map(([a, b]) => {
+                      const shaped = TYPES[selected.type].kind !== 'opening';
+                      const bulge = selected.props?.bulges?.[a] ?? 0;
+                      const editable = canEdit && !selected.props?.locked;
+                      return (
+                        <div key={`${selected.id}-${a}-${b}`} className="plan-dimension">
+                          <span>
+                            {pointName(a)}–{pointName(b)}
+                          </span>
+                          <input
+                            key={`${selected.id}-${a}-${b}-${distance(selected.points[a], selected.points[b])}`}
+                            defaultValue={number(
+                              toMeters(distance(selected.points[a], selected.points[b])),
+                              2,
+                            )}
+                            disabled={!editable}
+                            inputMode="decimal"
+                            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                            onBlur={(e) => applySegmentLength([a, b], e.target.value)}
+                            aria-label={`Länge ${pointName(a)}–${pointName(b)} in Metern`}
+                            data-testid="plan-segment"
+                          />
+                          {shaped && (
+                            <select
+                              value={Math.sign(bulge)}
+                              disabled={!editable}
+                              onChange={(e) => setEdgeBulge(a, Number(e.target.value))}
+                              aria-label={`Kante ${pointName(a)}–${pointName(b)}: gerade oder Bogen`}
+                              title="Kante gerade oder als Kreisbogen"
+                              data-testid="plan-edge-bulge"
+                            >
+                              <option value={0}>gerade</option>
+                              <option value={1}>
+                                {TYPES[selected.type].kind === 'area' ? 'Bogen außen' : 'Bogen links'}
+                              </option>
+                              <option value={-1}>
+                                {TYPES[selected.type].kind === 'area' ? 'Bogen innen' : 'Bogen rechts'}
+                              </option>
+                            </select>
+                          )}
+                          {shaped && bulge !== 0 && (
+                            <input
+                              key={`${selected.id}-${a}-r-${bulge}`}
+                              className="plan-radius"
+                              defaultValue={number(Math.abs(bulge), 2)}
+                              disabled={!editable}
+                              inputMode="decimal"
+                              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                              onBlur={(e) => setEdgeBulge(a, Math.sign(bulge), e.target.value)}
+                              aria-label={`Bogenradius ${pointName(a)}–${pointName(b)} in Metern`}
+                              title="Bogenradius (m)"
+                              data-testid="plan-edge-radius"
+                            />
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                  {canEdit && !isCircle(selected.props) && (
                     <>
                       <div className="list-item-meta" style={{ marginTop: 6 }}>
-                        Punkte fixieren (bleiben beim Ändern der Maße und beim Ziehen stehen)
+                        Punkte: fixieren (bleiben beim Ändern der Maße und beim Ziehen stehen)
+                        {TYPES[selected.type].kind !== 'opening' &&
+                          ', Ecke abrunden (Radius m), löschen. Neue Punkte mit „+“ auf einer Kante.'}
                       </div>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {selected.points.map((_, i) => {
-                          const fixed = selected.props?.fixed?.includes(i) ?? false;
-                          return (
+                      {selected.points.map((_, i) => {
+                        const fixed = selected.props?.fixed?.includes(i) ?? false;
+                        const kind = TYPES[selected.type].kind;
+                        // Eckradius nur an echten Ecken (nicht an Linienenden)
+                        const corner =
+                          kind === 'area' || (kind === 'line' && i > 0 && i < selected.points.length - 1);
+                        const radius = selected.props?.radii?.[i] ?? 0;
+                        // Rundung wirkt nur zwischen zwei geraden Kanten
+                        const n = selected.points.length;
+                        const bulges = selected.props?.bulges;
+                        const nextToArc =
+                          !!bulges && ((bulges[i] ?? 0) !== 0 || (bulges[(i - 1 + n) % n] ?? 0) !== 0);
+                        return (
+                          <div
+                            key={`${selected.id}-p${i}`}
+                            className="plan-dimension"
+                            data-testid="plan-point"
+                          >
                             <button
-                              key={i}
                               type="button"
                               className={`plan-tool${fixed ? ' active' : ''}`}
                               aria-pressed={fixed}
@@ -1236,13 +1543,50 @@ export function PlanEditorPage() {
                                   props: { ...selected.props, fixed: next.length ? next : undefined },
                                 });
                               }}
+                              title="Punkt fixieren"
                               data-testid="plan-fix-point"
                             >
                               {fixed ? '🔒' : ''} {pointName(i)}
                             </button>
-                          );
-                        })}
-                      </div>
+                            {corner && (
+                              <input
+                                key={`${selected.id}-${i}-r-${radius}`}
+                                className="plan-radius"
+                                defaultValue={radius ? number(radius, 2) : ''}
+                                placeholder="R"
+                                disabled={!!selected.props?.locked || nextToArc}
+                                inputMode="decimal"
+                                onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                                onBlur={(e) => setCornerRadius(i, e.target.value)}
+                                aria-label={`Eckradius ${pointName(i)} in Metern`}
+                                title={
+                                  nextToArc
+                                    ? 'Keine Eckrundung neben einem Bogen'
+                                    : 'Eckradius (m): an Außenecken Außenrundung, an einspringenden Ecken Innenrundung'
+                                }
+                                data-testid="plan-corner-radius"
+                              />
+                            )}
+                            {kind !== 'opening' && (
+                              <button
+                                type="button"
+                                className="plan-tool"
+                                onClick={() => deletePoint(i)}
+                                disabled={!!selected.props?.locked}
+                                aria-label={`Punkt ${pointName(i)} löschen`}
+                                title="Punkt löschen"
+                                data-testid="plan-delete-point"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                  {canEdit && (
+                    <>
                       <label style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '6px 0' }}>
                         <input
                           type="checkbox"
@@ -1300,6 +1644,20 @@ export function PlanEditorPage() {
                               {TYPES[t].label}
                             </option>
                           ))}
+                      </select>
+                    </label>
+                  )}
+                  {TYPES[selected.type].kind === 'area' && (
+                    <label className="field">
+                      <span>Form</span>
+                      <select
+                        value={isCircle(selected.props) ? 'circle' : 'polygon'}
+                        onChange={(e) => setShape(e.target.value === 'circle')}
+                        disabled={!!selected.props?.locked}
+                        data-testid="plan-shape"
+                      >
+                        <option value="polygon">Vieleck (Ecken, Rundungen, Bögen)</option>
+                        <option value="circle">Kreis (Durchmesser)</option>
                       </select>
                     </label>
                   )}

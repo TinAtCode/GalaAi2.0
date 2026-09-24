@@ -7,6 +7,7 @@ export type ObjectType =
   | 'rainwater'
   | 'wastewater'
   | 'drain_channel'
+  | 'manhole'
   | 'cable'
   | 'fence'
   | 'gate'
@@ -34,6 +35,9 @@ export interface PlanObject {
     depth?: number;
     locked?: boolean; // Lage fixiert
     fixed?: number[]; // fixierte Punkte (Indizes)
+    radii?: number[]; // Eckradius je Punkt in m (0 = spitz)
+    bulges?: number[]; // Kante als Bogen: Radius in m, + außen, − innen
+    shape?: 'circle'; // Kreis: Mittelpunkt + Randpunkt
   };
 }
 
@@ -51,6 +55,7 @@ export const TYPES: Record<ObjectType, TypeInfo> = {
   rainwater: { kind: 'line', label: 'Regenwasser', group: 'Entwässerung', color: '#1f6fd1', width: 3 },
   wastewater: { kind: 'line', label: 'Schmutzwasser', group: 'Entwässerung', color: '#8b5a2b', width: 3 },
   drain_channel: { kind: 'line', label: 'Rinne', group: 'Entwässerung', color: '#1f6fd1', width: 7 },
+  manhole: { kind: 'area', label: 'Schacht', group: 'Entwässerung', color: '#1d3f73', fill: '#e6ecf5' },
   downpipe: { kind: 'symbol', label: 'Fallrohr', group: 'Entwässerung', color: '#1f6fd1' },
   gully: { kind: 'symbol', label: 'Gully / Ablauf', group: 'Entwässerung', color: '#1d3f73' },
   cable: {
@@ -236,5 +241,6 @@ export function SymbolGlyph({ object, r }: { object: PlanObject; r: number }) {
 
 // Position für die Beschriftung eines Objekts
 export function labelAnchor(object: PlanObject): Point {
-  return TYPES[object.type].kind === 'area' ? centroid(object.points) : object.points[0];
+  if (TYPES[object.type].kind !== 'area') return object.points[0];
+  return object.props?.shape === 'circle' ? object.points[0] : centroid(object.points);
 }

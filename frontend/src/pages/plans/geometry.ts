@@ -123,3 +123,79 @@ export function setSegmentLength(
   }
   return points.map((p, i) => (moved.has(i) ? [round2(p[0] + dx), round2(p[1] + dy)] : p));
 }
+
+// Eigenschaften, die sich auf Punkte (fixed, radii) oder Kanten (bulges) beziehen
+interface PointProps {
+  fixed?: number[];
+  radii?: number[];
+  bulges?: number[];
+}
+// leere oder nur aus Nullen bestehende Listen weglassen
+const compact = (list: number[] | undefined) => (list && list.some((v) => v !== 0) ? list : undefined);
+
+// Punkt nach Punkt `edge` einfügen (auf der Kante edge -> edge+1). Ein Bogen
+// wird geteilt: beide Hälften behalten den Radius.
+export function insertPoint<P extends PointProps>(
+  points: Point[],
+  props: P | undefined,
+  edge: number,
+  point: Point,
+): { points: Point[]; props: P | undefined } {
+  const at = edge + 1;
+  const next = [...points.slice(0, at), point, ...points.slice(at)];
+  if (!props) return { points: next, props };
+  const { fixed, radii, bulges } = props;
+  return {
+    points: next,
+    props: {
+      ...props,
+      fixed: fixed?.map((i) => (i >= at ? i + 1 : i)),
+      radii: radii && [...radii.slice(0, at), 0, ...radii.slice(at)],
+      bulges: bulges && [...bulges.slice(0, edge + 1), bulges[edge], ...bulges.slice(edge + 1)],
+    },
+  };
+}
+
+// Punkt löschen; die beiden anliegenden Kanten werden zu einer geraden Kante
+export function removePoint<P extends PointProps>(
+  points: Point[],
+  props: P | undefined,
+  index: number,
+  closed: boolean,
+): { points: Point[]; props: P | undefined } | string {
+  if (points.length <= (closed ? 3 : 2))
+    return closed
+      ? 'Eine Fläche braucht mindestens drei Punkte.'
+      : 'Eine Linie braucht mindestens zwei Punkte.';
+  const next = points.filter((_, i) => i !== index);
+  if (!props) return { points: next, props };
+  const { fixed, radii, bulges } = props;
+  let edges = bulges;
+  if (bulges) {
+    const n = points.length;
+    if (!closed && index === 0) edges = bulges.slice(1);
+    else if (!closed && index === n - 1) edges = bulges.slice(0, -1);
+    else {
+      // Kanten index-1 und index verschmelzen (bei Flächen ggf. über das Ende)
+      const before = (index - 1 + n) % n;
+      edges = bulges.flatMap((b, i) => (i === index ? [] : i === before ? [0] : [b]));
+    }
+  }
+  const remaining = fixed?.filter((i) => i !== index).map((i) => (i > index ? i - 1 : i));
+  return {
+    points: next,
+    props: {
+      ...props,
+      fixed: remaining?.length ? remaining : undefined,
+      radii: compact(radii?.filter((_, i) => i !== index)),
+      bulges: compact(edges),
+    },
+  };
+}
+
+// Wert in einer Liste je Punkt/Kante setzen (fehlende Liste mit Nullen anlegen)
+export function setListValue(list: number[] | undefined, length: number, index: number, value: number) {
+  const next = list && list.length === length ? [...list] : Array<number>(length).fill(0);
+  next[index] = value;
+  return compact(next);
+}

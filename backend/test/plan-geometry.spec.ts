@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { PlanObject } from '../src/plans/plan-catalog';
 import {
   isQuantityKey,
@@ -361,5 +362,182 @@ describe('Lageplan: Geometrie', () => {
       height: 4000,
       type: 'jpeg',
     });
+  });
+});
+
+describe('Lageplan: Rundungen und Kreise', () => {
+  const upm = 50;
+  const qty = (objects: PlanObject[]) =>
+    Object.fromEntries(planQuantities(objects, upm).map((r) => [r.key, r.quantity]));
+  // 10 m x 6 m (Plan-Einheiten)
+  const rect: [number, number][] = [
+    [0, 0],
+    [500, 0],
+    [500, 300],
+    [0, 300],
+  ];
+
+  it('Kreis: exakte Fläche und Umfang aus dem Durchmesser', () => {
+    const q = qty([
+      obj({
+        type: 'lawn',
+        points: [
+          [100, 100],
+          [200, 100],
+        ],
+        props: { shape: 'circle', mowingEdge: true },
+      }),
+    ]);
+    // r = 2 m
+    expect(q.lawn).toBe(12.57);
+    expect(q['lawn:mowingEdge']).toBe(12.57);
+  });
+
+  it('Rechteck mit abgerundeten Ecken (Außenrundung)', () => {
+    const r = 1;
+    const q = qty([
+      obj({ type: 'paving', points: rect, props: { radii: [r, r, r, r] } }),
+      obj({ type: 'lawn', points: rect, props: { radii: [r, r, r, r], mowingEdge: true } }),
+    ]);
+    expect(q.paving).toBeCloseTo(60 - (4 - Math.PI) * r * r, 2);
+    expect(q['lawn:mowingEdge']).toBeCloseTo(32 - 8 * r + 2 * Math.PI * r, 2);
+  });
+
+  it('einspringende Ecke erhält eine Innenrundung (Fläche wächst)', () => {
+    // L-Form: Innenecke bei (250, 150)
+    const l: [number, number][] = [
+      [0, 0],
+      [500, 0],
+      [500, 150],
+      [250, 150],
+      [250, 300],
+      [0, 300],
+    ];
+    const sharp = qty([obj({ type: 'paving', points: l })]).paving;
+    const round = qty([obj({ type: 'paving', points: l, props: { radii: [0, 0, 0, 1, 0, 0] } })]).paving;
+    expect(sharp).toBe(45);
+    expect(round).toBeCloseTo(45 + (1 - Math.PI / 4), 2);
+  });
+
+  it('Radius wird auf die halbe Kantenlänge begrenzt', () => {
+    // 2 m x 2 m mit Radius 5 m -> Kreis mit r = 1 m
+    const q = qty([
+      obj({
+        type: 'paving',
+        points: [
+          [0, 0],
+          [100, 0],
+          [100, 100],
+          [0, 100],
+        ],
+        props: { radii: [5, 5, 5, 5] },
+      }),
+    ]);
+    expect(q.paving).toBeCloseTo(Math.PI, 2);
+  });
+
+  it('Kante als Bogen nach außen und nach innen', () => {
+    // Halbkreis (r = 5 m) auf der unteren Kante des 10 x 6 m Rechtecks
+    const outward = qty([obj({ type: 'paving', points: rect, props: { bulges: [0, 0, 5, 0] } })]).paving;
+    const inward = qty([obj({ type: 'paving', points: rect, props: { bulges: [0, 0, -5, 0] } })]).paving;
+    const half = (Math.PI * 25) / 2;
+    expect(outward).toBeCloseTo(60 + half, 1);
+    expect(Math.abs(60 - half - inward)).toBeLessThan(0.05);
+    // gleiche Wirkung bei umgekehrtem Umlaufsinn
+    const reversed = [...rect].reverse() as [number, number][];
+    const rev = qty([obj({ type: 'paving', points: reversed, props: { bulges: [5, 0, 0, 0] } })]).paving;
+    expect(rev).toBeCloseTo(outward, 2);
+  });
+
+  it('Leitung mit Bogen und abgerundetem Knick', () => {
+    const q = qty([
+      // Viertelkreis-Bogen mit r = 2 m zwischen (0,0) und (2,2) m
+      obj({
+        type: 'rainwater',
+        points: [
+          [0, 0],
+          [100, 100],
+        ],
+        props: { bulges: [2] },
+      }),
+      // rechter Winkel 4 m + 4 m, Knick mit r = 1 m
+      obj({
+        type: 'cable',
+        points: [
+          [0, 0],
+          [200, 0],
+          [200, 200],
+        ],
+        props: { radii: [0, 1, 0] },
+      }),
+    ]);
+    expect(q.rainwater).toBeCloseTo(Math.PI, 2);
+    expect(q.cable).toBeCloseTo(8 - 2 + Math.PI / 2, 2);
+  });
+
+  it('Schächte: gezählt je Durchmesser', () => {
+    const shaft = (rim: number): PlanObject =>
+      obj({
+        type: 'manhole',
+        points: [
+          [0, 0],
+          [rim, 0],
+        ],
+        props: { shape: 'circle' },
+      });
+    const rows = planQuantities(
+      [shaft(25), shaft(25), shaft(50), obj({ type: 'manhole', points: rect })],
+      upm,
+    );
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { key: 'manhole:d100', label: 'Schacht Ø 1,00 m', unit: 'Stk', quantity: 2 },
+        { key: 'manhole:d200', label: 'Schacht Ø 2,00 m', unit: 'Stk', quantity: 1 },
+        { key: 'manhole', label: 'Schacht', unit: 'Stk', quantity: 1 },
+      ]),
+    );
+    expect(isQuantityKey('manhole:d100')).toBe(true);
+    expect(isQuantityKey('manhole:d0')).toBe(false);
+    expect(isQuantityKey('manhole:x')).toBe(false);
+  });
+
+  it('Validierung von Form, Radien und Bögen', () => {
+    const v = (o: Partial<PlanObject> & Pick<PlanObject, 'type' | 'points'>) => validateObjects([obj(o)]);
+    const two: [number, number][] = [
+      [0, 0],
+      [10, 0],
+    ];
+    expect(v({ type: 'manhole', points: two, props: { shape: 'circle' } })).toBeNull();
+    expect(v({ type: 'lawn', points: two })).toMatch(/Anzahl Punkte/);
+    expect(
+      v({
+        type: 'manhole',
+        points: [
+          [5, 5],
+          [5, 5],
+        ],
+        props: { shape: 'circle' },
+      }),
+    ).toMatch(/Durchmesser/);
+    expect(v({ type: 'lawn', points: rect, props: { shape: 'circle' } })).toMatch(/Anzahl Punkte/);
+    expect(v({ type: 'cable', points: two, props: { shape: 'circle' } })).toMatch(/Form/);
+    expect(v({ type: 'lawn', points: rect, props: { radii: [1, 1, 1] } })).toMatch(/Eckradien/);
+    expect(v({ type: 'lawn', points: rect, props: { radii: [1, -1, 1, 1] } })).toMatch(/Eckradien/);
+    expect(v({ type: 'lawn', points: rect, props: { bulges: [0, 0, 0] } })).toMatch(/Bögen/);
+    expect(v({ type: 'cable', points: two, props: { bulges: [3] } })).toBeNull();
+    expect(v({ type: 'cable', points: two, props: { bulges: [3, 0] } })).toMatch(/Bögen/);
+    expect(v({ type: 'gate', points: two, props: { radii: [0, 0] } })).toMatch(/Eckradien/);
+    expect(
+      v({ type: 'manhole', points: two, props: { shape: 'circle', radii: [1, 1] } as PlanObject['props'] }),
+    ).toMatch(/Eckradien/);
+  });
+});
+
+describe('Lageplan: Umriss im Frontend', () => {
+  it('ist dieselbe Datei wie im Backend (bis auf den Kopfkommentar)', () => {
+    const body = (path: string) => readFileSync(path, 'utf8').split('\n').slice(2).join('\n');
+    expect(body(`${__dirname}/../../frontend/src/pages/plans/outline.ts`)).toBe(
+      body(`${__dirname}/../src/plans/outline.ts`),
+    );
   });
 });

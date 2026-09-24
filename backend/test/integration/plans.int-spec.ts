@@ -123,6 +123,66 @@ describe('Lagepläne', () => {
     ]);
   });
 
+  it('Rundungen und Kreise: Mengen mit Radien, Schächte je Durchmesser, Zuordnung', async () => {
+    const plan = (
+      await api().post(`/projects/${projectId}/plans`).set(auth).send({ name: 'Rund' }).expect(201)
+    ).body;
+    const circle = (id: string, type: string, rim: number) => ({
+      id,
+      type,
+      points: [
+        [100, 100],
+        [100 + rim, 100],
+      ],
+      props: { shape: 'circle' },
+    });
+    const saved = await api()
+      .put(`/plans/${plan.id}`)
+      .set(auth)
+      .send({
+        version: 1,
+        objects: [
+          // 10 × 4 m, Ecken mit 1 m abgerundet: 40 − (4 − π) m², Umfang 28 − 8 + 2π
+          { ...lawn, props: { mowingEdge: true, radii: [1, 1, 1, 1] } },
+          circle('s1', 'manhole', 25),
+          circle('s2', 'manhole', 25),
+          circle('c1', 'planting', 50),
+        ],
+      })
+      .expect(200);
+    expect(saved.body.quantities).toEqual(
+      expect.arrayContaining([
+        { key: 'lawn', label: 'Rasenfläche', unit: 'm²', quantity: 39.14 },
+        { key: 'lawn:mowingEdge', label: 'Mähkante', unit: 'm', quantity: 26.28 },
+        { key: 'manhole:d100', label: 'Schacht Ø 1,00 m', unit: 'Stk', quantity: 2 },
+        { key: 'planting', label: 'Pflanzfläche', unit: 'm²', quantity: 3.14 },
+      ]),
+    );
+    expect(saved.body.objects[0].props.radii).toEqual([1, 1, 1, 1]);
+    // ungültig: Kreis mit drei Punkten, Radien in falscher Anzahl
+    for (const bad of [
+      {
+        ...circle('x', 'manhole', 10),
+        points: [
+          [0, 0],
+          [1, 0],
+          [2, 2],
+        ],
+      },
+      { ...lawn, props: { radii: [1, 1] } },
+      { ...pipe, props: { bulges: [1, 1] } },
+    ])
+      await api()
+        .put(`/plans/${plan.id}`)
+        .set(auth)
+        .send({ version: 2, objects: [bad] })
+        .expect(400);
+    // Schlüssel je Durchmesser sind zuordenbar
+    await api().put('/plan-mappings/manhole:d100').set(auth).send({ serviceId: null }).expect(200);
+    await api().put('/plan-mappings/manhole:dx').set(auth).send({ serviceId: null }).expect(400);
+    await api().delete(`/plans/${plan.id}`).set(auth).expect(200);
+  });
+
   it('Hintergrund: Bild oder PDF (erste Seite), liegt als Dokument am Projekt', async () => {
     const plan = (
       await api().post(`/projects/${projectId}/plans`).set(auth).send({ name: 'Mit Luftbild' }).expect(201)

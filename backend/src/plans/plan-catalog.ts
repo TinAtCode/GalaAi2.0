@@ -7,6 +7,8 @@ export const PLAN_OBJECT_TYPES = {
   rainwater: { kind: 'line', label: 'Regenwasserleitung' },
   wastewater: { kind: 'line', label: 'Schmutzwasserleitung' },
   drain_channel: { kind: 'line', label: 'Entwässerungsrinne' },
+  // Schacht: Fläche, meist rund (Durchmesser); gezählt je Durchmesser
+  manhole: { kind: 'area', label: 'Schacht' },
   cable: { kind: 'line', label: 'Erdkabel' },
   fence: { kind: 'line', label: 'Zaun' },
   // Durchgänge: genau zwei Punkte, Breite = Abstand
@@ -56,5 +58,8 @@ export interface PlanObject {
     depth?: number; // Leitung: Verlegetiefe in m
     locked?: boolean; // Lage fixiert: nicht verschieben
     fixed?: number[]; // fixierte Punkte (Indizes)
+    radii?: number[]; // Eckradius je Punkt in m (siehe outline.ts)
+    bulges?: number[]; // Kante als Bogen: Radius in m, + außen, − innen
+    shape?: 'circle'; // Kreis: Mittelpunkt + Randpunkt
   };
 }

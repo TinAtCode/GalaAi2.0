@@ -180,7 +180,11 @@ danach als Entwurf am Projekt. Leitungen lassen sich quer über Rasen- oder Pfla
 Auswahl der Leitung rechts Nennweite (DN) und Verlegetiefe setzen. Unter „Ebenen“ Gruppen ausblenden oder
 „Flächen blass“ schalten. Exakt zeichnen: nach dem ersten Punkt eine Länge eintippen und Enter (Umschalt
 halten = rechtwinklig). Beim ausgewählten Objekt unter „Maße“ Kantenlängen ändern; Punkte (A, B …) fixieren,
-z.B. A und B, dann ändert eine neue Länge von B–C nur die Tiefe.
+z.B. A und B, dann ändert eine neue Länge von B–C nur die Tiefe. Rundungen: beim ausgewählten Objekt auf
+„+“ an einer Kante klicken (neuer Punkt), „×“ neben einem Punkt löscht ihn; im Feld neben dem Punkt einen
+Eckradius eintragen (z.B. 1), bei einer Kante „Bogen außen/innen“ wählen und den Radius anpassen. Kreise:
+beim Zeichnen einer Fläche „Kreis“ anhaken, Mittelpunkt und Rand anklicken oder den Durchmesser eintippen;
+„Schacht“ ist schon rund und erscheint in den Mengen je Durchmesser.
 
 **Dokumente testen:** Auf einer Projektseite unter „Dokumente“ die Art wählen und ein PDF oder Foto
 hochladen, „Text erkennen“ angehakt lassen. Nach wenigen Sekunden steht „Text erkannt“ mit einem Ausschnitt

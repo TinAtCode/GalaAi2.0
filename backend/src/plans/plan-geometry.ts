@@ -1,4 +1,5 @@
 import { PICTOGRAMS, PIPE_TYPES, PLAN_OBJECT_TYPES, PlanObject, PlanObjectType } from './plan-catalog';
+import { isCircle, outline } from './outline';
 
 type Point = [number, number];
 
@@ -57,24 +58,39 @@ export function validateObjects(objects: unknown): string | null {
         return 'Ungültige Koordinaten.';
     }
     const n = o.points.length;
+    const circle = (o.props as { shape?: unknown } | undefined)?.shape === 'circle';
     const ok =
       type.kind === 'line'
         ? n >= 2
         : type.kind === 'opening'
           ? n === 2
           : type.kind === 'area'
-            ? n >= 3
+            ? circle
+              ? n === 2
+              : n >= 3
             : n === 1;
     if (!ok) return `${type.label}: falsche Anzahl Punkte.`;
+    if (circle && distance(o.points[0], o.points[1]) === 0) return `${type.label}: Kreis ohne Durchmesser.`;
     if (o.label !== undefined && (typeof o.label !== 'string' || o.label.length > 200))
       return 'Beschriftung zu lang.';
     if (type.kind === 'text' && !o.label?.trim()) return 'Beschriftung ohne Text.';
     if (o.props !== undefined) {
       if (typeof o.props !== 'object' || o.props === null) return 'Ungültige Eigenschaften.';
-      const { mowingEdge, spaces, icon, dn, depth, locked, fixed, ...rest } = o.props;
+      const { mowingEdge, spaces, icon, dn, depth, locked, fixed, radii, bulges, shape, ...rest } = o.props;
       if (Object.keys(rest).length) return 'Unbekannte Eigenschaft.';
       if (mowingEdge !== undefined && typeof mowingEdge !== 'boolean') return 'Ungültige Mähkante.';
       if (locked !== undefined && typeof locked !== 'boolean') return 'Ungültige Fixierung.';
+      if (shape !== undefined && (shape !== 'circle' || type.kind !== 'area')) return 'Ungültige Form.';
+      // Eckradien je Punkt, Bögen je Kante (Radius in m, siehe outline.ts)
+      const numbers = (list: unknown, count: number, max: number) =>
+        Array.isArray(list) &&
+        list.length === count &&
+        list.every((v) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max);
+      const shaped = type.kind === 'line' || (type.kind === 'area' && !circle);
+      if (radii !== undefined && (!shaped || !numbers(radii, n, 1000) || radii.some((r: number) => r < 0)))
+        return 'Ungültige Eckradien.';
+      if (bulges !== undefined && (!shaped || !numbers(bulges, type.kind === 'area' ? n : n - 1, 100_000)))
+        return 'Ungültige Bögen.';
       if (
         fixed !== undefined &&
         (!Array.isArray(fixed) ||
@@ -105,6 +121,20 @@ export function validateObjects(objects: unknown): string | null {
   return null;
 }
 
+// Fläche (m²), Umfang (m) und bei Kreisen der Durchmesser (m) – mit Rundungen
+export function areaMeasures(o: Pick<PlanObject, 'points' | 'props'>, unitsPerMeter: number) {
+  if (isCircle(o.props)) {
+    const r = distance(o.points[0], o.points[1]) / unitsPerMeter;
+    return { area: Math.PI * r * r, perimeter: 2 * Math.PI * r, diameter: 2 * r };
+  }
+  const ring = outline(o.points, true, o.props, unitsPerMeter);
+  return {
+    area: polygonArea(ring) / unitsPerMeter ** 2,
+    perimeter: polygonPerimeter(ring) / unitsPerMeter,
+    diameter: null,
+  };
+}
+
 export interface QuantityRow {
   key: string; // z.B. "lawn", "lawn:mowingEdge", "pictogram:tree"
   label: string;
@@ -128,28 +158,34 @@ export function planQuantities(objects: PlanObject[], unitsPerMeter: number): Qu
   for (const o of objects) {
     const type = PLAN_OBJECT_TYPES[o.type];
     switch (type.kind) {
-      case 'line':
-        // Leitungen mit Nennweite getrennt je DN
+      case 'line': {
+        // mit Bögen und Eckrundungen; Leitungen mit Nennweite getrennt je DN
+        const length = m(polylineLength(outline(o.points, false, o.props, unitsPerMeter)));
         if (o.props?.dn && PIPE_TYPES.includes(o.type))
-          add(
-            `${o.type}:dn${o.props.dn}`,
-            `${type.label} DN ${o.props.dn}`,
-            'm',
-            m(polylineLength(o.points)),
-          );
-        else add(o.type, type.label, 'm', m(polylineLength(o.points)));
+          add(`${o.type}:dn${o.props.dn}`, `${type.label} DN ${o.props.dn}`, 'm', length);
+        else add(o.type, type.label, 'm', length);
         break;
+      }
       case 'opening':
         add(o.type, type.label, 'Stk', 1);
         add(`${o.type}:width`, `${type.label} (Breite gesamt)`, 'm', m(polylineLength(o.points)));
         break;
-      case 'area':
-        add(o.type, type.label, 'm²', m(m(polygonArea(o.points))));
-        if (o.type === 'lawn' && o.props?.mowingEdge)
-          add('lawn:mowingEdge', 'Mähkante', 'm', m(polygonPerimeter(o.points)));
+      case 'area': {
+        const { area, perimeter, diameter } = areaMeasures(o, unitsPerMeter);
+        if (o.type === 'manhole') {
+          // Schächte zählen, runde getrennt je Durchmesser (in cm)
+          if (diameter !== null) {
+            const cm = Math.round(diameter * 100);
+            add(`manhole:d${cm}`, `${type.label} Ø ${(cm / 100).toFixed(2).replace('.', ',')} m`, 'Stk', 1);
+          } else add(o.type, type.label, 'Stk', 1);
+          break;
+        }
+        add(o.type, type.label, 'm²', area);
+        if (o.type === 'lawn' && o.props?.mowingEdge) add('lawn:mowingEdge', 'Mähkante', 'm', perimeter);
         if (o.type === 'parking' && o.props?.spaces)
           add('parking:spaces', 'Stellplätze', 'Stk', o.props.spaces);
         break;
+      }
       case 'symbol':
         if (o.type === 'pictogram' && o.props?.icon)
           add(`pictogram:${o.props.icon}`, PICTOGRAMS[o.props.icon], 'Stk', 1);
@@ -173,5 +209,6 @@ export function isQuantityKey(key: string): boolean {
   if (kind === 'opening') return extra === 'width';
   if (base === 'pictogram') return Object.prototype.hasOwnProperty.call(PICTOGRAMS, extra);
   if (PIPE_TYPES.includes(base as PlanObjectType)) return /^dn[1-9]\d{1,3}$/.test(extra);
+  if (base === 'manhole') return /^d[1-9]\d{0,4}$/.test(extra);
   return false;
 }

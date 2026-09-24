@@ -245,4 +245,101 @@ test.describe('Lagepläne', () => {
     await item.getByRole('button', { name: 'Löschen' }).click();
     await expect(item).toHaveCount(0);
   });
+
+  test('Rundungen: Eckradien, Punkte einfügen/löschen, Bogen, Kreis und Schacht', async ({ page }) => {
+    const run = String(Date.now()).slice(-6);
+    await loginViaUi(page);
+    await page.goto(`/projekte/${SEED.projectId}`);
+    await page.getByTestId('plan-new-name').fill(`Rundungen ${run}`);
+    await page.getByTestId('plan-create').click();
+    await expect(page.getByTestId('plan-editor')).toBeVisible();
+    const box = (await page.getByTestId('plan-canvas').boundingBox())!;
+    const move = (x: number, y: number) => page.mouse.move(box.x + x, box.y + y);
+    const entry = page.getByTestId('plan-length-entry');
+    const quantities = page.getByTestId('plan-quantities');
+
+    // Pflaster 10 × 6 m
+    await page.getByTestId('plan-tool-paving').click();
+    await clickAt(page, 120, 80);
+    await page.keyboard.down('Shift');
+    for (const [x, y, m] of [
+      [400, 82, '10'],
+      [330, 300, '6'],
+      [20, 300, '10'],
+    ] as const) {
+      await move(x, y);
+      await entry.fill(m);
+      await entry.press('Enter');
+    }
+    await page.keyboard.up('Shift');
+    await page.getByTestId('plan-finish').click();
+    await expect(quantities).toContainText('Pflaster60,00 m²');
+
+    // alle vier Ecken mit 1 m abrunden: 60 − (4 − π) m²
+    const radius = page.getByTestId('plan-corner-radius');
+    await expect(radius).toHaveCount(4);
+    for (let i = 0; i < 4; i++) {
+      await radius.nth(i).fill('1');
+      await radius.nth(i).press('Enter');
+    }
+    await expect(quantities).toContainText('Pflaster59,14 m²');
+
+    // Punkt auf der Kante A–B einfügen und wieder löschen
+    await page.getByTestId('plan-tool-select').click();
+    await page.getByTestId('plan-insert-point').first().click();
+    await expect(page.getByTestId('plan-point')).toHaveCount(5);
+    await expect(page.getByTestId('plan-segment').nth(0)).toHaveValue('5,00');
+    await expect(quantities).toContainText('Pflaster59,14 m²');
+    await page.getByTestId('plan-delete-point').nth(1).click();
+    await expect(page.getByTestId('plan-point')).toHaveCount(4);
+    await expect(page.getByTestId('plan-segment').nth(0)).toHaveValue('10,00');
+
+    // Kante C–D als Bogen nach außen: Halbkreis mit r = 5 m (Ecken C, D dann spitz)
+    await page.getByTestId('plan-edge-bulge').nth(2).selectOption('1');
+    await expect(page.getByTestId('plan-edge-radius')).toHaveValue('5,00');
+    const bulged = await quantities.innerText();
+    const area = Number(/Pflaster\s*([\d.,]+) m²/.exec(bulged)![1].replace('.', '').replace(',', '.'));
+    expect(area).toBeGreaterThan(98.8);
+    expect(area).toBeLessThan(98.9);
+    // Radius größer: flacherer Bogen, weniger Fläche
+    await page.getByTestId('plan-edge-radius').fill('8');
+    await page.getByTestId('plan-edge-radius').press('Enter');
+    await expect(quantities).not.toContainText(bulged.match(/Pflaster\s*[\d.,]+ m²/)![0]);
+
+    // Schacht: Kreis mit Durchmesser 1 m, danach auf 0,8 m ändern
+    await page.getByTestId('plan-tool-manhole').click();
+    await expect(page.getByTestId('plan-draw-circle')).toBeChecked();
+    await clickAt(page, 500, 200);
+    await move(560, 200);
+    await entry.fill('1');
+    await entry.press('Enter');
+    await expect(quantities).toContainText('Schacht Ø 1,00 m1 Stk');
+    await page.getByTestId('plan-diameter').fill('0,8');
+    await page.getByTestId('plan-diameter').press('Enter');
+    await expect(quantities).toContainText('Schacht Ø 0,80 m1 Stk');
+
+    // Rasen als Kreis (Ø 4 m) mit Mähkante
+    await page.getByTestId('plan-tool-lawn').click();
+    await page.getByTestId('plan-draw-circle').check();
+    await clickAt(page, 520, 80);
+    await move(600, 80);
+    await entry.fill('4');
+    await entry.press('Enter');
+    await page.getByTestId('plan-mowing-edge').check();
+    await expect(quantities).toContainText('Rasen12,57 m²');
+    await expect(quantities).toContainText('Mähkante12,57 m');
+
+    // speichern und neu laden: gleiche Mengen vom Server
+    const shown = (await quantities.textContent())!;
+    await page.getByTestId('plan-save').click();
+    await expect(page.getByTestId('plan-state')).toHaveText('gespeichert');
+    await page.reload();
+    await expect(page.getByTestId('plan-quantities')).toHaveText(shown);
+
+    await page.goto(`/projekte/${SEED.projectId}`);
+    page.on('dialog', (dialog) => dialog.accept());
+    const item = page.getByTestId('plan-item').filter({ hasText: `Rundungen ${run}` });
+    await item.getByRole('button', { name: 'Löschen' }).click();
+    await expect(item).toHaveCount(0);
+  });
 });

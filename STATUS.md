@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 24.09.2026 – Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 24.09.2026 – Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -403,7 +403,14 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Objekt alle Kanten (A–B, B–C …) mit Länge im Plan und als Eingabefeld – eine neue Länge verschiebt den
   Endpunkt und die folgenden Punkte bis zum nächsten fixierten (bei Flächen höchstens bis vor die Kante am
   Anfangspunkt, ein Rechteck bleibt rechteckig). Einzelne Punkte oder das ganze Objekt lassen sich fixieren
-  (nicht verschiebbar). Nächste Schritte: Aufmaß-App offline, DXF-Import.
+  (nicht verschiebbar). **Rundungen und Kreise:** beliebig viele Punkte je Fläche oder Leitung („+“ auf
+  einer Kante fügt einen Punkt ein, „×“ löscht ihn); jede Ecke mit Radius (an Außenecken Außenrundung, an
+  einspringenden Ecken Innenrundung, bei Leitungen Bögen im Knick); jede Kante als Kreisbogen nach außen oder
+  innen (bei Leitungen links/rechts) mit Radius; Flächen als Kreis mit Durchmesser. Neues Objekt „Schacht“
+  (Entwässerung, standardmäßig rund), gezählt je Durchmesser (`manhole:d100` = Ø 1,00 m, eigene Leistung im
+  Angebot). Fläche, Umfang, Mähkante und Leitungslänge rechnen mit den echten Rundungen (Kreis exakt πr²);
+  der Umriss (`plans/outline.ts`) ist in Backend und Frontend dieselbe Datei, ein Test hält beide gleich.
+  Nächste Schritte: Aufmaß-App offline, DXF-Import.
 
 - **Nachtrag – Einheiten und Rundung** (Stammdaten → Einheiten): Einheitenkatalog in `common/units.ts`
   (mm, cm, m, km, cm², m², ha, l, m³, g, kg, t, Stk, Sack, Palette, h, min, psch) mit Dimension,
