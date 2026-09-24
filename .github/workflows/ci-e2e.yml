@@ -59,6 +59,8 @@ jobs:
           # Mails nur im Speicher (Rechnungsversand im E2E-Test)
           SMTP_URL: test
           MAIL_FROM: Musterbetrieb <rechnung@musterbetrieb.de>
+          # Entwicklungsserver und fertiger Build (PWA-Test, Port 4173)
+          CORS_ORIGIN: http://localhost:5173,http://localhost:4173
         run: |
           npm run build
           node dist/main.js &
@@ -84,6 +86,17 @@ jobs:
           E2E_BASE_URL: http://localhost:5173
           E2E_API_URL: http://localhost:3000
         run: npm run test:e2e
+
+      # Fertiger Build mit echtem Service Worker: startet die App ohne Server?
+      - name: PWA ohne Netz (fertiger Build)
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: http://localhost:3000
+          E2E_API_URL: http://localhost:3000
+          E2E_PWA: '1'
+        run: |
+          npm run build
+          npx playwright test tests/e2e/pwa-offline.spec.ts --reporter=list
 
       - uses: actions/upload-artifact@v7
         if: always()

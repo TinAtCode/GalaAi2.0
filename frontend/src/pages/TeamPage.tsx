@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 
 interface Employee {
@@ -59,13 +59,19 @@ export function TeamPage() {
       );
   }, []);
 
+  // nur die Antwort zur zuletzt gewählten Person zählt (schnell umgeschaltet)
+  const latest = useRef(0);
   const loadEntries = (employeeId: string) => {
+    const request = ++latest.current;
     api
       .get<TimeEntry[]>(`/time-entries/by-employee/${employeeId}`)
-      .then(setEntries)
-      .catch((err) =>
-        setError(err instanceof ApiError ? err.message : 'Zeiteinträge konnten nicht geladen werden.'),
-      );
+      .then((result) => {
+        if (request === latest.current) setEntries(result);
+      })
+      .catch((err) => {
+        if (request !== latest.current) return;
+        setError(err instanceof ApiError ? err.message : 'Zeiteinträge konnten nicht geladen werden.');
+      });
   };
 
   useEffect(() => {

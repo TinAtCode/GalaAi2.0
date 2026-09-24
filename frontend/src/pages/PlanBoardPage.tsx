@@ -1,4 +1,4 @@
-import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -65,13 +65,19 @@ export function PlanBoardPage() {
   const [editing, setEditing] = useState<BoardAppointment | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
+  // nur die Antwort der letzten Anfrage zählt (schnell von Woche zu Woche)
+  const latest = useRef(0);
   const load = useCallback(() => {
+    const request = ++latest.current;
     api
       .get<Board>(`/appointments/board?from=${from}&days=7`)
-      .then(setBoard)
-      .catch((err) =>
-        setError(err instanceof ApiError ? err.message : 'Plantafel konnte nicht geladen werden.'),
-      );
+      .then((result) => {
+        if (request === latest.current) setBoard(result);
+      })
+      .catch((err) => {
+        if (request !== latest.current) return;
+        setError(err instanceof ApiError ? err.message : 'Plantafel konnte nicht geladen werden.');
+      });
   }, [from]);
   useEffect(load, [load]);
 
