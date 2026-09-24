@@ -44,6 +44,17 @@ Passwort jeweils `demo12345`.
 - **Pflegevertrag:** wöchentliche Einsätze sind schon geplant, die erste Monatsrechnung liegt als
   Entwurf vor.
 - **Baustelle:** Nachrichten zwischen Mitarbeiter und Büro.
+- **KI ohne Internet:** Als KI-Anbieter ist der **Demo-Agent** eingerichtet. Er beantwortet alle
+  KI-Aufgaben nach festen Regeln, ohne echte KI, und jede Antwort sagt das auch. Damit lassen sich die
+  Abläufe zeigen:
+  - Angebot → „Vorschlag der KI“
+  - Baustelle → „Verlauf zusammenfassen“ und „Foto beschreiben“
+  - Eingangsrechnung → „Mit KI lesen“ (mit erkennbaren Beispielwerten)
+  - Lageplan → „KI zeichnen“, z.B. „Terrasse 5 × 4 m, daneben Rasen 10 × 6 m mit Mähkante, drei
+    Bäume“
+
+  Für echte Antworten unter Einstellungen → KI-Anbieter einen echten Anbieter eintragen (siehe
+  `KI-ANBINDUNG.md`).
 
 Vorschlag für den Ablauf:
 
@@ -51,6 +62,7 @@ Vorschlag für den Ablauf:
 2. Auf dem Handy als Mitarbeiter: Baustelle öffnen, „Hier anfangen“, ein Foto und eine Nachricht
    schicken.
 3. Am Laptop im Projekt zeigen, dass Foto und Nachricht angekommen sind.
+4. Im Projekt einen Lageplan anlegen, „KI zeichnen“ und die Mengen ins Angebot übernehmen.
 
 ## Handy verbinden
 

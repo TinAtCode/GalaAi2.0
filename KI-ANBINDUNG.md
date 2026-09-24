@@ -12,6 +12,10 @@ Standard. Ohne Einrichtung antwortet ein Platzhalter; nichts verlässt den Serve
 
 Der **Testen**-Knopf schickt eine kurze Frage und zeigt Antwort und Dauer (oder den Fehler).
 
+**Demo-Agent:** Das Demo-Paket (`DEMO.md`) bringt einen Agenten mit, der alle Aufgaben nach festen
+Regeln beantwortet, ohne echte KI (`backend/src/demo-agent`). Er ist zugleich ein Beispiel für den
+Agentenvertrag, auch für `data.objects` beim Zeichnen.
+
 ## Aufgaben: welcher Anbieter wofür
 
 Jeder Anbieter hat Angaben dazu, was er **kann**:
