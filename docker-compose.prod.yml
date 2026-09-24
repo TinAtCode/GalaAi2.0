@@ -36,6 +36,8 @@ services:
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
+      METRICS_HISTORY: ${METRICS_HISTORY:-}
+      METRICS_HISTORY_DAYS: ${METRICS_HISTORY_DAYS:-}
       OCR_CONCURRENCY: ${OCR_CONCURRENCY:-2}
     volumes:
       - uploads:/data/uploads
