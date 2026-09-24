@@ -15,6 +15,7 @@ import {
   RecordPaymentDto,
   SendDunningDto,
   SendInvoiceDto,
+  WaiveChargesDto,
 } from './dto/invoice.dto';
 
 @Controller('invoices')
@@ -88,6 +89,15 @@ export class InvoicesController {
     @Body() dto: RecordPaymentDto,
   ) {
     return this.paymentsService.record(user.companyId, user.userId, id, dto);
+  }
+
+  @Post(':id/charges/waive')
+  waiveCharges(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: WaiveChargesDto,
+  ) {
+    return this.paymentsService.waiveCharges(user.companyId, user.userId, id, dto.reason);
   }
 
   @Delete(':id/payments/:paymentId')

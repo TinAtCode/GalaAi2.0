@@ -56,3 +56,22 @@ export function moneyAccounts(chart: DatevChart, overrides: Prisma.JsonValue | n
   }
   return result;
 }
+
+// Erträge aus Mahnkosten (Gebühren, Pauschale; nicht umsatzsteuerbar) und
+// Verzugszinsen: Zahlungsanteile, die nach § 367 BGB darauf verrechnet sind
+export type ChargeAccountKey = 'dunningCosts' | 'interest';
+export const DEFAULT_CHARGE_ACCOUNTS: Record<DatevChart, Record<ChargeAccountKey, number>> = {
+  SKR03: { dunningCosts: 2700, interest: 2650 },
+  SKR04: { dunningCosts: 4830, interest: 7100 },
+};
+
+export function chargeAccounts(chart: DatevChart, overrides: Prisma.JsonValue | null) {
+  const custom = (
+    overrides && typeof overrides === 'object' && !Array.isArray(overrides) ? overrides : {}
+  ) as Record<string, unknown>;
+  const result = { ...DEFAULT_CHARGE_ACCOUNTS[chart] };
+  for (const key of Object.keys(result) as ChargeAccountKey[]) {
+    if (typeof custom[key] === 'number') result[key] = custom[key];
+  }
+  return result;
+}

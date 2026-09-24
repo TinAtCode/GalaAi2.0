@@ -5,7 +5,7 @@ import { writeAudit } from '../common/audit';
 import { addCalendarDays, dayRangeInZone, localDayString, parseDayParam } from '../common/time-zone';
 import { allocateDebtorNumber } from '../customers/debtor-number';
 import { buildBuchungsstapel, ExtfBooking } from './extf-writer';
-import { moneyAccounts, revenueAccountFor, revenueAccounts } from './revenue-accounts';
+import { moneyAccounts, revenueAccountFor, revenueAccounts, chargeAccounts } from './revenue-accounts';
 
 const KIND_LABELS = {
   partial: 'Abschlagsrechnung',
@@ -92,6 +92,7 @@ export class DatevService {
     }
     const accounts = revenueAccounts(company.datevChartOfAccounts, company.datevRevenueAccounts);
     const money = moneyAccounts(company.datevChartOfAccounts, company.datevRevenueAccounts);
+    const charges = chargeAccounts(company.datevChartOfAccounts, company.datevRevenueAccounts);
     const customers = [
       ...invoices.map((i) => i.project.property.customer),
       ...payments.map((p) => p.invoice.project.property.customer),
@@ -149,15 +150,36 @@ export class DatevService {
         const customer = invoice.project.property.customer;
         const buyer = (invoice.buyerSnapshot ?? {}) as { name?: string };
         const [, month, dayOfMonth] = payment.paidOn.toISOString().slice(0, 10).split('-');
-        bookings.push({
-          amount: payment.amount,
-          side: 'S',
+        const base = {
+          side: 'S' as const,
           account: money[payment.method],
-          contraAccount: debtorOf.get(customer.id)!,
           documentDate: `${dayOfMonth}${month}`,
           documentNumber: invoice.number!,
-          text: `Zahlung ${buyer.name ?? customer.name}`,
-        });
+        };
+        const name = buyer.name ?? customer.name;
+        // Anteile auf Mahnkosten und Zinsen direkt als Ertrag, der Rest an den Debitor
+        const principal = payment.amount.minus(payment.costsAmount).minus(payment.interestAmount);
+        if (principal.greaterThan(0))
+          bookings.push({
+            ...base,
+            amount: principal,
+            contraAccount: debtorOf.get(customer.id)!,
+            text: `Zahlung ${name}`,
+          });
+        if (payment.costsAmount.greaterThan(0))
+          bookings.push({
+            ...base,
+            amount: payment.costsAmount,
+            contraAccount: charges.dunningCosts,
+            text: `Mahnkosten ${name}`,
+          });
+        if (payment.interestAmount.greaterThan(0))
+          bookings.push({
+            ...base,
+            amount: payment.interestAmount,
+            contraAccount: charges.interest,
+            text: `Verzugszinsen ${name}`,
+          });
       }
 
       const compact = (day: string) => day.replace(/-/g, '');

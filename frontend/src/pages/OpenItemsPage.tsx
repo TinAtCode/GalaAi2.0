@@ -23,6 +23,9 @@ interface OpenItem {
   totalGross: string;
   paid: string;
   open: string;
+  // Mahnkosten und Zinsen neben dem Rechnungsbetrag
+  charges?: { costs: string; interest: string; waived: string; open: string };
+  totalOpen?: string;
   project: { id: string; title: string };
   customer: { id: string; name: string };
   dunning: DunningNotice[];
@@ -101,11 +104,13 @@ export function OpenItemsPage() {
   };
 
   const sum = (list: OpenItem[]) => list.reduce((total, item) => total + Number(item.open), 0);
+  const charges = (list: OpenItem[]) =>
+    list.reduce((total, item) => total + Number(item.charges?.open ?? 0), 0);
   const overdue = items?.filter((i) => i.daysOverdue > 0) ?? [];
 
   return (
     <div>
-      <header className="my-day-header">
+      <header className="page-header">
         <h2>Offene Posten</h2>
       </header>
       {error && <p className="field-error">{error}</p>}
@@ -119,6 +124,7 @@ export function OpenItemsPage() {
         <p className="list-item-meta" data-testid="open-items-summary">
           {items.length} offene Rechnung{items.length === 1 ? '' : 'en'} · {formatEuro(sum(items))} offen
           {overdue.length > 0 && ` · davon ${formatEuro(sum(overdue))} überfällig`}
+          {charges(items) > 0 && ` · zzgl. ${formatEuro(charges(items))} Mahnkosten und Zinsen`}
         </p>
       )}
       {items?.length === 0 && (
@@ -151,8 +157,7 @@ export function OpenItemsPage() {
                   ` · zzgl. ${formatEuro(Number(d.fee) + Number(d.interest) + Number(d.lumpSum))} Gebühren/Zinsen`}
                 {d.sentAt ? ' · per E-Mail versendet' : ''}{' '}
                 <button
-                  className="btn"
-                  style={{ padding: '0 6px', fontSize: '0.8rem' }}
+                  className="btn btn-sm"
                   disabled={busy}
                   onClick={() => run(() => api.openFile(`/invoices/${item.invoiceId}/dunning/${d.id}/pdf`))}
                   data-testid="dunning-pdf"
@@ -162,8 +167,7 @@ export function OpenItemsPage() {
                 {/* versendet wird nur die neueste Mahnung */}
                 {index === item.dunning.length - 1 && (
                   <button
-                    className="btn"
-                    style={{ padding: '0 6px', fontSize: '0.8rem' }}
+                    className="btn btn-sm"
                     disabled={busy}
                     onClick={() => sendDunning(item, d)}
                     data-testid="dunning-send"
@@ -175,7 +179,14 @@ export function OpenItemsPage() {
             ))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <strong data-testid="open-item-amount">{formatEuro(item.open)}</strong>
+            <div style={{ textAlign: 'right' }}>
+              <strong data-testid="open-item-amount">{formatEuro(item.open)}</strong>
+              {Number(item.charges?.open ?? 0) > 0 && (
+                <div className="list-item-meta" data-testid="open-item-charges">
+                  + {formatEuro(item.charges!.open)} Mahnkosten/Zinsen
+                </div>
+              )}
+            </div>
             {item.daysOverdue > 0 && (
               <span className="status-badge status-cancelled" data-testid="open-item-overdue">
                 {item.daysOverdue} Tag{item.daysOverdue === 1 ? '' : 'e'} überfällig

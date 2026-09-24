@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { invoiceClaims } from './claims';
 import { MailService } from '../mail/mail.service';
 import { lockFor } from '../common/advisory-lock';
 import { writeAudit } from '../common/audit';
@@ -35,14 +36,31 @@ export class InvoicesService {
     private mail: MailService,
   ) {}
 
-  findAllForProject(companyId: string, projectId: string) {
-    return this.prisma.invoice.findMany({
+  // Mit offener Forderung je Rechnung (Rechnungsbetrag, Mahnkosten, Zinsen)
+  async findAllForProject(companyId: string, projectId: string) {
+    const invoices = await this.prisma.invoice.findMany({
       where: { companyId, projectId },
       include: {
         lineItems: { orderBy: { position: 'asc' } },
         payments: { orderBy: [{ paidOn: 'asc' }, { createdAt: 'asc' }] },
+        dunningNotices: { orderBy: { level: 'asc' } },
+        chargeWaivers: true,
       },
       orderBy: { createdAt: 'asc' },
+    });
+    return invoices.map(({ dunningNotices, chargeWaivers, ...invoice }) => {
+      const claims = invoiceClaims({ ...invoice, dunningNotices, chargeWaivers });
+      return {
+        ...invoice,
+        claims: {
+          principalOpen: claims.principalOpen,
+          costs: claims.costs,
+          interest: claims.interest,
+          waived: claims.waived,
+          chargesOpen: claims.chargesOpen,
+          totalOpen: claims.totalOpen,
+        },
+      };
     });
   }
 

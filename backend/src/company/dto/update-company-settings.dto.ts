@@ -62,6 +62,19 @@ export class DatevRevenueAccountsDto {
   @Min(1000)
   @Max(9999)
   other?: number;
+
+  // Erträge aus Mahnkosten und Verzugszinsen
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(9999)
+  dunningCosts?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(9999)
+  interest?: number;
 }
 
 export class UpdateCompanySettingsDto {

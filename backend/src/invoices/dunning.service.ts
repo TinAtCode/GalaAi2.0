@@ -7,7 +7,8 @@ import { addCalendarDays, localDayString } from '../common/time-zone';
 import { renderLetterPdf } from '../pdf/business-document.pdf';
 import { buyerFromProject, sellerFromCompany } from '../pdf/pdf-data';
 import { BusinessDocumentPdf, PdfParty } from '../pdf/business-document.pdf';
-import { invoiceDueDay, MAX_DUNNING_LEVEL, paidAmount } from './payments.service';
+import { invoiceDueDay, MAX_DUNNING_LEVEL } from './payments.service';
+import { invoiceClaims } from './claims';
 import { SendDunningDto } from './dto/invoice.dto';
 import { dunningCharges } from './dunning-charges';
 import { Prisma } from '@prisma/client';
@@ -59,7 +60,7 @@ export class DunningService {
       ) {
         throw new BadRequestException('Mahnungen gibt es nur für ausgestellte, nicht stornierte Rechnungen.');
       }
-      const open = invoice.totalGross.minus(paidAmount(invoice.payments));
+      const open = invoiceClaims({ ...invoice, chargeWaivers: [] }).principalOpen;
       if (!open.greaterThan(0)) throw new BadRequestException('Die Rechnung ist bereits bezahlt.');
 
       const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
@@ -246,7 +247,7 @@ export class DunningService {
     if (invoice.status !== 'issued') {
       throw new BadRequestException('Die Rechnung ist storniert – die Mahnung wird nicht versendet.');
     }
-    const open = invoice.totalGross.minus(paidAmount(invoice.payments));
+    const open = invoiceClaims({ ...invoice, chargeWaivers: [] }).principalOpen;
     if (!open.greaterThan(0)) throw new BadRequestException('Die Rechnung ist bereits bezahlt.');
     if (invoice.dunningNotices.at(-1)?.id !== notice.id) {
       throw new BadRequestException(

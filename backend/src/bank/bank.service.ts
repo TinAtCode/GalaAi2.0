@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { writeAudit } from '../common/audit';
 import { PaymentsService, paidAmount } from '../invoices/payments.service';
+import { invoiceClaims } from '../invoices/claims';
 import { invoiceNumbersIn, parseCamt053 } from './camt053';
 import { BookBankTransactionDto } from './bank.dto';
 import { CategoriesService } from '../finance/categories.service';
@@ -27,6 +28,8 @@ export class BankService {
       where: { companyId, status: 'issued', kind: { not: 'cancellation' }, totalGross: { gt: 0 } },
       include: {
         payments: true,
+        dunningNotices: true,
+        chargeWaivers: true,
         project: { select: { property: { select: { customer: { select: { name: true } } } } } },
       },
     });
@@ -34,7 +37,8 @@ export class BankService {
       .map((i) => ({
         id: i.id,
         number: i.number!,
-        open: i.totalGross.minus(paidAmount(i.payments)),
+        // offen inkl. Mahnkosten und Zinsen (so zahlt der Kunde nach einer Mahnung)
+        open: invoiceClaims(i).totalOpen,
         customer: i.project.property.customer.name,
       }))
       .filter((i) => i.open.greaterThan(0));
