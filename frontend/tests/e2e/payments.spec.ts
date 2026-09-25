@@ -52,7 +52,7 @@ test.describe('Zahlungen und offene Posten', () => {
     await expect(item).toContainText('bezahlt 10,00 €');
 
     // Rest begleichen: das Formular schlägt den offenen Betrag vor
-    await item.getByRole('link').click();
+    await item.getByTestId('open-item-project').click();
     await card.getByTestId('invoice-payment').click();
     await expect(card.getByTestId('payment-amount')).toHaveValue(
       rest.replace(/[^\d,]/g, '').replace(/^0+(?=\d)/, ''),
