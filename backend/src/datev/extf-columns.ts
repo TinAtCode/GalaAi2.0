@@ -172,3 +172,58 @@ export const EXTF_NUMERIC_COLUMNS: ReadonlySet<ExtfColumn> = new Set<ExtfColumn>
   'Fälligkeit',
   'BVV-Position (Betriebsvermögensvergleich)',
 ]);
+
+// Spalten des Formats „EXTF Debitoren/Kreditoren“, Formatversion 5 – die
+// ersten Spalten bis zu den Kommunikationsdaten (Konto, Name, Anschrift,
+// Telefon, E-Mail). Weitere Spalten (Bankverbindungen, Mahnwesen …) bleiben
+// in DATEV leer. Die Position ist Teil des Formats – nicht umsortieren.
+export const DEBTOR_COLUMNS = [
+  'Konto',
+  'Name (Adressattyp Unternehmen)',
+  'Unternehmensgegenstand',
+  'Name (Adressattyp natürl. Person)',
+  'Vorname (Adressattyp natürl. Person)',
+  'Name (Adressattyp keine Angabe)',
+  'Adressattyp',
+  'Kurzbezeichnung',
+  'EU-Land',
+  'EU-UStID',
+  'Anrede',
+  'Titel/Akad. Grad',
+  'Adelstitel',
+  'Namensvorsatz',
+  'Adressart',
+  'Straße',
+  'Postfach',
+  'Postleitzahl',
+  'Ort',
+  'Land',
+  'Versandzusatz',
+  'Adresszusatz',
+  'Abweichende Anrede',
+  'Abw. Zustellbezeichnung 1',
+  'Abw. Zustellbezeichnung 2',
+  'Kennz. Korrespondenzadresse',
+  'Adresse Gültig von',
+  'Adresse Gültig bis',
+  'Telefon',
+  'Bemerkung (Telefon)',
+  'Telefon GL',
+  'Bemerkung (Telefon GL)',
+  'E-Mail',
+  'Bemerkung (E-Mail)',
+  'Internet',
+  'Bemerkung (Internet)',
+  'Fax',
+  'Bemerkung (Fax)',
+  'Sonstige',
+  'Bemerkung (Sonstige)',
+] as const;
+
+export type DebtorColumn = (typeof DEBTOR_COLUMNS)[number];
+
+export const DEBTOR_NUMERIC_COLUMNS = new Set<DebtorColumn>([
+  'Konto',
+  'Adressattyp',
+  'Kennz. Korrespondenzadresse',
+]);

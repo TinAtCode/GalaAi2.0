@@ -1,6 +1,13 @@
 import { Prisma } from '@prisma/client';
 import * as iconv from 'iconv-lite';
-import { EXTF_COLUMNS, EXTF_NUMERIC_COLUMNS, ExtfColumn } from './extf-columns';
+import {
+  DEBTOR_COLUMNS,
+  DEBTOR_NUMERIC_COLUMNS,
+  DebtorColumn,
+  EXTF_COLUMNS,
+  EXTF_NUMERIC_COLUMNS,
+  ExtfColumn,
+} from './extf-columns';
 
 // Eine Buchung im Buchungsstapel. Beträge sind positiv; die Richtung steht im
 // Soll/Haben-Kennzeichen (S = Soll auf „Konto“, H = Haben).
@@ -44,13 +51,14 @@ const timestamp = (at: Date) =>
     .replace(/[-:TZ.]/g, '')
     .slice(0, 17);
 
-function headerLine(h: ExtfHeader): string {
+function headerLine(h: ExtfHeader, format: 'bookings' | 'debtors' = 'bookings'): string {
+  const bookings = format === 'bookings';
   const fields: (string | number | null)[] = [
     quote('EXTF'), // 1 Kennzeichen
     700, // 2 Versionsnummer
-    21, // 3 Formatkategorie: Buchungsstapel
-    quote('Buchungsstapel'), // 4 Formatname
-    12, // 5 Formatversion
+    bookings ? 21 : 16, // 3 Formatkategorie: Buchungsstapel bzw. Debitoren/Kreditoren
+    quote(bookings ? 'Buchungsstapel' : 'Debitoren/Kreditoren'), // 4 Formatname
+    bookings ? 12 : 5, // 5 Formatversion
     timestamp(h.createdAt), // 6 erzeugt am
     null, // 7 importiert (reserviert)
     quote('RE'), // 8 Herkunft: Rechnungswesen
@@ -60,14 +68,15 @@ function headerLine(h: ExtfHeader): string {
     h.clientNumber, // 12 Mandantennummer
     h.fiscalYearStart, // 13 Beginn Wirtschaftsjahr
     4, // 14 Sachkontenlänge
-    h.from, // 15 Datum vom
-    h.to, // 16 Datum bis
+    // Stammdaten haben keinen Zeitraum, keinen Buchungstyp und keine Währung
+    bookings ? h.from : null, // 15 Datum vom
+    bookings ? h.to : null, // 16 Datum bis
     quote(clip(h.label, 30)), // 17 Bezeichnung
     quote(''), // 18 Diktatkürzel
-    1, // 19 Buchungstyp: Finanzbuchführung
-    0, // 20 Rechnungslegungszweck
-    0, // 21 Festschreibung: nein, die Kanzlei kann noch bearbeiten
-    quote('EUR'), // 22 Währung
+    bookings ? 1 : null, // 19 Buchungstyp: Finanzbuchführung
+    bookings ? 0 : null, // 20 Rechnungslegungszweck
+    bookings ? 0 : null, // 21 Festschreibung: nein, die Kanzlei kann noch bearbeiten
+    quote(bookings ? 'EUR' : ''), // 22 Währung
     null, // 23 reserviert
     quote(''), // 24 Derivatskennzeichen
     null, // 25 reserviert
@@ -106,5 +115,59 @@ function bookingLine(b: ExtfBooking): string {
 // Windows-1252 mit CRLF – das liest jede DATEV-Version ein.
 export function buildBuchungsstapel(header: ExtfHeader, bookings: ExtfBooking[]): Buffer {
   const lines = [headerLine(header), EXTF_COLUMNS.map(quote).join(';'), ...bookings.map(bookingLine)];
+  return iconv.encode(lines.join('\r\n') + '\r\n', 'win1252');
+}
+
+// Personenkonto (Debitor) für die Stammdaten
+export interface ExtfDebtor {
+  account: number;
+  name: string;
+  isBusiness: boolean;
+  street?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  vatId?: string | null;
+}
+
+function debtorLine(d: ExtfDebtor): string {
+  // USt-IdNr. „DE123456789“: Länderkennzeichen und Nummer getrennt
+  const vat = d.vatId?.replace(/\s+/g, '').toUpperCase() ?? '';
+  const vatMatch = /^([A-Z]{2})([A-Z0-9+*]{2,12})$/.exec(vat);
+  const values: Partial<Record<DebtorColumn, string | number>> = {
+    Konto: d.account,
+    // Adressattyp 2 = Unternehmen, 0 = keine Angabe (Name ungeteilt)
+    ...(d.isBusiness
+      ? { 'Name (Adressattyp Unternehmen)': clip(d.name, 50), Adressattyp: 2 }
+      : { 'Name (Adressattyp keine Angabe)': clip(d.name, 50), Adressattyp: 0 }),
+    Kurzbezeichnung: clip(d.name, 15),
+    ...(vatMatch ? { 'EU-Land': vatMatch[1], 'EU-UStID': vatMatch[2] } : {}),
+    ...(d.street || d.postalCode || d.city
+      ? {
+          Adressart: 'STR',
+          Straße: clip(d.street ?? '', 36),
+          Postleitzahl: clip(d.postalCode ?? '', 10),
+          Ort: clip(d.city ?? '', 30),
+        }
+      : {}),
+    ...(d.phone ? { Telefon: clip(d.phone, 60) } : {}),
+    ...(d.email ? { 'E-Mail': clip(d.email, 60) } : {}),
+  };
+  return DEBTOR_COLUMNS.map((column) => {
+    const value = values[column];
+    if (DEBTOR_NUMERIC_COLUMNS.has(column)) return value === undefined ? '' : String(value);
+    return quote(value === undefined ? '' : String(value));
+  }).join(';');
+}
+
+// Debitoren-Stammdaten (EXTF „Debitoren/Kreditoren“): legt in DATEV die
+// Personenkonten mit Name und Anschrift an, passend zu den Buchungsstapeln
+export function buildDebitoren(header: ExtfHeader, debtors: ExtfDebtor[]): Buffer {
+  const lines = [
+    headerLine(header, 'debtors'),
+    DEBTOR_COLUMNS.map(quote).join(';'),
+    ...debtors.map(debtorLine),
+  ];
   return iconv.encode(lines.join('\r\n') + '\r\n', 'win1252');
 }

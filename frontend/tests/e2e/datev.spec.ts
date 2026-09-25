@@ -65,6 +65,14 @@ test.describe('DATEV-Export', () => {
     expect(withPayments.status()).toBe(200);
     await section.getByTestId('datev-with-payments').uncheck();
 
+    // Debitoren-Stammdaten (Name, Anschrift) als eigene Datei
+    const [debtors] = await Promise.all([
+      page.waitForEvent('download', { predicate: (d) => d.suggestedFilename() === 'EXTF_Debitoren.csv' }),
+      section.getByTestId('datev-debtors').click(),
+    ]);
+    const debtorFile = Buffer.concat(await (await debtors.createReadStream()).toArray()).toString('latin1');
+    expect(debtorFile.split('\r\n')[0]).toMatch(/^"EXTF";700;16;"Debitoren\/Kreditoren";5;/);
+
     // Leerer Zeitraum: verständliche Meldung statt leerer Datei
     await section.getByTestId('datev-from').fill('2000-01-01');
     await section.getByTestId('datev-to').fill('2000-01-31');
