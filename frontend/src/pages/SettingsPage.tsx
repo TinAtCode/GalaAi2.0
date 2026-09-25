@@ -1,4 +1,4 @@
-import { ThemeMode, useTheme } from '../theme/ThemeContext';
+import { Look, LOOKS, ThemeMode, useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../auth/AuthContext';
 import { ChangePasswordSection } from './ChangePasswordSection';
 import { UsersSection } from './UsersSection';
@@ -15,7 +15,7 @@ const COLOR_FIELDS: { key: keyof ReturnType<typeof useTheme>['theme']; label: st
 ];
 
 export function SettingsPage() {
-  const { theme, setTheme, resetTheme, mode, setMode } = useTheme();
+  const { theme, setTheme, resetTheme, mode, setMode, look, setLook } = useTheme();
   const { hasPermission } = useAuth();
 
   return (
@@ -27,6 +27,27 @@ export function SettingsPage() {
       <section className="settings-section">
         <h3>Darstellung</h3>
         <p>Farben lassen sich hier direkt anpassen – die Änderung gilt sofort für die ganze Anwendung.</p>
+
+        <div className="color-field">
+          <div>
+            <div className="list-item-name">Erscheinungsbild</div>
+            <div className="list-item-meta">
+              Logo und Grundfarben; eigene Farben bleiben je Erscheinungsbild erhalten
+            </div>
+          </div>
+          <div className="segmented" role="group" aria-label="Erscheinungsbild">
+            {(Object.keys(LOOKS) as Look[]).map((value) => (
+              <button
+                key={value}
+                aria-pressed={look === value}
+                onClick={() => setLook(value)}
+                data-testid={`look-${value}`}
+              >
+                {LOOKS[value].name}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="color-field">
           <div>

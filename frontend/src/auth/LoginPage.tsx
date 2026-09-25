@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { api, ApiError, apiUrl } from '../api/client';
 import { DemoPanel } from './DemoPanel';
 import { FirstSetup } from './FirstSetup';
+import { Brand } from '../brand/Brand';
 
 // Rückmeldungen vom Anmelden über Google/Firmenkonto (?sso=…, auth.controller.ts)
 const SSO_ERRORS: Record<string, string> = {
@@ -60,7 +61,9 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1>GartenAI</h1>
+        <h1>
+          <Brand size="login" />
+        </h1>
         <p className="login-subtitle">Melde dich mit deinem Firmenzugang an.</p>
         {sessionExpired && (
           <p className="field-error" data-testid="login-session-expired">

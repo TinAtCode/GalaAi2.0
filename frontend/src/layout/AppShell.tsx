@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { prefetchPages } from '../lazy-pages';
 import { Icon, IconName } from './icons';
 import { CommandPalette } from './CommandPalette';
+import { Brand } from '../brand/Brand';
 import { VoiceButton } from '../voice/VoiceButton';
 import { offlineDb } from '../offline/db';
 import { api } from '../api/client';
@@ -240,10 +241,7 @@ export function AppShell() {
     <div className="app-shell">
       <nav className="app-nav" aria-label="Hauptnavigation">
         <div className="app-nav-brand">
-          <span className="app-nav-logo">
-            <Icon name="leaf" size={18} />
-          </span>
-          GartenAI
+          <Brand />
         </div>
         <button
           className="search-trigger nav-desktop-only"
