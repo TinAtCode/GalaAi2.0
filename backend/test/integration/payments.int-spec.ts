@@ -1,6 +1,8 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import request from 'supertest';
+import { PermissionKey } from '../../src/common/permissions';
 import { createApp, createCompany, resetDatabase, TestCompany } from './helpers';
 import { localDayString } from '../../src/common/time-zone';
 
@@ -227,5 +229,68 @@ describe('Zahlungen und offene Posten', () => {
           .expect(200)
       ).body,
     ).toEqual([]);
+  });
+
+  it('Kundenverlauf: Angebote, Rechnungen, Umsatz je Jahr; Beträge nur mit Rechten', async () => {
+    const invoice = await issuedPartial(5);
+    const row = await prisma.invoice.findUniqueOrThrow({
+      where: { id: invoice.id },
+      include: { project: { include: { property: true } } },
+    });
+    const customerId = row.project.property.customerId;
+    const history = (await api().get(`/customers/${customerId}/history`).set(auth).expect(200)).body;
+    expect(history.quotes).toHaveLength(1);
+    expect(history.quotes[0]).toMatchObject({ status: 'accepted', totalNet: '10000' });
+    expect(history.invoices.map((i: { id: string }) => i.id)).toContain(invoice.id);
+    const issued = await prisma.invoice.findMany({
+      where: { projectId: row.projectId, status: 'issued', kind: { not: 'cancellation' } },
+    });
+    const total = history.revenueByYear.reduce((sum: number, r: { net: number }) => sum + r.net, 0);
+    expect(total).toBeCloseTo(
+      issued.reduce((sum, i) => sum + Number(i.totalNet), 0),
+      2,
+    );
+    expect(history.revenueByYear[0].year).toBe(Number(today.slice(0, 4)));
+
+    // nur Kunden lesen: Angebote ohne Summen, keine Rechnungen
+    const role = await prisma.role.create({
+      data: {
+        companyId: company.companyId,
+        name: 'Nur Kunden',
+        permissions: {
+          create: (['customer.read'] as PermissionKey[]).map((key) => ({ permission: { connect: { key } } })),
+        },
+      },
+    });
+    await prisma.user.create({
+      data: {
+        companyId: company.companyId,
+        email: 'kunden@zahlung.example',
+        passwordHash: await bcrypt.hash('test12345', 4),
+        firstName: 'K',
+        lastName: 'K',
+        roles: { create: { roleId: role.id } },
+      },
+    });
+    const login = await api()
+      .post('/auth/login')
+      .send({ email: 'kunden@zahlung.example', password: 'test12345' })
+      .expect(201);
+    const limited = (
+      await api()
+        .get(`/customers/${customerId}/history`)
+        .set({ Authorization: `Bearer ${login.body.accessToken}` })
+        .expect(200)
+    ).body;
+    expect(limited.quotes[0].totalNet).toBeNull();
+    expect(limited.invoices).toBeNull();
+    expect(limited.revenueByYear).toBeNull();
+
+    // fremde Firma
+    const other = await createCompany(app, prisma, 'Fremd Verlauf GmbH');
+    await api()
+      .get(`/customers/${customerId}/history`)
+      .set({ Authorization: `Bearer ${other.token}` })
+      .expect(404);
   });
 });

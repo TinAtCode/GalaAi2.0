@@ -51,6 +51,13 @@ test.describe('Zahlungen und offene Posten', () => {
     await expect(item.getByTestId('open-item-amount')).toHaveText(rest);
     await expect(item).toContainText('bezahlt 10,00 €');
 
+    // Kundenseite: offener Posten und Verlauf mit der Rechnung
+    await item.getByRole('link', { name: /./ }).first().click();
+    await expect(page.getByTestId('customer-open-items')).toContainText(rest);
+    await expect(page.getByTestId('customer-history')).toContainText(issued.number);
+    await expect(page.getByTestId('customer-revenue')).toBeVisible();
+    await page.getByTestId('nav-open-items').click();
+
     // Rest begleichen: das Formular schlägt den offenen Betrag vor
     await item.getByTestId('open-item-project').click();
     await card.getByTestId('invoice-payment').click();

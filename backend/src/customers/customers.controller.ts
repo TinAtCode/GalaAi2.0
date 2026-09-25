@@ -31,6 +31,16 @@ export class CustomersController {
     return this.customersService.findOne(user.companyId, id);
   }
 
+  // Angebote, Rechnungen und Umsatz je Jahr (Beträge je nach Rechten)
+  @Get(':id/history')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
+  history(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.customersService.history(user.companyId, id, {
+      salePrices: user.permissions.includes(PERMISSIONS.PRICE_SALE_READ),
+      invoices: user.permissions.includes(PERMISSIONS.INVOICE_CREATE),
+    });
+  }
+
   @Post()
   @RequirePermissions(PERMISSIONS.CUSTOMER_WRITE)
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateCustomerDto) {

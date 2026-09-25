@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatEuro } from '../format';
+import { CustomerHistory } from './CustomerHistory';
 
 interface Project {
   id: string;
@@ -288,6 +289,7 @@ export function CustomerDetailPage() {
       </section>
 
       {hasPermission('invoice.create') && customerId && <CustomerOpenItems customerId={customerId} />}
+      {customerId && <CustomerHistory customerId={customerId} />}
 
       <h3 style={{ marginBottom: 8 }}>Objekte und Projekte</h3>
       {customer.properties.length === 0 && <p className="list-item-meta">Noch keine Objekte.</p>}
