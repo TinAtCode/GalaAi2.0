@@ -31,6 +31,7 @@ import { SetupModule } from './setup/setup.module';
 import { SiteDiaryModule } from './site-diary/site-diary.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { EquipmentModule } from './equipment/equipment.module';
+import { ChecklistsModule } from './checklists/checklists.module';
 import { MaterialUsageModule } from './material-usage/material-usage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
@@ -88,6 +89,7 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     SiteDiaryModule,
     CalendarModule,
     EquipmentModule,
+    ChecklistsModule,
     MaterialUsageModule,
     OcrModule,
     HealthModule,

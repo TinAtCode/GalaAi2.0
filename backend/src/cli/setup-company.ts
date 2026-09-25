@@ -1,5 +1,10 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import { BOOKKEEPING_PERMISSIONS, EMPLOYEE_PERMISSIONS, PERMISSIONS } from '../common/permissions';
+import {
+  BOOKKEEPING_PERMISSIONS,
+  EMPLOYEE_PERMISSIONS,
+  PERMISSIONS,
+  PLANNER_PERMISSIONS,
+} from '../common/permissions';
 import { hashPassword, normalizeEmail, PASSWORD_MIN_LENGTH } from '../auth/passwords';
 
 export interface SetupInput {
@@ -70,6 +75,18 @@ export async function setupCompany(
         permissions: {
           create: permissions
             .filter((p) => (BOOKKEEPING_PERMISSIONS as string[]).includes(p.key))
+            .map((p) => ({ permissionId: p.id })),
+        },
+      },
+    });
+    await tx.role.create({
+      data: {
+        companyId: company.id,
+        name: 'Einsatzplaner',
+        isSystem: true,
+        permissions: {
+          create: permissions
+            .filter((p) => (PLANNER_PERMISSIONS as string[]).includes(p.key))
             .map((p) => ({ permissionId: p.id })),
         },
       },

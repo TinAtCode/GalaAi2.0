@@ -69,6 +69,15 @@ export const NAV_ITEMS: NavItem[] = [
     testId: 'nav-equipment',
     group: 'Arbeit',
   },
+  // Checklisten-Vorlagen (anlegen und prüfen: Einsatzplaner)
+  {
+    to: '/checklisten',
+    label: 'Checklisten',
+    icon: 'checklist',
+    permission: 'site.use',
+    testId: 'nav-checklists',
+    group: 'Arbeit',
+  },
   // Lagepläne auf diesem Gerät (auch ohne Netz)
   {
     to: '/offline',

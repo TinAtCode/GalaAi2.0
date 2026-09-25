@@ -6,6 +6,7 @@ import { offlineDb } from '../../offline/db';
 import { isNetworkError, subscribeOffline, useOnline } from '../../offline/sync';
 import { SiteThread } from './SiteThread';
 import { DiarySection } from './DiarySection';
+import { ChecklistsSection } from '../checklists/ChecklistsSection';
 import { PushToggle } from '../../push/PushToggle';
 
 interface SiteAppointment {
@@ -281,6 +282,7 @@ export function SiteProjectPage() {
         </div>
       </header>
       <section className="card">{projectId && <SiteThread projectId={projectId} />}</section>
+      <section className="card">{projectId && <ChecklistsSection projectId={projectId} compact />}</section>
       <section className="card">{projectId && <DiarySection projectId={projectId} compact />}</section>
     </div>
   );
