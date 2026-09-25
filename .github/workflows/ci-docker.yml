@@ -23,6 +23,9 @@ jobs:
         run: |
           shellcheck ops/*.sh ops/tests/*.sh ops/demo/*.sh ops/buero/*.sh
           bash ops/tests/deploy.test.sh
+      # Windows-Skripte: so gelesen wie von Windows PowerShell 5.1 (BOM, Parser)
+      - name: Windows-Skripte prüfen
+        run: pwsh -NoProfile -File ops/tests/powershell-check.ps1
       - name: Compose-Datei prüfen
         run: |
           POSTGRES_PASSWORD=x JWT_SECRET=x docker compose -f docker-compose.prod.yml config --quiet

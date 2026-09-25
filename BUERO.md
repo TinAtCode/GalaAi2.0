@@ -11,6 +11,8 @@ nicht. Anders als die Demo (`DEMO.md`) ist sie für echte Daten gedacht:
 
 Für mehrere Standorte oder Zugriff von überall ist ein Server besser (`BETRIEB.md`).
 
+Zum ausführlichen Durchtesten gibt es eine Checkliste: `BUERO-TEST.md`.
+
 ## Einmalig vorbereiten
 
 1. **Docker Desktop** installieren und starten (unter Linux Docker Engine mit Compose).
@@ -60,9 +62,9 @@ leere Installation den Musterbetrieb aus der Demo, mit Demo-Agent und den Demo-Z
 - **Sofort:** `ops/buero/backup-now.sh` (Windows: `backup-now.cmd`).
 - **Außer Haus:** automatisch in die Cloud (siehe unten) oder den Ordner `backups/buero` und
   `.env.buero` regelmäßig auf einen USB-Stick kopieren.
-- **Zurückspielen:** `ops/buero/restore.sh backups/buero/20261004-021500`. Es ersetzt Datenbank und
-  Dokumente und prüft vorher die Prüfsummen. Unter Windows im Ordner in einer Git-Bash oder WSL
-  ausführen.
+- **Zurückspielen:** Windows: Doppelklick auf `ops\buero\restore.cmd`, die Sicherungen werden zur
+  Auswahl angezeigt. macOS/Linux: `ops/buero/restore.sh backups/buero/20261004-021500`. Beide
+  ersetzen Datenbank und Dokumente und prüfen vorher die Prüfsummen.
 
 ## Sicherung in der Cloud
 
@@ -92,7 +94,7 @@ OneDrive, Dropbox, Nextcloud/WebDAV, S3 (z.B. Hetzner, IONOS) und vieles mehr (r
   `ops/buero/rclone/rclone.conf` durch die alten ersetzen, oder den Speicher mit
   `rclone config` von Hand anlegen. Dann:
   `docker run --rm -v "$PWD/ops/buero/rclone:/config/rclone" -v "$PWD/backups/buero:/backups" rclone/rclone:1 copy gartenai-sicher: /backups`
-  und `ops/buero/restore.sh backups/buero/<Stand>`.
+  und `ops/buero/restore.sh backups/buero/<Stand>` (Windows: `restore.cmd`).
 
 ## Unterwegs zugreifen
 
@@ -162,10 +164,9 @@ Auf der Login-Seite erscheint dann „Anmelden mit Google“. Andere Anbieter mi
 `ops/buero/update.sh` sichert zuerst, holt dann die neue Version (bei `git clone`) und baut neu. Die
 Datenbank wird beim Start automatisch angepasst.
 
-Unter Windows oder bei ZIP-Download:
-1. `backup-now.cmd` ausführen.
-2. Die neue Version über den Ordner entpacken. `.env.buero` und `backups` bleiben dabei erhalten.
-3. `start.cmd` ausführen.
+Unter Windows: Doppelklick auf `ops\buero\update.cmd`. Es sichert zuerst, holt bei `git clone` die
+neue Version und startet neu. Bei ZIP-Download wartet es, bis die neue Version über den Ordner
+entpackt ist (`.env.buero` und `backups` bleiben dabei erhalten).
 
 ## Beenden
 
