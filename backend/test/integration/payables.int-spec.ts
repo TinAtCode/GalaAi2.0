@@ -507,4 +507,72 @@ ${debits
     await api().delete(`/finance/payables/${created.body.id}`).set(auth).expect(200);
     expect(await prisma.document.count({ where: { id: res.body.documentId } })).toBe(0);
   });
+
+  it('Projekt zuordnen: Filter, Nachkalkulation, fremdes Projekt abgelehnt', async () => {
+    const newProject = async (companyId: string, title: string) => {
+      const customer = await prisma.customer.create({ data: { companyId, name: `Kunde ${title}` } });
+      const property = await prisma.property.create({
+        data: { companyId, customerId: customer.id, label: 'Garten' },
+      });
+      return prisma.project.create({ data: { companyId, propertyId: property.id, title } });
+    };
+    const project = await newProject(company.companyId, 'Terrasse Weber');
+    const bill = await api()
+      .post('/finance/payables')
+      .set(auth)
+      .send({
+        supplierName: 'Holz Nord',
+        invoiceNumber: 'HN-1',
+        amount: 238,
+        netAmount: 200,
+        projectId: project.id,
+      })
+      .expect(201);
+    expect(bill.body.project).toEqual({ id: project.id, number: project.number, title: 'Terrasse Weber' });
+    // ohne Nettobetrag zählt der Rechnungsbetrag
+    await api()
+      .post('/finance/payables')
+      .set(auth)
+      .send({ supplierName: 'Kies Süd', invoiceNumber: 'KS-1', amount: 50, projectId: project.id })
+      .expect(201);
+    const cancelled = await api()
+      .post('/finance/payables')
+      .set(auth)
+      .send({ supplierName: 'Kies Süd', invoiceNumber: 'KS-2', amount: 999, projectId: project.id })
+      .expect(201);
+    await api().post(`/finance/payables/${cancelled.body.id}/cancel`).set(auth).expect(201);
+
+    const filtered = (
+      await api().get(`/finance/payables?status=all&projectId=${project.id}`).set(auth).expect(200)
+    ).body as Payable[];
+    expect(filtered).toHaveLength(3);
+
+    const calc = await api().get(`/post-calculation/${project.id}`).set(auth).expect(200);
+    expect(calc.body.purchases).toEqual({ count: 2, net: 250 });
+
+    // Zuordnung aufheben
+    await api().patch(`/finance/payables/${bill.body.id}`).set(auth).send({ projectId: null }).expect(200);
+    const after = await api().get(`/post-calculation/${project.id}`).set(auth).expect(200);
+    expect(after.body.purchases).toEqual({ count: 1, net: 50 });
+
+    // Projekt einer anderen Firma
+    const other = await createCompany(app, prisma, 'Fremd Projekt GmbH');
+    const foreignProject = await newProject(other.companyId, 'Fremd');
+    await api()
+      .patch(`/finance/payables/${bill.body.id}`)
+      .set(auth)
+      .send({ projectId: foreignProject.id })
+      .expect(404);
+    // die Datenbank verhindert es auch ohne Dienst-Prüfung
+    await expect(
+      prisma.incomingInvoice.update({ where: { id: bill.body.id }, data: { projectId: foreignProject.id } }),
+    ).rejects.toThrow();
+
+    // Projekt gelöscht → Rechnung bleibt, nur ohne Projekt
+    await prisma.project.delete({ where: { id: project.id } });
+    const kept = await prisma.incomingInvoice.findMany({
+      where: { companyId: company.companyId, supplierName: 'Kies Süd' },
+    });
+    expect(kept.every((k) => k.projectId === null)).toBe(true);
+  });
 });

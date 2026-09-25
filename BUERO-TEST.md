@@ -63,7 +63,7 @@ Tipp: Zum Ausprobieren erst mit Demo-Daten (Teil A), danach sauber neu anfangen 
 | D10 | Rechnung per E-Mail (nur mit `SMTP_URL` in `.env.buero`) | Mail kommt mit PDF und XML an |
 | D11 | Kontoauszug (CSV/MT940/CAMT) einlesen, Zahlung zuordnen | Rechnung bezahlt, offene Posten stimmen |
 | D12 | Überfällige Rechnung mahnen | Mahnung als PDF; Gebühren nur wenn eingeschaltet |
-| D13 | Finanzen: Jahresüberblick, Verträge/Versicherungen anlegen | Diagramme und Summen plausibel |
+| D13 | Finanzen: Jahresüberblick, Verträge/Versicherungen anlegen; eine Eingangsrechnung einem Projekt zuordnen | Diagramme und Summen plausibel; die Rechnung erscheint in der Nachkalkulation des Projekts („ansehen“ führt zur gefilterten Liste) |
 | D14 | Geräte: Schaden melden, Wartung planen | Termin im Kalender |
 | D15 | DATEV-Export für einen Monat und „Debitoren (Kunden) herunterladen“ | Beide Dateien lassen sich in DATEV bzw. beim Steuerbüro einlesen; die Konten tragen die Kundennamen |
 | D16 | Optional: GAEB-Leistungsverzeichnis (.X83) eines Auftraggebers am Projekt einlesen, Preise eintragen, „GAEB X84“ | Angebot mit den Ordnungszahlen des LV; die X84 lässt sich beim Auftraggeber bzw. in dessen AVA einlesen |

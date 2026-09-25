@@ -81,6 +81,12 @@ export class UpsertPayableDto {
   @IsString()
   categoryId?: string | null;
 
+  // Einkauf/Fremdleistung für ein Projekt
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  projectId?: string | null;
+
   // Beleg aus POST /finance/payables/extract
   @IsOptional()
   @IsString()
@@ -119,4 +125,8 @@ export class ListPayablesDto {
   @IsOptional()
   @IsIn(['open', 'paid', 'cancelled', 'all'])
   status?: 'open' | 'paid' | 'cancelled' | 'all';
+
+  @IsOptional()
+  @IsString()
+  projectId?: string;
 }

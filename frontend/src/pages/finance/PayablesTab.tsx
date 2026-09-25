@@ -1,4 +1,5 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../../api/client';
 import { formatEuro, parseAmount } from '../../format';
 import { useAiTask } from '../../ai/tasks';
@@ -23,6 +24,7 @@ interface Payable {
   discountedAmount: string | null;
   category: { id: string; name: string } | null;
   document: { id: string; fileName: string } | null;
+  project: { id: string; number: string | null; title: string } | null;
   source: 'manual' | 'text' | 'einvoice';
   status: Status;
   paidAt: string | null;
@@ -79,8 +81,18 @@ interface Form {
   discountPercent: string;
   discountUntil: string;
   categoryId: string;
+  projectId: string;
   notes: string;
 }
+
+interface ProjectOption {
+  id: string;
+  number: string | null;
+  title: string;
+  status: 'open' | 'in_progress' | 'done' | 'cancelled';
+}
+const projectLabel = (p: { number: string | null; title: string }) =>
+  p.number ? `${p.number} · ${p.title}` : p.title;
 
 const EMPTY: Form = {
   source: 'manual',
@@ -95,6 +107,7 @@ const EMPTY: Form = {
   discountPercent: '',
   discountUntil: '',
   categoryId: '',
+  projectId: '',
   notes: '',
 };
 const TABS: { status: Status; label: string }[] = [
@@ -120,6 +133,10 @@ export function PayablesTab() {
   const [status, setStatus] = useState<Status>('open');
   const [items, setItems] = useState<Payable[] | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  // ?projekt=<id>: nur die Eingangsrechnungen dieses Projekts (Link aus der Nachkalkulation)
+  const [params, setParams] = useSearchParams();
+  const projectFilter = params.get('projekt');
   const [form, setForm] = useState<Form | null>(null);
   const [extracted, setExtracted] = useState<Extracted | null>(null);
   // weitere Aktionen einer Zeile (Beleg, Stornieren, Löschen)
@@ -135,7 +152,9 @@ export function PayablesTab() {
   const load = useCallback(() => {
     const requestId = ++latest.current;
     return api
-      .get<Payable[]>(`/finance/payables?status=${status}`)
+      .get<Payable[]>(
+        `/finance/payables?status=${status}${projectFilter ? `&projectId=${encodeURIComponent(projectFilter)}` : ''}`,
+      )
       .then((list) => requestId === latest.current && setItems(list))
       .catch((err) => {
         if (requestId === latest.current)
@@ -143,7 +162,7 @@ export function PayablesTab() {
             err instanceof ApiError ? err.message : 'Eingangsrechnungen konnten nicht geladen werden.',
           );
       });
-  }, [status]);
+  }, [status, projectFilter]);
 
   useEffect(() => {
     load();
@@ -159,6 +178,11 @@ export function PayablesTab() {
       .get<Category[]>('/finance/categories')
       .then(setCategories)
       .catch(() => setCategories([]));
+    // Projekte zum Zuordnen (ohne Recht "Kunden lesen" bleibt die Auswahl leer)
+    api
+      .get<ProjectOption[]>('/projects?take=500')
+      .then(setProjects)
+      .catch(() => setProjects([]));
   }, []);
 
   const run = async (action: () => Promise<string | void>) => {
@@ -199,6 +223,7 @@ export function PayablesTab() {
         discountPercent: percentText(d.discountPercent),
         discountUntil: d.discountUntil ?? '',
         categoryId: d.categoryId ?? '',
+        projectId: projectFilter ?? '',
         notes: '',
       });
     });
@@ -292,6 +317,7 @@ export function PayablesTab() {
       discountPercent: percent,
       discountUntil: percent ? form.discountUntil || null : null,
       categoryId: form.categoryId || null,
+      projectId: form.projectId || null,
       notes: form.notes.trim() || null,
       ...(form.id ? {} : { documentId: form.documentId, source: form.source }),
     };
@@ -320,6 +346,7 @@ export function PayablesTab() {
       discountPercent: percentText(p.discountPercent),
       discountUntil: p.discountUntil ?? '',
       categoryId: p.category?.id ?? '',
+      projectId: p.project?.id ?? '',
       notes: p.notes ?? '',
     });
   };
@@ -483,6 +510,24 @@ export function PayablesTab() {
                 ))}
               </select>
             </label>
+            {projects.length > 0 && (
+              <label className="field" style={{ flex: '2 1 240px' }}>
+                <span>Projekt (Einkauf/Fremdleistung)</span>
+                <select {...field('projectId')} data-testid="payable-project">
+                  <option value="">– keinem Projekt –</option>
+                  {projects
+                    // abgeschlossene nur, wenn schon zugeordnet
+                    .filter(
+                      (p) => p.status === 'open' || p.status === 'in_progress' || p.id === form.projectId,
+                    )
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {projectLabel(p)}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
             <label className="field" style={{ flex: '2 1 240px' }}>
               <span>IBAN des Lieferanten</span>
               <input {...field('supplierIban')} maxLength={40} />
@@ -517,7 +562,13 @@ export function PayablesTab() {
           </label>
           <button
             className="btn"
-            onClick={() => setForm({ ...EMPTY, invoiceDate: new Date().toLocaleDateString('sv-SE') })}
+            onClick={() =>
+              setForm({
+                ...EMPTY,
+                invoiceDate: new Date().toLocaleDateString('sv-SE'),
+                projectId: projectFilter ?? '',
+              })
+            }
             data-testid="payable-new"
           >
             Ohne Beleg erfassen
@@ -541,6 +592,27 @@ export function PayablesTab() {
           </button>
         ))}
       </div>
+      {projectFilter && (
+        <p className="list-item-meta" data-testid="payable-project-filter">
+          Nur Projekt{' '}
+          {(() => {
+            const p = projects.find((x) => x.id === projectFilter);
+            return p ? projectLabel(p) : '';
+          })()}{' '}
+          ·{' '}
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost"
+            onClick={() => {
+              const next = new URLSearchParams(params);
+              next.delete('projekt');
+              setParams(next, { replace: true });
+            }}
+          >
+            alle anzeigen
+          </button>
+        </p>
+      )}
       {status === 'open' && items && items.length > 0 && (
         <p className="list-item-meta" data-testid="payable-summary">
           {items.length} offen · {formatEuro(openTotal)} zu zahlen
@@ -572,6 +644,14 @@ export function PayablesTab() {
                 ]
                   .filter(Boolean)
                   .join(' · ')}
+                {p.project && (
+                  <>
+                    {' · '}
+                    <Link to={`/projekte/${p.project.id}`} data-testid="payable-project-link">
+                      {projectLabel(p.project)}
+                    </Link>
+                  </>
+                )}
               </div>
               {p.status === 'open' && p.plan && (
                 <div

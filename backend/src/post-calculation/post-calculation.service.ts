@@ -16,6 +16,8 @@ export interface PostCalculationResult {
   orders: number; // Anzahl berücksichtigter Aufträge
   labor: DeviationResult; // in Minuten
   material: DeviationResult; // in Euro (Einkaufspreis-Basis)
+  // dem Projekt zugeordnete Eingangsrechnungen (Einkauf, Fremdleistung), netto
+  purchases: { count: number; net: number };
 }
 
 // Reine, deterministische Funktion (Punkt 14: KI interpretiert, Software
@@ -138,8 +140,17 @@ export class PostCalculationService {
       0,
     );
 
+    // Ist Einkauf: Eingangsrechnungen am Projekt (ohne stornierte), netto –
+    // ohne Nettobetrag zählt der Rechnungsbetrag
+    const payables = await this.prisma.incomingInvoice.findMany({
+      where: { projectId, companyId, status: { not: 'cancelled' } },
+      select: { amount: true, netAmount: true },
+    });
+    const purchasesNet = payables.reduce((sum, p) => sum + Number(p.netAmount ?? p.amount), 0);
+
     return {
       orders: orders.length,
+      purchases: { count: payables.length, net: round2(purchasesNet) },
       labor: calculateDeviation(sumPlannedMinutes(plannedLaborItems), actualMinutes),
       material: calculateDeviation(sumPlannedMaterialCost(plannedMaterialItems), actualMaterialCost),
     };

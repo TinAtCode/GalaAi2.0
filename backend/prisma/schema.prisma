@@ -282,6 +282,7 @@ model Project {
   diary                SiteDiaryEntry[]
   checklists           Checklist[]
   deliveryNotes        DeliveryNote[]
+  payables             IncomingInvoice[]
 
   @@unique([companyId, number])
   @@index([companyId])
@@ -1354,6 +1355,9 @@ model IncomingInvoice {
   paidAmount             Decimal?         @db.Decimal(12, 2)
   bankTransactionId      String?          @unique
   bankTransaction        BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+  // Einkauf/Fremdleistung für ein Projekt (Nachkalkulation)
+  projectId              String?
+  project                Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
   // beim "Wieder öffnen" verworfene Abbuchungen: nicht erneut zuordnen
   rejectedTransactionIds String[]         @default([])
   notes                  String?
@@ -1362,6 +1366,7 @@ model IncomingInvoice {
   updatedAt              DateTime         @updatedAt
 
   @@index([companyId, status])
+  @@index([projectId])
 }
 
 // Lageplan am Projekt: Entwässerung, Leitungen, Flächen, Zäune/Tore/Türen,
