@@ -57,6 +57,11 @@
   --chart-5: #e87ba4;
   --chart-other: #a3a8a2;
 
+  /* Marke gAla (Schriftzug, brand/README.md) */
+  --brand-ink: #1f4a2e;
+  --brand-lawn: #6c9a3c;
+  --brand-stone: #6e6e6e;
+
   /* Sicherheitsabstände für Notches/System-UI (siehe layout/AppShell.tsx) */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -116,6 +121,51 @@
     --chart-4: #c98500;
     --chart-5: #d55181;
     --chart-other: #6b716b;
+  }
+}
+
+/* Erscheinungsbild gAla (data-look="gala", theme/ThemeContext.tsx): Grundfarben
+   kommen über --user-* (Tannengrün, Rasengrün); hier die neutralen Töne mit
+   einem Hauch Grün statt Ocker-Beige, etwas rundere Ecken */
+:root[data-look='gala'] {
+  --color-accent-contrast: #14261a;
+  --color-surface-2: #edf1ea;
+  --color-ink: #17291d;
+  --color-ink-muted: #56615a;
+  --color-border: #dde3d8;
+  --color-border-strong: #c6cfc2;
+  --color-success: #3f7a3a;
+  --radius-small: 10px;
+  --radius-medium: 16px;
+}
+
+:root[data-look='gala'][data-theme='dark'] {
+  --color-background: #111612;
+  --color-surface: #18201a;
+  --color-surface-2: #212a23;
+  --color-ink: #e6ede5;
+  --color-ink-muted: #a0ab9f;
+  --color-border: #2c362e;
+  --color-border-strong: #415043;
+  --color-success: #8fcf88;
+  --brand-ink: #cfe3d2;
+  --brand-lawn: #8cc05a;
+  --brand-stone: #a3a8a2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-look='gala']:not([data-theme='light']) {
+    --color-background: #111612;
+    --color-surface: #18201a;
+    --color-surface-2: #212a23;
+    --color-ink: #e6ede5;
+    --color-ink-muted: #a0ab9f;
+    --color-border: #2c362e;
+    --color-border-strong: #415043;
+    --color-success: #8fcf88;
+    --brand-ink: #cfe3d2;
+    --brand-lawn: #8cc05a;
+    --brand-stone: #a3a8a2;
   }
 }
 

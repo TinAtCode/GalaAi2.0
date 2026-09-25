@@ -505,6 +505,25 @@ a.stat:hover {
   color: var(--color-primary);
 }
 
+/* Marke (brand/Brand.tsx) */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-gala {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.brand-tagline {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--brand-stone);
+}
+
 .login-subtitle {
   color: var(--color-ink-muted);
   margin: 8px 0 24px;
