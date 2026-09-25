@@ -5,6 +5,7 @@ import { formatEuro, parseAmount } from '../../format';
 import { useAiTask } from '../../ai/tasks';
 import { useAuth } from '../../auth/AuthContext';
 import { Category, day } from './shared';
+import { PayableDeliveryNotes } from './PayableDeliveryNotes';
 
 type Status = 'open' | 'paid' | 'cancelled';
 type Reason = 'amount' | 'discount' | 'number' | 'iban' | 'name';
@@ -25,6 +26,8 @@ interface Payable {
   category: { id: string; name: string } | null;
   document: { id: string; fileName: string } | null;
   project: { id: string; number: string | null; title: string } | null;
+  supplier: { id: string; name: string } | null;
+  deliveryNoteCount: number;
   source: 'manual' | 'text' | 'einvoice';
   status: Status;
   paidAt: string | null;
@@ -141,6 +144,8 @@ export function PayablesTab() {
   const [extracted, setExtracted] = useState<Extracted | null>(null);
   // weitere Aktionen einer Zeile (Beleg, Stornieren, Löschen)
   const [more, setMore] = useState<string | null>(null);
+  // Rechnung, deren Lieferscheine gerade zugeordnet werden
+  const [notesFor, setNotesFor] = useState<string | null>(null);
   const [manualPay, setManualPay] = useState<{ id: string; paidAt: string; amount: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -781,6 +786,16 @@ export function PayablesTab() {
                 Wieder öffnen
               </button>
             )}
+            {p.status !== 'cancelled' && (
+              <button
+                className="btn"
+                onClick={() => setNotesFor(notesFor === p.id ? null : p.id)}
+                aria-expanded={notesFor === p.id}
+                data-testid="payable-notes-toggle"
+              >
+                Lieferscheine{p.deliveryNoteCount > 0 ? ` (${p.deliveryNoteCount})` : ''}
+              </button>
+            )}
             {more !== p.id ? (
               <button
                 className="btn"
@@ -832,6 +847,9 @@ export function PayablesTab() {
               </>
             )}
           </div>
+          {notesFor === p.id && (
+            <PayableDeliveryNotes payableId={p.id} onSaved={() => void loadRef.current()} />
+          )}
         </div>
       ))}
     </section>

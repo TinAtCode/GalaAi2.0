@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   StreamableFile,
   UploadedFile,
@@ -21,7 +22,7 @@ import { PERMISSIONS } from '../../common/permissions';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { AuthenticatedUser } from '../../common/authenticated-request';
 import { requiredFile } from '../../common/required-file';
-import { ListPayablesDto, PayPayableDto, UpsertPayableDto } from './payables.dto';
+import { ListPayablesDto, PayPayableDto, SetDeliveryNotesDto, UpsertPayableDto } from './payables.dto';
 import { PayablesService } from './payables.service';
 
 const upload = FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } });
@@ -72,6 +73,21 @@ export class PayablesController {
   @Delete(':id')
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.payables.remove(user.companyId, id);
+  }
+
+  // Lieferscheine zur Rechnung: zugeordnete und Vorschläge
+  @Get(':id/delivery-notes')
+  deliveryNotes(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.payables.deliveryNotes(user.companyId, id);
+  }
+
+  @Put(':id/delivery-notes')
+  setDeliveryNotes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: SetDeliveryNotesDto,
+  ) {
+    return this.payables.setDeliveryNotes(user.companyId, id, dto);
   }
 
   @Post(':id/pay')

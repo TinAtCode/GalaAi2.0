@@ -575,4 +575,145 @@ ${debits
     });
     expect(kept.every((k) => k.projectId === null)).toBe(true);
   });
+
+  it('Lieferscheine: Lieferant erkannt, Vorschläge, Zuordnung übernimmt das Projekt, Konflikte', async () => {
+    const cid = company.companyId;
+    const supplier = await prisma.supplier.create({ data: { companyId: cid, name: 'Kieswerk Ost GmbH' } });
+    const otherSupplier = await prisma.supplier.create({ data: { companyId: cid, name: 'Holzhandel Süd' } });
+    const customer = await prisma.customer.create({ data: { companyId: cid, name: 'Kunde LS' } });
+    const property = await prisma.property.create({
+      data: { companyId: cid, customerId: customer.id, label: 'Garten' },
+    });
+    const project = await prisma.project.create({
+      data: { companyId: cid, propertyId: property.id, title: 'Einfahrt' },
+    });
+    const note = async (
+      noteNumber: string,
+      noteDate: string,
+      supplierId: string,
+      status: 'open' | 'confirmed' = 'confirmed',
+    ) => {
+      const document = await prisma.document.create({
+        data: {
+          companyId: cid,
+          fileName: `${noteNumber}.pdf`,
+          storagePath: `x/${noteNumber}.pdf`,
+          documentType: 'delivery_note',
+        },
+      });
+      return prisma.deliveryNote.create({
+        data: {
+          companyId: cid,
+          documentId: document.id,
+          supplierId,
+          projectId: project.id,
+          noteNumber,
+          noteDate: new Date(`${noteDate}T00:00:00Z`),
+          status,
+        },
+      });
+    };
+    const invoiceDay = today;
+    const before = (days: number) => addCalendarDays(today, -days);
+    const byNumber = await note('LS-0042', before(10), supplier.id);
+    const byDate = await note('LS-0040', before(20), supplier.id);
+    await note('LS-0041', before(5), supplier.id, 'open'); // unbestätigt: kein Vorschlag
+    await note('H-77', before(3), otherSupplier.id); // anderer Lieferant
+
+    const bill = await api()
+      .post('/finance/payables')
+      .set(auth)
+      .send({
+        supplierName: 'KIESWERK OST',
+        invoiceNumber: 'KO-9',
+        invoiceDate: invoiceDay,
+        amount: 500,
+        notes: 'Lieferung laut LS 0042',
+      })
+      .expect(201);
+    expect(bill.body.supplier).toEqual({ id: supplier.id, name: 'Kieswerk Ost GmbH' });
+    expect(bill.body.project).toBeNull();
+
+    const options = await api().get(`/finance/payables/${bill.body.id}/delivery-notes`).set(auth).expect(200);
+    expect(options.body.linked).toEqual([]);
+    expect(options.body.suggestions.map((n: { id: string }) => n.id)).toEqual([byNumber.id, byDate.id]);
+    expect(options.body.suggestions[0].reasons).toContain('number');
+
+    const saved = await api()
+      .put(`/finance/payables/${bill.body.id}/delivery-notes`)
+      .set(auth)
+      .send({ deliveryNoteIds: [byNumber.id, byDate.id] })
+      .expect(200);
+    expect(saved.body.linked).toHaveLength(2);
+    const listed = (await list('open')).find((p) => p.id === bill.body.id) as unknown as {
+      deliveryNoteCount: number;
+      project: { id: string } | null;
+    };
+    expect(listed.deliveryNoteCount).toBe(2);
+    // alle Lieferscheine am selben Projekt → die Rechnung übernimmt es
+    expect(listed.project?.id).toBe(project.id);
+
+    // schon abgerechnet: eine zweite Rechnung bekommt ihn nicht
+    const second = await api()
+      .post('/finance/payables')
+      .set(auth)
+      .send({ supplierName: 'Kieswerk Ost', invoiceNumber: 'KO-10', amount: 50 })
+      .expect(201);
+    await api()
+      .put(`/finance/payables/${second.body.id}/delivery-notes`)
+      .set(auth)
+      .send({ deliveryNoteIds: [byNumber.id] })
+      .expect(409);
+    const unconfirmed = await prisma.deliveryNote.findFirstOrThrow({ where: { noteNumber: 'LS-0041' } });
+    await api()
+      .put(`/finance/payables/${second.body.id}/delivery-notes`)
+      .set(auth)
+      .send({ deliveryNoteIds: [unconfirmed.id] })
+      .expect(400);
+
+    // abwählen gibt ihn frei
+    await api()
+      .put(`/finance/payables/${bill.body.id}/delivery-notes`)
+      .set(auth)
+      .send({ deliveryNoteIds: [byDate.id] })
+      .expect(200);
+    expect(
+      (await prisma.deliveryNote.findUniqueOrThrow({ where: { id: byNumber.id } })).incomingInvoiceId,
+    ).toBeNull();
+
+    // Lieferschein-Liste zeigt „abgerechnet“ (incomingInvoiceId)
+    const notes = (await api().get('/delivery-notes?status=confirmed').set(auth).expect(200)).body as {
+      id: string;
+      incomingInvoiceId: string | null;
+    }[];
+    expect(notes.find((n) => n.id === byDate.id)?.incomingInvoiceId).toBe(bill.body.id);
+
+    // fremde Firma: weder sehen noch zuordnen
+    const other = await createCompany(app, prisma, 'Fremd LS GmbH');
+    const foreign = { Authorization: `Bearer ${other.token}` };
+    await api().get(`/finance/payables/${bill.body.id}/delivery-notes`).set(foreign).expect(404);
+    const foreignBill = await api()
+      .post('/finance/payables')
+      .set(foreign)
+      .send({ supplierName: 'Kieswerk Ost', amount: 5 })
+      .expect(201);
+    expect(foreignBill.body.supplier).toBeNull();
+    await api()
+      .put(`/finance/payables/${foreignBill.body.id}/delivery-notes`)
+      .set(foreign)
+      .send({ deliveryNoteIds: [byNumber.id] })
+      .expect(404);
+    await expect(
+      prisma.deliveryNote.update({
+        where: { id: byNumber.id },
+        data: { incomingInvoiceId: foreignBill.body.id },
+      }),
+    ).rejects.toThrow();
+
+    // Rechnung gelöscht → Lieferscheine wieder frei
+    await api().delete(`/finance/payables/${bill.body.id}`).set(auth).expect(200);
+    expect(
+      (await prisma.deliveryNote.findUniqueOrThrow({ where: { id: byDate.id } })).incomingInvoiceId,
+    ).toBeNull();
+  });
 });

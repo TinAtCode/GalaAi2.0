@@ -22,7 +22,8 @@ import { AI_READ_PROMPT, draftFromAi, jsonFromText } from './ai-read';
 import { AiGatewayService, Caller } from '../../ai-gateway/ai-gateway.service';
 import { imagesForAi } from '../../ai-gateway/images';
 import { plannedPayment } from './schedule';
-import { ListPayablesDto, PayPayableDto, UpsertPayableDto } from './payables.dto';
+import { findSupplier, rankNotes } from './delivery-match';
+import { ListPayablesDto, PayPayableDto, SetDeliveryNotesDto, UpsertPayableDto } from './payables.dto';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 const toDate = (value: string | null | undefined) =>
@@ -33,6 +34,8 @@ type Row = IncomingInvoice & {
   category?: { id: string; name: string } | null;
   document?: { id: string; fileName: string } | null;
   project?: { id: string; number: string | null; title: string } | null;
+  supplier?: { id: string; name: string } | null;
+  _count?: { deliveryNotes: number };
 };
 type UploadedFile = { originalname: string; buffer: Buffer; mimetype: string };
 
@@ -81,6 +84,8 @@ export class PayablesService {
       category: p.category ? { id: p.category.id, name: p.category.name } : null,
       document: p.document ? { id: p.document.id, fileName: p.document.fileName } : null,
       project: p.project ? { id: p.project.id, number: p.project.number, title: p.project.title } : null,
+      supplier: p.supplier ? { id: p.supplier.id, name: p.supplier.name } : null,
+      deliveryNoteCount: p._count?.deliveryNotes ?? 0,
       source: p.source,
       status: p.status,
       paidAt: day(p.paidAt),
@@ -95,6 +100,8 @@ export class PayablesService {
     category: { select: { id: true, name: true } },
     document: { select: { id: true, fileName: true } },
     project: { select: { id: true, number: true, title: true } },
+    supplier: { select: { id: true, name: true } },
+    _count: { select: { deliveryNotes: true } },
   } as const;
 
   private async company(companyId: string) {
@@ -310,6 +317,10 @@ export class PayablesService {
       const project = await this.prisma.project.findFirst({ where: { id: dto.projectId, companyId } });
       if (!project) throw new NotFoundException('Projekt nicht gefunden.');
     }
+    if (dto.supplierId) {
+      const supplier = await this.prisma.supplier.findFirst({ where: { id: dto.supplierId, companyId } });
+      if (!supplier) throw new NotFoundException('Lieferant nicht gefunden.');
+    }
     if (dto.documentId) {
       // nur Belege aus "Beleg einlesen", keine Projektdokumente
       const document = await this.prisma.document.findFirst({
@@ -337,6 +348,7 @@ export class PayablesService {
       ...set('discountUntil', (v) => toDate(v)),
       ...set('categoryId', (v) => v),
       ...set('projectId', (v) => v),
+      ...set('supplierId', (v) => v),
       ...set('notes', (v) => v.trim() || null),
     };
   }
@@ -371,6 +383,9 @@ export class PayablesService {
           supplierName: dto.supplierName.trim(),
           amount: dto.amount,
           ...this.data(dto),
+          ...(dto.supplierId === undefined
+            ? { supplierId: await this.resolveSupplier(companyId, dto.supplierName) }
+            : {}),
           documentId: dto.documentId ?? null,
           source: dto.source ?? 'manual',
           createdByUserId: userId,
@@ -411,9 +426,112 @@ export class PayablesService {
         );
       }
     }
+    // neuer Name ohne gewählten Lieferanten: Lieferant neu erkennen
+    const supplier =
+      dto.supplierName !== undefined && dto.supplierId === undefined
+        ? { supplierId: await this.resolveSupplier(companyId, dto.supplierName) }
+        : {};
     // Beleg und Herkunft bleiben wie beim Erfassen (data() übernimmt sie nicht)
-    await this.prisma.incomingInvoice.updateMany({ where: { id, companyId }, data: this.data(dto) });
+    await this.prisma.incomingInvoice.updateMany({
+      where: { id, companyId },
+      data: { ...this.data(dto), ...supplier },
+    });
     return this.view(await this.findRow(companyId, id));
+  }
+
+  // Lieferant aus den Stammdaten zum Namen auf der Rechnung (nur eindeutig)
+  private async resolveSupplier(companyId: string, supplierName: string) {
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { companyId, active: true },
+      select: { id: true, name: true, matchTerms: true },
+    });
+    return findSupplier(supplierName, suppliers);
+  }
+
+  // Lieferscheine zur Rechnung: zugeordnete und Vorschläge (bestätigt, noch
+  // nicht abgerechnet, vom selben Lieferanten – ohne Lieferant nur mit der
+  // Lieferscheinnummer im Text der Rechnung)
+  async deliveryNotes(companyId: string, id: string) {
+    const row = await this.findRow(companyId, id);
+    const select = {
+      id: true,
+      noteNumber: true,
+      noteDate: true,
+      supplier: { select: { id: true, name: true } },
+      project: { select: { id: true, number: true, title: true } },
+    } as const;
+    const [linked, open, document] = await Promise.all([
+      this.prisma.deliveryNote.findMany({
+        where: { companyId, incomingInvoiceId: id },
+        orderBy: [{ noteDate: 'asc' }, { createdAt: 'asc' }],
+        select,
+      }),
+      this.prisma.deliveryNote.findMany({
+        where: {
+          companyId,
+          status: 'confirmed',
+          incomingInvoiceId: null,
+          ...(row.supplierId ? { supplierId: row.supplierId } : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+        select,
+      }),
+      row.documentId
+        ? this.prisma.document.findFirst({
+            where: { id: row.documentId, companyId },
+            select: { ocrText: true },
+          })
+        : null,
+    ]);
+    const text = [row.invoiceNumber, row.notes, document?.ocrText].filter(Boolean).join('\n');
+    const byId = new Map(open.map((n) => [n.id, n]));
+    const ranked = rankNotes(
+      { invoiceDate: day(row.invoiceDate), text },
+      open.map((n) => ({ id: n.id, noteNumber: n.noteNumber, noteDate: day(n.noteDate) })),
+    ).filter((n) => row.supplierId || n.reasons.includes('number'));
+    const noteView = (n: (typeof open)[number]) => ({ ...n, noteDate: day(n.noteDate) });
+    return {
+      linked: linked.map(noteView),
+      suggestions: ranked.slice(0, 30).map((r) => ({ ...noteView(byId.get(r.id)!), reasons: r.reasons })),
+    };
+  }
+
+  // Lieferscheine genau auf diese Auswahl setzen. Gehören alle zum selben
+  // Projekt und hat die Rechnung noch keins, übernimmt sie dieses Projekt.
+  async setDeliveryNotes(companyId: string, id: string, dto: SetDeliveryNotesDto) {
+    const row = await this.findRow(companyId, id);
+    const ids = [...new Set(dto.deliveryNoteIds)];
+    const notes = await this.prisma.deliveryNote.findMany({
+      where: { id: { in: ids }, companyId },
+      select: { id: true, status: true, projectId: true, incomingInvoiceId: true },
+    });
+    if (notes.length !== ids.length) throw new NotFoundException('Lieferschein nicht gefunden.');
+    if (notes.some((n) => n.status !== 'confirmed'))
+      throw new BadRequestException('Nur bestätigte Lieferscheine lassen sich einer Rechnung zuordnen.');
+    if (notes.some((n) => n.incomingInvoiceId && n.incomingInvoiceId !== id))
+      throw new ConflictException('Ein Lieferschein ist schon mit einer anderen Rechnung abgerechnet.');
+    const projects = [...new Set(notes.map((n) => n.projectId).filter((p): p is string => !!p))];
+    await this.prisma.$transaction(async (tx) => {
+      await tx.deliveryNote.updateMany({
+        where: { companyId, incomingInvoiceId: id, id: { notIn: ids } },
+        data: { incomingInvoiceId: null },
+      });
+      // nur noch freie übernehmen – gleichzeitig vergebene bleiben bei der anderen Rechnung
+      const { count } = await tx.deliveryNote.updateMany({
+        where: {
+          companyId,
+          id: { in: ids },
+          OR: [{ incomingInvoiceId: null }, { incomingInvoiceId: id }],
+        },
+        data: { incomingInvoiceId: id },
+      });
+      if (count !== ids.length)
+        throw new ConflictException('Ein Lieferschein ist schon mit einer anderen Rechnung abgerechnet.');
+      if (!row.projectId && projects.length === 1)
+        await tx.incomingInvoice.updateMany({ where: { id, companyId }, data: { projectId: projects[0] } });
+    });
+    return this.deliveryNotes(companyId, id);
   }
 
   // Löschen samt Beleg; die Abbuchung bleibt unverändert im Kontoauszug
