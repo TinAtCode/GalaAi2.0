@@ -6,6 +6,7 @@ import {
   PERMISSIONS,
   PLANNER_PERMISSIONS,
 } from '../common/permissions';
+import { formatDocumentNumber, nextSequenceValue } from '../common/numbering';
 
 // Grunddaten des Musterbetriebs (idempotent): Rechte, Firma, Rollen, Admin,
 // ein Kunde mit Projekt, Artikel und Leistung. Genutzt von `prisma db seed`
@@ -156,7 +157,7 @@ export async function seedBase(prisma: PrismaClient) {
     },
   });
 
-  await prisma.project.upsert({
+  const demoProject = await prisma.project.upsert({
     where: { id: 'demo-project-id' },
     update: {},
     create: {
@@ -166,6 +167,15 @@ export async function seedBase(prisma: PrismaClient) {
       title: 'Terrassenbau Familie Müller',
     },
   });
+  // Projektnummer wie beim Anlegen über die Oberfläche
+  if (!demoProject.number) {
+    const year = new Date().getFullYear();
+    const value = await prisma.$transaction((tx) => nextSequenceValue(tx, company.id, 'project', year));
+    await prisma.project.update({
+      where: { id: demoProject.id },
+      data: { number: formatDocumentNumber('P', year, value) },
+    });
+  }
 
   const schotter = await prisma.article.upsert({
     where: { companyId_articleNumber: { companyId: company.id, articleNumber: 'ART-001' } },

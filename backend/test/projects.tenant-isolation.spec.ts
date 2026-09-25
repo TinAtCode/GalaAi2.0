@@ -9,8 +9,13 @@ function createPrismaMock() {
   const properties = [{ id: 'prop-a', customerId: 'cust-a', customer: customers[0] }];
   const projects = [{ id: 'proj-a', propertyId: 'prop-a', property: properties[0], status: 'open' }];
 
-  return {
-    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+  const mock: any = {
+    // beide Formen: Liste von Abfragen oder Callback (Projektnummer beim Anlegen)
+    $transaction: jest.fn((ops: Promise<unknown>[] | ((tx: unknown) => Promise<unknown>)) =>
+      typeof ops === 'function' ? ops(mock) : Promise.all(ops),
+    ),
+    $queryRaw: jest.fn(() => Promise.resolve([{ lastValue: 1 }])),
+    company: { findUniqueOrThrow: jest.fn(() => Promise.resolve({ timeZone: 'Europe/Berlin' })) },
     customer: {
       findFirst: jest.fn(({ where }: any) =>
         Promise.resolve(customers.find((c) => c.id === where.id && c.companyId === where.companyId) ?? null),
@@ -47,6 +52,7 @@ function createPrismaMock() {
       update: jest.fn(({ where, data }: any) => Promise.resolve({ id: where.id, ...data })),
     },
   };
+  return mock;
 }
 
 describe('Property/Project – Mandantentrennung über mehrere Ebenen', () => {

@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { writeAudit } from '../common/audit';
 import { CreateProjectDto, UpdateProjectDto, UpdateProjectStatusDto } from './dto/project.dto';
 import { contains, pageArgs, SearchQueryDto } from '../common/pagination';
+import { DEFAULT_TIME_ZONE } from '../common/time-zone';
+import { formatDocumentNumber, nextSequenceValue, yearInZone } from '../common/numbering';
 
 @Injectable()
 export class ProjectsService {
@@ -33,6 +35,7 @@ export class ProjectsService {
       ...(term && {
         OR: [
           { title: term },
+          { number: term },
           { property: { label: term } },
           { property: { city: term } },
           { property: { customer: { name: term } } },
@@ -72,8 +75,17 @@ export class ProjectsService {
 
   async create(companyId: string, dto: CreateProjectDto) {
     await this.assertPropertyBelongsToCompany(companyId, dto.propertyId);
-    return this.prisma.project.create({
-      data: { companyId, propertyId: dto.propertyId, title: dto.title },
+    // fortlaufende Projektnummer je Jahr (P-2026-0012), in derselben Transaktion
+    return this.prisma.$transaction(async (tx) => {
+      const company = await tx.company.findUniqueOrThrow({
+        where: { id: companyId },
+        select: { timeZone: true },
+      });
+      const year = yearInZone(new Date(), company.timeZone || DEFAULT_TIME_ZONE);
+      const number = formatDocumentNumber('P', year, await nextSequenceValue(tx, companyId, 'project', year));
+      return tx.project.create({
+        data: { companyId, propertyId: dto.propertyId, title: dto.title, number },
+      });
     });
   }
 

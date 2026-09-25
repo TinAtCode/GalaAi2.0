@@ -10,6 +10,7 @@ import { ContractsSection } from './contracts/ContractsSection';
 import { SiteThread } from './site/SiteThread';
 import { DiarySection } from './site/DiarySection';
 import { ChecklistsSection } from './checklists/ChecklistsSection';
+import { ProjectDeliverySection } from './delivery-notes/ProjectDeliverySection';
 import { Contract } from './contracts/types';
 import { QuoteForm } from './QuoteForm';
 import { MaterialCard, PostCalculationCard } from './ProjectInsights';
@@ -52,6 +53,7 @@ interface Quote {
 interface ProjectInfo {
   id: string;
   title: string;
+  number: string | null;
   status: 'open' | 'in_progress' | 'done' | 'cancelled';
   property: {
     label: string;
@@ -196,6 +198,7 @@ export function ProjectDetailPage() {
     ['rechnungen', 'Rechnungen', showInvoices],
     ['plaene', 'Lagepläne', hasPermission('plan.read')],
     ['dokumente', 'Dokumente', hasPermission('document.read')],
+    ['lieferungen', 'Lieferungen', true],
     ['checklisten', 'Checklisten', hasPermission('site.use')],
     ['bautagebuch', 'Bautagebuch', hasPermission('site.use')],
     ['baustelle', 'Baustelle', hasPermission('site.use')],
@@ -218,6 +221,11 @@ export function ProjectDetailPage() {
             )}
           </div>
           <h2 data-testid="project-heading">{project?.title ?? 'Projekt'}</h2>
+          {project?.number && (
+            <div className="list-item-meta" data-testid="project-number">
+              Projektnummer <strong>{project.number}</strong>
+            </div>
+          )}
           {project && (
             <p className="list-item-meta">
               {project.property.label}
@@ -515,6 +523,12 @@ export function ProjectDetailPage() {
           {projectId && hasPermission('document.read') && (
             <section className="card" id="dokumente">
               <DocumentsSection projectId={projectId} canDelete={hasPermission('document.delete')} />
+            </section>
+          )}
+
+          {projectId && (
+            <section className="card" id="lieferungen">
+              <ProjectDeliverySection projectId={projectId} showNotes={hasPermission('document.read')} />
             </section>
           )}
 

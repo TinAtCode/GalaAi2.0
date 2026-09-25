@@ -21,6 +21,8 @@ interface Supplier {
   name: string;
   email: string | null;
   phone: string | null;
+  customerNumber: string | null;
+  matchTerms: string[];
 }
 interface Machine {
   id: string;
@@ -300,6 +302,13 @@ function SuppliersTab({ canWrite }: { canWrite: boolean }) {
           <div>
             <div className="list-item-name">{s.name}</div>
             {s.email && <div className="list-item-meta">{s.email}</div>}
+            {(s.customerNumber || s.matchTerms.length > 0) && (
+              <div className="list-item-meta">
+                {s.customerNumber && `Unsere Kundennummer: ${s.customerNumber}`}
+                {s.customerNumber && s.matchTerms.length > 0 && ' · '}
+                {s.matchTerms.length > 0 && `erkannt an: ${s.matchTerms.join(', ')}`}
+              </div>
+            )}
           </div>
           {canWrite && (
             <InlineEdit
@@ -308,9 +317,25 @@ function SuppliersTab({ canWrite }: { canWrite: boolean }) {
                 { key: 'name', label: 'Name' },
                 { key: 'email', label: 'E-Mail', type: 'email' },
                 { key: 'phone', label: 'Telefon' },
+                { key: 'customerNumber', label: 'Unsere Kundennummer' },
+                { key: 'matchTerms', label: 'Erkennungswörter für Lieferscheine (mit Komma)' },
               ]}
-              initial={s}
-              onSave={(values) => save(() => api.patch(`/suppliers/${s.id}`, values))}
+              initial={{ ...s, matchTerms: s.matchTerms.join(', ') }}
+              onSave={({ matchTerms, ...values }) =>
+                save(() =>
+                  api.patch(`/suppliers/${s.id}`, {
+                    ...values,
+                    ...(matchTerms !== undefined
+                      ? {
+                          matchTerms: String(matchTerms)
+                            .split(',')
+                            .map((t) => t.trim())
+                            .filter(Boolean),
+                        }
+                      : {}),
+                  }),
+                )
+              }
             />
           )}
         </div>
