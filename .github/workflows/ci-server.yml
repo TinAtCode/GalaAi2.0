@@ -1,0 +1,25 @@
+name: CI - Server-Probe
+
+# Der ganze Weg auf einen Server, ohne Attrappen: die frische Ubuntu-VM des
+# Runners spielt den Server (eigene Registry, SSH, Caddy mit HTTPS) und
+# ops/deploy.sh rollt v1, v2, eine kaputte v3 und --rollback aus.
+# Details: ops/tests/server-probe.sh
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  server-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Server-Probe (Ausrollen per SSH, HTTPS, Update, Rückfall, Rollback)
+        env:
+          SERVER_PROBE: '1'
+        run: bash ops/tests/server-probe.sh

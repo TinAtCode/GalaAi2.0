@@ -7,6 +7,11 @@ Backend weiter. Frontend und API haben so dieselbe Adresse, CORS ist nicht nöti
 Voraussetzungen: Docker mit Compose, 2 GB RAM (Texterkennung), ein Reverse-Proxy
 mit HTTPS davor (z.B. Caddy, Traefik oder ein vorhandener nginx).
 
+Ausprobieren ohne gemieteten Server: `SERVER-TEST.md` (virtuelle Maschine mit Ubuntu auf dem
+eigenen Rechner). Den automatischen Weg – Ausrollen per SSH mit `ops/deploy.sh`, HTTPS davor,
+Update, Rückfall bei einer kaputten Version, `--rollback` – spielt die CI bei jedem Push auf einer
+frischen Ubuntu-VM durch (`ops/tests/server-probe.sh`).
+
 ## Erster Start
 
 ```bash
@@ -59,7 +64,8 @@ Keycloak). Das gilt nur für bestehende, aktive Konten, zugeordnet über die vom
 E-Mail-Adresse. Neue Konten legt weiterhin das Büro an. In `.env.production` eintragen:
 `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` und `OIDC_REDIRECT_URI=https://<Domain>/api/auth/oidc/callback`.
 Für Google bleibt `OIDC_ISSUER` leer. Mit `OIDC_ALLOWED_DOMAINS` lassen sich nur die eigenen
-Adressen zulassen. Die Schritte in der Google Cloud Console stehen in `BUERO.md`, Abschnitt
+Adressen zulassen. Microsoft Entra ID schickt kein `email_verified`: dafür `OIDC_TRUST_EMAIL=1`, nur mit
+mandantengebundenem `OIDC_ISSUER` (Tenant-ID; `common`/`organizations` werden abgelehnt). Die Schritte in der Google Cloud Console stehen in `BUERO.md`, Abschnitt
 „Anmelden mit Google“.
 
 Technisch: Autorisierungscode mit PKCE. State und Nonce liegen signiert in einem kurzlebigen

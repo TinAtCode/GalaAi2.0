@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { writeAudit } from '../common/audit';
 import { addCalendarDays, dayRangeInZone, localDayString, parseDayParam } from '../common/time-zone';
-import { allocateDebtorNumber } from '../customers/debtor-number';
+import { ensureDebtorNumber } from '../customers/debtor-number';
 import { buildBuchungsstapel, buildDebitoren, ExtfBooking } from './extf-writer';
 import { moneyAccounts, revenueAccountFor, revenueAccounts, chargeAccounts } from './revenue-accounts';
 
@@ -15,25 +15,19 @@ const KIND_LABELS = {
 } as const;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-// Kalendertag in der Zeitzone der Firma, als Teile
-function localParts(instant: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(instant);
-  const get = (type: string) => parts.find((p) => p.type === type)!.value;
-  return { year: get('year'), month: get('month'), day: get('day') };
-}
+// Kalendertag in der Zeitzone der Firma als TTMM bzw. TTMMJJJJ
 const ddmm = (instant: Date, tz: string) => {
-  const p = localParts(instant, tz);
-  return `${p.day}${p.month}`;
+  const [, month, day] = localDayString(instant, tz).split('-');
+  return `${day}${month}`;
 };
 const ddmmyyyy = (instant: Date, tz: string) => {
-  const p = localParts(instant, tz);
-  return `${p.day}${p.month}${p.year}`;
+  const [year, month, day] = localDayString(instant, tz).split('-');
+  return `${day}${month}${year}`;
 };
+
+// Viele Kunden ohne Nummer (erster Export aus älteren Daten) brauchen länger
+// als die 5 s Standard einer Prisma-Transaktion
+const LONG_TRANSACTION = { timeout: 60_000, maxWait: 10_000 };
 
 // Buchungsstapel der Ausgangsrechnungen für den Steuerberater (DATEV-Format
 // EXTF). Jede ausgestellte Rechnung wird eine Buchung Debitor an Erlöskonto
@@ -103,22 +97,8 @@ export class DatevService {
       // Kunden ohne Debitorennummer (z.B. aus älteren Datenbeständen) bekommen jetzt eine
       const debtorOf = new Map<string, number>();
       for (const customer of customers) {
-        if (debtorOf.has(customer.id)) continue;
-        let number = customer.debtorNumber;
-        if (number === null) {
-          // Nur setzen, wenn noch leer: ein gleichzeitiger Export könnte die
-          // Nummer schon vergeben haben – dann gilt dessen Nummer.
-          await tx.customer.updateMany({
-            where: { id: customer.id, companyId, debtorNumber: null },
-            data: { debtorNumber: await allocateDebtorNumber(tx, companyId) },
-          });
-          const stored = await tx.customer.findFirstOrThrow({
-            where: { id: customer.id, companyId },
-            select: { debtorNumber: true },
-          });
-          number = stored.debtorNumber!;
-        }
-        debtorOf.set(customer.id, number);
+        if (!debtorOf.has(customer.id))
+          debtorOf.set(customer.id, await ensureDebtorNumber(tx, companyId, customer));
       }
 
       const bookings: ExtfBooking[] = [];
@@ -210,7 +190,7 @@ export class DatevService {
         fileName: `EXTF_Buchungsstapel_${compact(from)}_${compact(to)}.csv`,
         count: bookings.length,
       };
-    });
+    }, LONG_TRANSACTION);
   }
 
   // Debitoren-Stammdaten für DATEV: alle Kunden (Standard) oder nur die mit
@@ -236,6 +216,13 @@ export class DatevService {
             }
           : {}),
       },
+      include: {
+        properties: {
+          where: { OR: [{ street: { not: null } }, { city: { not: null } }] },
+          select: { street: true, postalCode: true, city: true },
+          take: 1,
+        },
+      },
       orderBy: [{ debtorNumber: 'asc' }, { createdAt: 'asc' }],
     });
     if (customers.length === 0) {
@@ -246,20 +233,17 @@ export class DatevService {
     return this.prisma.$transaction(async (tx) => {
       const debtors = [];
       for (const customer of customers) {
-        let number = customer.debtorNumber;
-        if (number === null) {
-          await tx.customer.updateMany({
-            where: { id: customer.id, companyId, debtorNumber: null },
-            data: { debtorNumber: await allocateDebtorNumber(tx, companyId) },
-          });
-          number = (
-            await tx.customer.findFirstOrThrow({
-              where: { id: customer.id, companyId },
-              select: { debtorNumber: true },
-            })
-          ).debtorNumber!;
-        }
-        debtors.push({ ...customer, account: number });
+        const account = await ensureDebtorNumber(tx, companyId, customer);
+        // ohne eigene Rechnungsanschrift: Anschrift des Objekts (wie auf der Rechnung)
+        const address =
+          customer.street || customer.postalCode || customer.city ? customer : customer.properties[0];
+        debtors.push({
+          ...customer,
+          street: address?.street ?? null,
+          postalCode: address?.postalCode ?? null,
+          city: address?.city ?? null,
+          account,
+        });
       }
       debtors.sort((a, b) => a.account - b.account);
       const year = new Date().getFullYear();
@@ -285,6 +269,6 @@ export class DatevService {
         newData: { kind: 'debtors', count: debtors.length } as Prisma.InputJsonValue,
       });
       return { buffer, fileName: 'EXTF_Debitoren.csv', count: debtors.length };
-    });
+    }, LONG_TRANSACTION);
   }
 }

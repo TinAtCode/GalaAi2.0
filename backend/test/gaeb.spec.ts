@@ -101,7 +101,7 @@ describe('GAEB DA XML', () => {
     expect(back.info.categories['03']).toBe('Zusätzliche Positionen');
     expect(back.info.phase).toBe('84');
     expect(xml).toMatch(
-      /<Item RNoPart="0010">\s*<Qty>125\.500<\/Qty>\s*<QU>m2<\/QU>\s*<UP>4\.20<\/UP>\s*<IT>527\.10<\/IT>/,
+      /<Item ID="I\d+" RNoPart="0010">\s*<Qty>125\.500<\/Qty>\s*<QU>m2<\/QU>\s*<UP>4\.20<\/UP>\s*<IT>527\.10<\/IT>/,
     );
   });
 
@@ -133,5 +133,65 @@ describe('GAEB DA XML', () => {
     }).toString('utf8');
     expect(parseGaeb(xml).items.map((i) => i.oz)).toEqual(['0010', '0020']);
     expect(xml).toContain('<LblPrj>Garten Müller</LblPrj>');
+  });
+
+  it('Bedarfsposition mit Gesamtbetrag (WithTotal) ist eine normale Position', () => {
+    const xml = lv.toString('utf8').replace('<Provis>WithoutTotal</Provis>', '<Provis>WithTotal</Provis>');
+    const { items, skipped } = parseGaeb(xml);
+    expect(items.map((i) => i.oz)).toContain('01.0030');
+    expect(skipped.map((s) => s.oz)).not.toContain('01.0030');
+  });
+
+  it('X84: IDs für BoQ, Titel und Positionen; freie OZ auch bei Buchstaben-OZ und vollem Bereich', () => {
+    const line = (gaebOz: string | null) => ({
+      gaebOz,
+      description: 'X',
+      unit: 'm',
+      quantity: d(1),
+      unitPrice: d(1),
+      lineTotal: d(1),
+    });
+    const flat = {
+      projectName: null,
+      projectLabel: null,
+      boqName: null,
+      boqLabel: null,
+      categories: {},
+      phase: '83',
+    };
+    const xml = buildX84({
+      info: { ...flat, levels: [{ type: 'Item', length: 4 }] },
+      quoteNumber: 'A-1',
+      projectTitle: 'P',
+      bidder: { name: 'F' },
+      createdAt: new Date('2026-09-25T10:00:00Z'),
+      lines: [line('001A'), line('0020'), line(null)],
+    }).toString('utf8');
+    expect(xml).not.toContain('NaN');
+    expect(xml).toMatch(/<BoQ ID="B\d+">/);
+    expect(xml).toMatch(/<Item ID="I\d+" RNoPart="0030">/);
+    const ids = [...xml.matchAll(/ ID="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    // letzte OZ 9990: Zehnerschritte passen nicht mehr → Einerschritte
+    const full = buildX84({
+      info: { ...flat, levels: [{ type: 'Item', length: 4 }] },
+      quoteNumber: 'A-1',
+      projectTitle: 'P',
+      bidder: { name: 'F' },
+      createdAt: new Date('2026-09-25T10:00:00Z'),
+      lines: [line('9990'), line(null)],
+    }).toString('utf8');
+    expect(full).toContain('RNoPart="9991"');
+    expect(() =>
+      buildX84({
+        info: { ...flat, levels: [{ type: 'Item', length: 4 }] },
+        quoteNumber: 'A-1',
+        projectTitle: 'P',
+        bidder: { name: 'F' },
+        createdAt: new Date('2026-09-25T10:00:00Z'),
+        lines: [line('9999'), line(null)],
+      }),
+    ).toThrow(/keine Ordnungszahl mehr frei/);
   });
 });

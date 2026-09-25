@@ -78,6 +78,11 @@ describe('OIDC: ID-Token prüfen', () => {
     expect(code(() => verifiedEmail({ ...claims, email_verified: false }, []))).toBe('email');
     expect(code(() => verifiedEmail({ ...claims, email: undefined }, []))).toBe('email');
     expect(code(() => verifiedEmail(claims, ['andere.de']))).toBe('domain');
+    // Microsoft ohne email_verified: nur mit OIDC_TRUST_EMAIL; „false“ gilt nie
+    const noClaim = { ...claims, email_verified: undefined };
+    expect(code(() => verifiedEmail(noClaim, []))).toBe('email');
+    expect(verifiedEmail(noClaim, [], true)).toBe('chef@firma.de');
+    expect(code(() => verifiedEmail({ ...claims, email_verified: false }, [], true))).toBe('email');
   });
 });
 
