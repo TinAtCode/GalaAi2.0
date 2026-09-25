@@ -2,7 +2,11 @@
 # Rauchtest für GartenAI im Büro (docker-compose.buero.yml): Start wie auf dem
 # Rechner im Büro über ops/buero/start.sh, dann von außen: eigene Geheimnisse,
 # HTTPS mit eigener Zertifizierungsstelle, Ersteinrichtung nur mit Code,
-# Anmeldung, automatische Sicherung, Sofort-Sicherung und Zurückspielen.
+# Anmeldung, automatische Sicherung, Sofort-Sicherung und Zurückspielen,
+# Beenden und neu Starten, Neustart von Docker (wie nach dem Hochfahren) und
+# das Update. Ist Playwright installiert (frontend/node_modules), läuft die
+# Checkliste BUERO-TEST.md im Browser mit (frontend/tests/buero): Einrichtung,
+# Zugänge je Rolle, alle Bereiche, Handy mit installierbarer App ohne Netz.
 # Aufruf im Projektordner: bash ops/tests/buero-smoke.sh  (räumt am Ende auf)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -37,7 +41,23 @@ setup() {
     -d "{\"code\":\"$1\",\"companyName\":\"Grün & Stein GmbH\",\"email\":\"clara@gruen-stein.de\",\"password\":\"ein-langes-passwort\",\"firstName\":\"Clara\",\"lastName\":\"Stein\"}"
 }
 [ "$(setup FALSCH-00)" = 403 ] || fail "Einrichtung mit falschem Code"
-[ "$(setup "$CODE")" = 201 ] || fail "Ersteinrichtung"
+if [ -x frontend/node_modules/.bin/playwright ]; then
+  # In der CI das Stammzertifikat im Browser installieren wie auf dem Büro-Rechner
+  # (nie auf dem eigenen Rechner: das würde dessen Zertifikatsspeicher ändern)
+  TRUSTED=0
+  if [ -n "${CI:-}" ] && command -v certutil >/dev/null 2>&1; then
+    mkdir -p "$HOME/.pki/nssdb"
+    [ -f "$HOME/.pki/nssdb/cert9.db" ] || certutil -d "sql:$HOME/.pki/nssdb" -N --empty-password
+    certutil -d "sql:$HOME/.pki/nssdb" -A -t 'C,,' -n 'GartenAI Buero CA' -i "$CA"
+    TRUSTED=1
+  fi
+  LAN=$(cut -d' ' -f1 <ops/buero/certs/ips)
+  (cd frontend && BUERO_SETUP_CODE="$CODE" BUERO_CA_TRUSTED="$TRUSTED" BUERO_LAN_URL="${LAN:+https://$LAN:8443}" \
+    npx playwright test -c playwright.buero.config.ts) || fail "Checkliste im Browser"
+  echo "✓ Checkliste im Browser (Einrichtung, Rollen, alle Bereiche, Handy)"
+else
+  [ "$(setup "$CODE")" = 201 ] || fail "Ersteinrichtung"
+fi
 [ "$(setup "$CODE")" = 403 ] || fail "zweite Einrichtung nicht gesperrt"
 login() {
   curl -fsS --cacert "$CA" -X POST "$BASE/auth/login" -H 'Content-Type: application/json' \
@@ -70,6 +90,51 @@ names=$(curl -fsS --cacert "$CA" -H "Authorization: Bearer $TOKEN" "$BASE/custom
 grep -q 'Familie Sicher' <<<"$names" || fail "Kunde aus der Sicherung fehlt: $names"
 if grep -q 'Nach der Sicherung' <<<"$names"; then fail "Zurückspielen hat nichts ersetzt"; fi
 echo "✓ Zurückspielen"
+
+customers() { curl -fsS --cacert "$CA" -H "Authorization: Bearer $1" "$BASE/customers" | json 'JSON.stringify(v.items ?? v)'; }
+healthy() {
+  for _ in $(seq 1 90); do curl -fsS --cacert "$CA" -o /dev/null "$BASE/health" 2>/dev/null && return 0; sleep 2; done
+  return 1
+}
+still_there() {
+  healthy || fail "$1: GartenAI antwortet nicht"
+  TOKEN=$(login) || fail "$1: Anmeldung"
+  grep -q 'Familie Sicher' <<<"$(customers "$TOKEN")" || fail "$1: Daten fehlen"
+  [ "$(curl -fsS --cacert "$CA" "$BASE/setup/status" | json 'v.needed')" = false ] || fail "$1: fragt wieder nach der Einrichtung"
+}
+
+# E5: beenden und wieder starten
+ops/buero/stop.sh
+ops/buero/start.sh
+still_there "Beenden und Starten"
+echo "✓ Beenden und Starten, Daten unverändert"
+
+# E4: Rechner neu gestartet – Docker startet neu, GartenAI kommt ohne Zutun wieder
+if [ -n "${CI:-}" ] && command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+  sudo systemctl restart docker
+  still_there "Neustart von Docker"
+  echo "✓ nach dem Neustart von Docker ohne Zutun erreichbar"
+fi
+
+# E6: Update – sichert zuerst, holt die neue Version (hier: keine neuere) und startet
+if [ -n "${CI:-}" ]; then
+  # update.sh braucht einen Zweig mit Upstream; die CI hat nur einen losgelösten Stand
+  UPSTREAM=$(mktemp -d)/upstream.git
+  git checkout -q -B buero-update-test
+  git clone -q --bare . "$UPSTREAM"
+  git remote add buero-upstream "$UPSTREAM"
+  git fetch -q buero-upstream
+  git branch -q -u buero-upstream/buero-update-test
+fi
+count() { find backups/buero -mindepth 1 -maxdepth 1 -type d -name '20*' ! -name '*.tmp' | wc -l; }
+before=$(count)
+sleep 1 # neue Sicherung bekommt einen neuen Zeitstempel
+if [ -n "${CI:-}" ] || git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+  ops/buero/update.sh
+  [ "$(count)" -gt "$before" ] || fail "Update hat vorher nicht gesichert"
+  still_there "Update"
+  echo "✓ Update: erst gesichert, danach mit allen Daten wieder da"
+fi
 
 # dasselbe mit dem Windows-Skript (restore.cmd → restore.ps1), wenn PowerShell da ist
 if command -v pwsh >/dev/null 2>&1; then

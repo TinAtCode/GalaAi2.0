@@ -11,7 +11,7 @@ on:
 jobs:
   docker:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -42,6 +42,22 @@ jobs:
       # Cloud-Sicherung: verschlüsselt spiegeln und zurückholen (rclone, lokaler Ordner als Cloud)
       - name: Cloud-Sicherung
         run: bash ops/tests/cloud-sync.test.sh
-      # GartenAI im Büro (ein Rechner, echte Daten): Ersteinrichtung, Sicherung, Zurückspielen
+      # Browser für die Checkliste BUERO-TEST.md; certutil installiert darin das
+      # Stammzertifikat der Büro-CA wie auf dem Büro-Rechner
+      - name: Browser für den Büro-Test
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends libnss3-tools
+      # GartenAI im Büro (ein Rechner, echte Daten): Ersteinrichtung und Checkliste im
+      # Browser, Sicherung, Zurückspielen, Beenden/Starten, Neustart von Docker, Update
       - name: Rauchtest Büro
         run: bash ops/tests/buero-smoke.sh
+      - name: Browser-Bericht Büro
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: buero-playwright
+          path: frontend/test-results/
+          if-no-files-found: ignore
