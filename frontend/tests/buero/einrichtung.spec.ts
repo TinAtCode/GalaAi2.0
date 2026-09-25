@@ -182,9 +182,12 @@ test('C1–C5: Handy im WLAN – Mitarbeiter, installierbare App, ohne Netz', as
   const phoneErrors = watchErrors(phone);
   await login(phone, TEAM[2].email, TEAM_PASSWORD);
   await expect(phone.getByTestId('nav-site')).toBeVisible();
-  const manifest = await phone.request.get('/manifest.webmanifest');
-  expect(manifest.ok()).toBe(true);
-  expect((await manifest.json()).display).toBe('standalone');
+  // im Browser laden (vertraut dem installierten Stammzertifikat, Node nicht)
+  const manifest = await phone.evaluate(async () => {
+    const response = await fetch('/manifest.webmanifest');
+    return { ok: response.ok, display: ((await response.json()) as { display?: string }).display };
+  });
+  expect(manifest).toEqual({ ok: true, display: 'standalone' });
 
   // App-Dateien im Service Worker, dann ohne Netz neu öffnen
   await phone.evaluate(() => navigator.serviceWorker.ready);
