@@ -5,8 +5,10 @@ import { OCR_SLOT_STORE, OcrQueue, PrismaSlotStore } from './ocr-queue';
 import { OcrJobsService } from './ocr-jobs.service';
 import { IMAGE_OCR_ENGINE } from './engine/image-ocr-engine.interface';
 import { TesseractOcrEngine } from './engine/tesseract-ocr.engine';
+import { DeliveryNotesModule } from '../delivery-notes/delivery-notes.module';
 
 @Module({
+  imports: [DeliveryNotesModule],
   controllers: [OcrController],
   providers: [
     OcrService,

@@ -69,8 +69,10 @@ export class ReportDamageDto {
   @IsEnum(DamageSeverity)
   severity!: DamageSeverity;
 
+  // keine UUID-Pflicht: die Demo-Daten haben sprechende IDs (demo-project-id)
   @IsOptional()
-  @IsUUID()
+  @IsString()
+  @MaxLength(64)
   projectId?: string | null;
 }
 
