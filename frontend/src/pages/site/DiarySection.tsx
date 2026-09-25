@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../../api/client';
 
 type Weather = 'sunny' | 'cloudy' | 'rain' | 'snow' | 'frost' | 'storm' | 'heat';
@@ -99,15 +99,19 @@ export function DiarySection({ projectId, compact }: { projectId: string; compac
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Beim ersten Laden Formular und Liste im selben Schritt setzen: sonst erscheint das Formular
-  // kurz leer und überschreibt danach, was schon eingetippt wurde
+  // Das Formular nur einmal aus dem ersten Laden füllen, im selben Schritt wie die Liste:
+  // eine spätere Antwort (z.B. doppeltes Laden) darf Eingaben nicht überschreiben
+  const formFilledFor = useRef<string | null>(null);
   const load = useCallback(
     (initForm = false) =>
       api
         .get<Diary>(`/projects/${projectId}/diary`)
         .then((d) => {
           setDiary(d);
-          if (initForm) setForm(formOf(d.entries.find((e) => e.day === localToday())));
+          if (initForm && formFilledFor.current !== projectId) {
+            formFilledFor.current = projectId;
+            setForm(formOf(d.entries.find((e) => e.day === localToday())));
+          }
           return d;
         })
         .catch(() => null),
