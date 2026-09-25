@@ -102,7 +102,7 @@ export function DeliveryNotesPage() {
         </label>
       </header>
       <p className="list-item-meta">
-        GartenAI liest den Lieferschein und schlägt Lieferant und Projekt vor: an der Projektnummer (P-…), der
+        Die App liest den Lieferschein und schlägt Lieferant und Projekt vor: an der Projektnummer (P-…), der
         Lieferadresse oder der Kommission. Bitte prüfen und bestätigen – dann hängt der Lieferschein am
         Projekt. Tipp: Den Lieferanten die Projektnummer vorab mitteilen (im Projekt „Lieferanten
         informieren“).

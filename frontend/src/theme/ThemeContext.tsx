@@ -21,7 +21,7 @@ export const LOOKS: Record<Look, { name: string; defaults: ThemeColors }> = {
   gala: { name: 'gAla', defaults: { primary: '#1f4a2e', accent: '#6c9a3c', background: '#f4f6f2' } },
 };
 
-export const DEFAULT_THEME: ThemeColors = LOOKS.gartenai.defaults;
+export const DEFAULT_THEME: ThemeColors = LOOKS.gala.defaults;
 
 // eigene Farben je Erscheinungsbild getrennt gespeichert
 const STORAGE_KEY: Record<Look, string> = { gartenai: 'gartenai.theme', gala: 'gartenai.theme-gala' };
@@ -49,7 +49,7 @@ function applyThemeToDocument(theme: ThemeColors, mode: ThemeMode, look: Look) {
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.primary);
   document
     .querySelector('link[rel="icon"]')
-    ?.setAttribute('href', look === 'gala' ? '/gala-mark.svg' : '/icon.svg');
+    ?.setAttribute('href', look === 'gala' ? '/gala-icon.svg' : '/icon.svg');
   root.style.setProperty('--user-primary', theme.primary);
   root.style.setProperty('--user-accent', theme.accent);
   root.style.setProperty('--user-background', theme.background);
@@ -83,8 +83,9 @@ function loadStoredTheme(look: Look): ThemeColors {
   }
 }
 
+// Standard ist gAla; GartenAI bleibt in den Einstellungen wählbar
 function loadStoredLook(): Look {
-  return read(LOOK_KEY) === 'gala' ? 'gala' : 'gartenai';
+  return read(LOOK_KEY) === 'gartenai' ? 'gartenai' : 'gala';
 }
 
 function loadStoredMode(): ThemeMode {

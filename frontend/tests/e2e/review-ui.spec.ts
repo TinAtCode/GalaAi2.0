@@ -120,30 +120,33 @@ test.describe('Oberfläche und Querverbindungen', () => {
     await page.getByTestId('theme-mode-dark').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    expect(background).toBe('rgb(20, 23, 21)');
+    // gAla-Dunkelmodus (tokens.css, :root[data-look='gala'][data-theme='dark'])
+    expect(background).toBe('rgb(17, 22, 18)');
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await page.getByTestId('theme-mode-system').click();
     await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.*/);
   });
 
-  test('Erscheinungsbild gAla: Logo, Farben und Titel, eigene Farben je Look', async ({ page }) => {
+  test('Erscheinungsbild: gAla als Standard, GartenAI wählbar, eigene Farben je Look', async ({ page }) => {
     await loginViaUi(page);
     await page.getByTestId('nav-settings').click();
-    await expect(page.getByTestId('brand')).toHaveAttribute('data-look', 'gartenai');
-    await page.getByTestId('look-gala').click();
     await expect(page.locator('html')).toHaveAttribute('data-look', 'gala');
     await expect(page.getByTestId('brand')).toHaveAttribute('data-look', 'gala');
     await expect(page).toHaveTitle('gAla');
-    const primary = await page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue('--user-primary').trim(),
-    );
-    expect(primary).toBe('#1f4a2e');
-    // bleibt nach dem Neuladen, auch auf der Login-Seite
-    await page.reload();
-    await expect(page.locator('html')).toHaveAttribute('data-look', 'gala');
+    const primary = () =>
+      page.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue('--user-primary').trim(),
+      );
+    expect(await primary()).toBe('#1f4a2e');
     await page.getByTestId('look-gartenai').click();
-    await expect(page).toHaveTitle('GartenAI');
     await expect(page.getByTestId('brand')).toHaveAttribute('data-look', 'gartenai');
+    await expect(page).toHaveTitle('GartenAI');
+    expect(await primary()).toBe('#2f4b3c');
+    // bleibt nach dem Neuladen
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-look', 'gartenai');
+    await page.getByTestId('look-gala').click();
+    await expect(page).toHaveTitle('gAla');
   });
 });

@@ -15,7 +15,7 @@ export function VoiceSection() {
       <h3>Sprachbefehle</h3>
       <p>
         Mit dem Mikrofon-Knopf im Menü Bereiche öffnen oder suchen, z.B. „Öffne Plantafel“, „Zeig die
-        Fahrzeuge“, „Suche Müller“, „Projekt P 2026 12“, „Zurück“. GartenAI ordnet die Wörter festen Befehlen
+        Fahrzeuge“, „Suche Müller“, „Projekt P 2026 12“, „Zurück“. Die App ordnet die Wörter festen Befehlen
         zu – ohne KI.
       </p>
       <p className="list-item-meta">
