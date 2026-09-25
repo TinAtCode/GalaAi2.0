@@ -247,6 +247,16 @@ export async function createDemo(
     ...(costPerUnit !== undefined ? { costPerUnit } : {}),
   });
 
+  // Rechnungen in zeitlicher Reihenfolge ausstellen (fortlaufende Nummern)
+  // Weber: fertig abgerechnet, Zahlung überfällig (für offene Posten und Mahnung)
+  const driveOrder = await order(
+    await quote(drive, [
+      free('Betonpflaster 20×10×8 verlegen inkl. Unterbau', 'm²', 64, 72, 41),
+      free('Randeinfassung Tiefbord', 'm', 38, 24, 12),
+    ]),
+  );
+  await issue(driveOrder, 'final', addCalendarDays(today, -45));
+
   // Schneider: Auftrag läuft, Abschlag bezahlt
   const gardenOrder = await order(
     await quote(garden, [
@@ -262,15 +272,6 @@ export async function createDemo(
     paidOn: addCalendarDays(today, -9),
     method: 'bank',
   });
-
-  // Weber: fertig abgerechnet, Zahlung überfällig (für offene Posten und Mahnung)
-  const driveOrder = await order(
-    await quote(drive, [
-      free('Betonpflaster 20×10×8 verlegen inkl. Unterbau', 'm²', 64, 72, 41),
-      free('Randeinfassung Tiefbord', 'm', 38, 24, 12),
-    ]),
-  );
-  await issue(driveOrder, 'final', addCalendarDays(today, -45));
 
   // Café: Angebot verschickt, Antwort offen
   await quote(pond, [
