@@ -13,6 +13,11 @@ const CustomerDetailPage = lazyPage(() => import('./pages/CustomerDetailPage'), 
 const ProjectsPage = lazyPage(() => import('./pages/ProjectsPage'), 'ProjectsPage');
 const PlanBoardPage = lazyPage(() => import('./pages/PlanBoardPage'), 'PlanBoardPage');
 const CalendarPage = lazyPage(() => import('./pages/CalendarPage'), 'CalendarPage');
+const EquipmentPage = lazyPage(() => import('./pages/equipment/EquipmentPage'), 'EquipmentPage');
+const EquipmentDetailPage = lazyPage(
+  () => import('./pages/equipment/EquipmentDetailPage'),
+  'EquipmentDetailPage',
+);
 const ContractsPage = lazyPage(() => import('./pages/contracts/ContractsPage'), 'ContractsPage');
 const OfflinePlansPage = lazyPage(() => import('./pages/OfflinePlansPage'), 'OfflinePlansPage');
 const PlanEditorPage = lazyPage(() => import('./pages/plans/PlanEditorPage'), 'PlanEditorPage');
@@ -52,6 +57,8 @@ export function App() {
         <Route path="vertraege" element={<ContractsPage />} />
         <Route path="plantafel" element={<PlanBoardPage />} />
         <Route path="kalender" element={<CalendarPage />} />
+        <Route path="geraete" element={<EquipmentPage />} />
+        <Route path="geraete/:id" element={<EquipmentDetailPage />} />
         <Route path="baustelle" element={<SitePage />} />
         <Route path="baustelle/:projectId" element={<SiteProjectPage />} />
         <Route path="kunden" element={<CustomersPage />} />

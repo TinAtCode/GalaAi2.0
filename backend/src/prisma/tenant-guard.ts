@@ -46,6 +46,12 @@ export const TENANT_MODELS = new Set([
   'Absence',
   'SiteDiaryEntry',
   'CalendarEvent',
+  'Equipment',
+  'EquipmentDamage',
+  'EquipmentMaintenance',
+  'EquipmentMaintenanceLog',
+  'InventoryCount',
+  'InventoryCountItem',
   'PushSubscription',
   'AiTaskAssignment',
 ]);

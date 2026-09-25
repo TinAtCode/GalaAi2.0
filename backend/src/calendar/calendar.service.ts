@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CalendarEvent } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { EquipmentService } from '../equipment/equipment.service';
 import { PERMISSIONS } from '../common/permissions';
 import { dayRangeInZone, DEFAULT_TIME_ZONE, isValidDay } from '../common/time-zone';
 import { CalendarQueryDto, CreateCalendarEventDto } from './calendar.dto';
@@ -19,7 +20,10 @@ const MAX_DAYS = 62;
 // ändert nur, wem sie gehören – auch der Chef nicht.
 @Injectable()
 export class CalendarService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private equipment: EquipmentService,
+  ) {}
 
   private canWriteCompany(caller: Caller) {
     return caller.permissions.includes(PERMISSIONS.EMPLOYEE_DATA_READ);
@@ -61,7 +65,15 @@ export class CalendarService {
       },
       orderBy: { startTime: 'asc' },
     });
-    return { events: events.map((e) => this.view(e, caller)), canWriteCompany: this.canWriteCompany(caller) };
+    // Fällige Wartungen und Prüfungen der Geräte (wer auf der Baustelle arbeitet)
+    const maintenance = caller.permissions.includes(PERMISSIONS.SITE_USE)
+      ? await this.equipment.maintenanceBetween(caller.companyId, query.from, query.to)
+      : [];
+    return {
+      events: events.map((e) => this.view(e, caller)),
+      maintenance,
+      canWriteCompany: this.canWriteCompany(caller),
+    };
   }
 
   private check(dto: Pick<CreateCalendarEventDto, 'startTime' | 'endTime'>) {

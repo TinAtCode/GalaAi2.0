@@ -60,6 +60,15 @@ export const NAV_ITEMS: NavItem[] = [
     testId: 'nav-contracts',
     group: 'Arbeit',
   },
+  // Geräte und Fahrzeuge: Schäden melden, Wartung, Inventur
+  {
+    to: '/geraete',
+    label: 'Geräte',
+    icon: 'truck',
+    permission: 'site.use',
+    testId: 'nav-equipment',
+    group: 'Arbeit',
+  },
   // Lagepläne auf diesem Gerät (auch ohne Netz)
   {
     to: '/offline',
