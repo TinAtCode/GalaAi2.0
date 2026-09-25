@@ -1,16 +1,30 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { api, ApiError } from '../api/client';
+import { api, ApiError, apiUrl } from '../api/client';
 import { DemoPanel } from './DemoPanel';
 import { FirstSetup } from './FirstSetup';
+
+// Rückmeldungen vom Anmelden über Google/Firmenkonto (?sso=…, auth.controller.ts)
+const SSO_ERRORS: Record<string, string> = {
+  user: 'Zu dieser E-Mail-Adresse gibt es kein aktives Konto. Das Büro muss dich zuerst anlegen – mit derselben E-Mail-Adresse.',
+  email: 'Der Anbieter hat keine bestätigte E-Mail-Adresse übermittelt.',
+  domain: 'Anmeldung mit dieser E-Mail-Domain ist nicht freigegeben.',
+  state: 'Die Anmeldung ist abgelaufen oder wurde in einem anderen Browser begonnen. Bitte erneut versuchen.',
+  config: 'Anmeldung über einen Anbieter ist nicht eingerichtet.',
+};
 
 export function LoginPage() {
   const { login, sessionExpired } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [params] = useSearchParams();
+  const sso = params.get('sso');
+  const [error, setError] = useState<string | null>(
+    sso ? (SSO_ERRORS[sso] ?? 'Anmeldung über den Anbieter fehlgeschlagen. Bitte erneut versuchen.') : null,
+  );
+  const [provider, setProvider] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   // noch kein Zugang eingerichtet (Mini-Vollversion): Ersteinrichtung statt Anmeldung
   const [setupNeeded, setSetupNeeded] = useState(false);
@@ -19,6 +33,10 @@ export function LoginPage() {
       .get<{ needed: boolean }>('/setup/status')
       .then((r) => setSetupNeeded(r.needed))
       .catch(() => setSetupNeeded(false));
+    api
+      .get<{ enabled: boolean; label?: string }>('/auth/oidc')
+      .then((r) => setProvider(r.enabled ? (r.label ?? 'Firmenkonto') : null))
+      .catch(() => setProvider(null));
   }, []);
 
   const signIn = async (loginEmail: string, loginPassword: string) => {
@@ -92,6 +110,14 @@ export function LoginPage() {
             >
               {submitting ? 'Meldet an …' : 'Anmelden'}
             </button>
+            {provider && (
+              <>
+                <div className="login-divider">oder</div>
+                <a className="btn btn-block" href={apiUrl('/auth/oidc/start')} data-testid="login-oidc">
+                  Anmelden mit {provider}
+                </a>
+              </>
+            )}
           </form>
         )}
         <DemoPanel

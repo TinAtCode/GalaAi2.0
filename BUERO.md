@@ -129,6 +129,34 @@ MAIL_FROM=Musterbetrieb GaLaBau <info@musterbetrieb.de>
 
 Ohne Eintrag werden Mails nicht verschickt.
 
+## Anmelden mit Google
+
+Statt mit Passwort können sich Mitarbeiter mit ihrem Google-Konto anmelden. GartenAI legt dabei keine
+Konten an: Angemeldet wird nur, wer im Büro schon als Nutzer angelegt ist, und zwar mit derselben
+E-Mail-Adresse wie bei Google. Das Passwort funktioniert daneben weiter.
+
+1. Die Mini-Vollversion braucht dafür eine Adresse, die Google akzeptiert: eine eigene Domain
+   (z.B. über den Cloudflare-Tunnel) oder einen Tailscale-Namen (`….ts.net`). Reine IP-Adressen
+   lehnt Google ab.
+2. In der [Google Cloud Console](https://console.cloud.google.com/apis/credentials) unter
+   „Anmeldedaten“ eine **OAuth-Client-ID** vom Typ „Webanwendung“ anlegen. Beim ersten Mal fragt
+   Google nach dem „Zustimmungsbildschirm“: Name der Firma eintragen, Typ „Intern“ bei Google
+   Workspace, sonst „Extern“. Als **autorisierte Weiterleitungs-URI** eintragen:
+   `https://<Ihre Adresse>/api/auth/oidc/callback`
+3. Client-ID und Clientschlüssel in `.env.buero` eintragen und neu starten:
+
+```
+OIDC_CLIENT_ID=1234-abc.apps.googleusercontent.com
+OIDC_CLIENT_SECRET=GOCSPX-…
+OIDC_REDIRECT_URI=https://<Ihre Adresse>/api/auth/oidc/callback
+# optional: nur Adressen der eigenen Firma
+OIDC_ALLOWED_DOMAINS=musterbetrieb.de
+```
+
+Auf der Login-Seite erscheint dann „Anmelden mit Google“. Andere Anbieter mit OpenID Connect
+(Microsoft 365, Nextcloud, Keycloak) gehen genauso: zusätzlich `OIDC_ISSUER` setzen (z.B.
+`https://login.microsoftonline.com/<Tenant-ID>/v2.0`) und mit `OIDC_LABEL` den Knopf benennen.
+
 ## Update
 
 `ops/buero/update.sh` sichert zuerst, holt dann die neue Version (bei `git clone`) und baut neu. Die

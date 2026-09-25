@@ -52,6 +52,21 @@ app.musterbetrieb.de {
 sehen die Login-Limits die echte Adresse des Nutzers. Nur für einen kurzen Test
 ohne HTTPS: `COOKIE_SECURE=0`.
 
+## Anmelden mit Google
+
+Optional: Anmelden über Google oder einen anderen OpenID-Connect-Anbieter (Microsoft 365, Nextcloud,
+Keycloak). Das gilt nur für bestehende, aktive Konten, zugeordnet über die vom Anbieter bestätigte
+E-Mail-Adresse. Neue Konten legt weiterhin das Büro an. In `.env.production` eintragen:
+`OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` und `OIDC_REDIRECT_URI=https://<Domain>/api/auth/oidc/callback`.
+Für Google bleibt `OIDC_ISSUER` leer. Mit `OIDC_ALLOWED_DOMAINS` lassen sich nur die eigenen
+Adressen zulassen. Die Schritte in der Google Cloud Console stehen in `BUERO.md`, Abschnitt
+„Anmelden mit Google“.
+
+Technisch: Autorisierungscode mit PKCE. State und Nonce liegen signiert in einem kurzlebigen
+httpOnly-Cookie. Das ID-Token wird über die Schlüssel des Anbieters (JWKS) geprüft, dazu Aussteller,
+Empfänger, Ablauf und Nonce. Nur RS*/ES*-Signaturen werden angenommen. Abgelehnte Anmeldungen landen
+mit Grund auf der Login-Seite (`?sso=user|email|domain|state|token`).
+
 ## Push-Nachrichten
 
 Mitarbeiter schalten auf der Baustellen-Seite „Benachrichtigungen“ ein und bekommen dann eine

@@ -19,6 +19,14 @@ test.describe('Login', () => {
     await expect(page).toHaveURL('/login');
   });
 
+  test('Rückmeldung vom Anmelden mit Google wird erklärt, Knopf nur wenn eingerichtet', async ({ page }) => {
+    await page.goto('/login?sso=user');
+    await expect(page.getByTestId('login-error')).toContainText('kein aktives Konto');
+    // in der Test-Umgebung ist kein Anbieter eingerichtet
+    await expect(page.getByTestId('login-submit')).toBeVisible();
+    await expect(page.getByTestId('login-oidc')).toHaveCount(0);
+  });
+
   test('ohne Login wird man von einer geschützten Seite zum Login umgeleitet', async ({ page }) => {
     await page.goto('/projekte');
     await expect(page).toHaveURL('/login');
