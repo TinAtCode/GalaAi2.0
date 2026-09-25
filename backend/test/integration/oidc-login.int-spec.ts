@@ -73,6 +73,19 @@ describe('Anmelden über OIDC-Anbieter', () => {
     expect(cookie).toMatch(/^gartenai_oidc=/);
   });
 
+  it('State-Cookie ist immer SameSite=Lax, auch bei COOKIE_SAMESITE=strict', async () => {
+    process.env.COOKIE_SAMESITE = 'strict';
+    try {
+      const res = await api().get('/auth/oidc/start').expect(302);
+      const cookie = (res.headers['set-cookie'] as unknown as string[]).find((c) =>
+        c.startsWith('gartenai_oidc='),
+      )!;
+      expect(cookie).toMatch(/SameSite=Lax/i);
+    } finally {
+      delete process.env.COOKIE_SAMESITE;
+    }
+  });
+
   it('bestehendes Konto: Sitzung wird gesetzt, zurück ins Frontend', async () => {
     const res = await flow({ email: email.toUpperCase(), email_verified: true });
     expect(res.headers.location).toBe('https://buero.test/');

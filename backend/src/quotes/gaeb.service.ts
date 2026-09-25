@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { writeAudit } from '../common/audit';
 import { QuotesService } from './quotes.service';
+import { normalizeUnit } from '../common/units';
 import { buildX84, GaebInfo, parseGaeb } from './gaeb';
 
 const normalized = (text: string) => text.toLocaleLowerCase('de-DE').replace(/\s+/g, ' ').trim();
@@ -28,16 +29,17 @@ export class GaebService {
     }
     const services = await this.prisma.service.findMany({
       where: { companyId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, unit: true },
     });
-    const byName = new Map(services.map((s) => [normalized(s.name), s.id]));
+    const byName = new Map(services.map((s) => [normalized(s.name), s]));
     const exact = { roundingDecimals: 3, roundingMode: 'half_up' as const };
     let matched = 0;
     const lineItems = items.map((item) => {
-      const serviceId = byName.get(normalized(item.shortText));
-      if (serviceId) {
+      // Katalogpreis nur bei gleicher Einheit – sonst stimmen Preis und LV nicht überein
+      const service = byName.get(normalized(item.shortText));
+      if (service && normalizeUnit(service.unit) === normalizeUnit(item.unit)) {
         matched++;
-        return { serviceId, gaebOz: item.oz, quantity: item.quantity, ...exact };
+        return { serviceId: service.id, gaebOz: item.oz, quantity: item.quantity, ...exact };
       }
       return {
         gaebOz: item.oz,
@@ -49,15 +51,17 @@ export class GaebService {
       };
     });
     const title = info.boqLabel ?? info.boqName ?? info.projectLabel ?? fileName;
-    const quote = await this.quotes.create(companyId, {
-      projectId,
-      lineItems,
-      introText: `Angebot zum Leistungsverzeichnis „${title}“`.slice(0, 4000),
-    });
-    await this.prisma.quote.update({
-      where: { id: quote.id },
-      data: { gaebInfo: info as unknown as Prisma.InputJsonValue },
-    });
+    // LV-Angaben im selben Schritt wie das Angebot: ohne sie passen die
+    // Ordnungszahlen der Abgabe (X84) nicht mehr zum LV
+    const quote = await this.quotes.create(
+      companyId,
+      {
+        projectId,
+        lineItems,
+        introText: `Angebot zum Leistungsverzeichnis „${title}“`.slice(0, 4000),
+      },
+      { gaebInfo: info as unknown as Prisma.InputJsonValue },
+    );
     await writeAudit(this.prisma, {
       companyId,
       userId,

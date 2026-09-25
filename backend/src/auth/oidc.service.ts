@@ -135,7 +135,11 @@ export class OidcService {
       const { keys } = await this.provider(config, true);
       claims = verifyIdToken(tokens.id_token, keys, expected);
     }
-    const email = verifiedEmail(claims, config.allowedDomains);
+    // Microsoft „common/organizations“: jeder Mandant kann beliebige E-Mails
+    // eintragen – ohne Bestätigung darf so nie eine E-Mail als echt gelten
+    if (config.trustEmail && /\/(common|organizations|consumers)(\/|$)/.test(config.issuer))
+      throw new OidcError('config', 'OIDC_TRUST_EMAIL nur mit mandantengebundenem Aussteller (Tenant-ID).');
+    const email = verifiedEmail(claims, config.allowedDomains, config.trustEmail);
     const session = await this.auth.loginWithVerifiedEmail(email);
     if (!session) {
       this.logger.warn(`Anmeldung über ${config.label} ohne passendes aktives Konto`);

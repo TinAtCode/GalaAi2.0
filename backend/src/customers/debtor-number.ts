@@ -21,3 +21,23 @@ export async function allocateDebtorNumber(tx: Prisma.TransactionClient, company
     if (!taken) return candidate;
   }
 }
+
+// Debitorennummer eines Kunden, bei Bedarf jetzt vergeben (ältere Daten).
+// Nur setzen, wenn noch leer: ein gleichzeitiger Export könnte sie schon
+// vergeben haben – dann gilt dessen Nummer.
+export async function ensureDebtorNumber(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  customer: { id: string; debtorNumber: number | null },
+): Promise<number> {
+  if (customer.debtorNumber !== null) return customer.debtorNumber;
+  await tx.customer.updateMany({
+    where: { id: customer.id, companyId, debtorNumber: null },
+    data: { debtorNumber: await allocateDebtorNumber(tx, companyId) },
+  });
+  const stored = await tx.customer.findFirstOrThrow({
+    where: { id: customer.id, companyId },
+    select: { debtorNumber: true },
+  });
+  return stored.debtorNumber!;
+}

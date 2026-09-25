@@ -193,7 +193,8 @@ export class QuotesService {
   // Ergebnis als Snapshot. Ab hier ist der Preis "eingefroren" – ändert sich
   // später der Artikelpreis oder der Stundensatz der Firma, bleibt dieses
   // Angebot unverändert (siehe Punkt 21 im Ursprungsdokument).
-  async create(companyId: string, dto: CreateQuoteDto) {
+  // extra: Felder, die nicht aus dem Formular kommen (z.B. GAEB-LV-Angaben)
+  async create(companyId: string, dto: CreateQuoteDto, extra: { gaebInfo?: Prisma.InputJsonValue } = {}) {
     await this.assertProjectBelongsToCompany(companyId, dto.projectId);
     const lineItems = await this.buildLineItems(companyId, dto.lineItems);
     const { company, totals } = await this.totals(companyId, lineItems, dto);
@@ -209,6 +210,7 @@ export class QuotesService {
           projectId: dto.projectId,
           number: formatDocumentNumber('A', year, value),
           introText: dto.introText?.trim() || null,
+          ...(extra.gaebInfo !== undefined ? { gaebInfo: extra.gaebInfo } : {}),
           ...totals,
           lineItems: { create: lineItems },
         },

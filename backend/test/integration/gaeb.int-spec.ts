@@ -34,6 +34,9 @@ describe('GAEB-Leistungsverzeichnis', () => {
       .set(auth)
       .send({ name: 'Betonpflaster verlegen', unit: 'm2' });
     await api().post(`/services/${service.body.id}/components`).set(auth).send({ laborMinutes: 30 });
+    // gleicher Name wie im LV, aber andere Einheit (m³ statt m²): darf nicht übernommen werden
+    const other = await api().post('/services').set(auth).send({ name: 'Oberboden abtragen', unit: 'm3' });
+    await api().post(`/services/${other.body.id}/components`).set(auth).send({ laborMinutes: 5 });
   });
 
   afterAll(async () => {
@@ -64,6 +67,8 @@ describe('GAEB-Leistungsverzeichnis', () => {
       ['01.0020', 42, 'm³'],
       ['02.0010', 80, 'm²'],
     ]);
+    // „Oberboden abtragen“ gibt es im Katalog nur in m³ → freie Position in m² mit 0 €
+    expect(quote.lineItems[0].serviceId).toBeNull();
     const paving = quote.lineItems[2];
     expect(paving.serviceId).toBeTruthy();
     expect(Number(paving.unitPrice)).toBeGreaterThan(0);
@@ -123,7 +128,7 @@ describe('GAEB-Leistungsverzeichnis', () => {
       ['03.0010', 10],
     ]);
     expect(xml).toMatch(
-      /<Item RNoPart="0010">\s*<Qty>125\.500<\/Qty>\s*<QU>m2<\/QU>\s*<UP>4\.20<\/UP>\s*<IT>527\.10<\/IT>/,
+      /<Item ID="I\d+" RNoPart="0010">\s*<Qty>125\.500<\/Qty>\s*<QU>m2<\/QU>\s*<UP>4\.20<\/UP>\s*<IT>527\.10<\/IT>/,
     );
     const total = Number(/<\/BoQBody>\s*<Totals><Total>([\d.]+)<\/Total><\/Totals>\s*<\/BoQ>/.exec(xml)![1]);
     expect(total).toBeCloseTo(Number(updated.body.totalNet), 2);
