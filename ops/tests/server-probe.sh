@@ -97,17 +97,23 @@ for v in v1 v2 v3; do docker image rm "$IMAGE-backend:$v" "$IMAGE-frontend:$v" >
 echo "✓ Images v1–v3 in der Registry, Code mit Versionen in origin"
 
 # ── SSH wie beim echten Server ─────────────────────────────────────────────
-if ! command -v sshd >/dev/null 2>&1 && [ ! -x /usr/sbin/sshd ]; then
-  sudo apt-get install -y -qq openssh-server >/dev/null
+if [ ! -x /usr/sbin/sshd ]; then
+  sudo apt-get update -qq && sudo apt-get install -y -qq openssh-server >/dev/null
 fi
+# Runner-Images bringen keine Host-Schlüssel mit – ohne sie startet sshd nicht
+sudo ssh-keygen -A >/dev/null
 sudo mkdir -p /run/sshd
-sudo systemctl start ssh 2>/dev/null || sudo service ssh start >/dev/null 2>&1 || sudo /usr/sbin/sshd
+sudo systemctl restart ssh 2>/dev/null || sudo /usr/sbin/sshd
 ssh-keygen -q -t ed25519 -N '' -f "$KEY"
 install -m 700 -d ~/.ssh
 cat "$KEY.pub" >>~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
-for _ in $(seq 1 20); do ssh-keyscan -q localhost >"$WORK/known_hosts" 2>/dev/null && [ -s "$WORK/known_hosts" ] && break; sleep 1; done
-[ -s "$WORK/known_hosts" ] || fail "sshd antwortet nicht"
+for _ in $(seq 1 20); do ssh-keyscan -q -p 22 localhost >"$WORK/known_hosts" 2>/dev/null && [ -s "$WORK/known_hosts" ] && break; sleep 1; done
+if [ ! -s "$WORK/known_hosts" ]; then
+  sudo /usr/sbin/sshd -t || true
+  sudo systemctl status ssh --no-pager 2>&1 | tail -n 20 || true
+  fail "sshd antwortet nicht"
+fi
 deploy() {
   ssh -i "$KEY" -o BatchMode=yes -o UserKnownHostsFile="$WORK/known_hosts" "$(id -un)@localhost" \
     "cd '$SERVER' && GARTENAI_IMAGE='$IMAGE' HEALTH_TIMEOUT=90 ops/deploy.sh $1"
