@@ -16,3 +16,6 @@ export const parseAmount = (input: string) => {
   const germanThousands = /^\d{1,3}(\.\d{3})+$/.test(value);
   return Number(value.includes(',') || germanThousands ? value.replace(/\./g, '').replace(',', '.') : value);
 };
+
+// "2026-09-25" -> "25.09.2026" (Tagesdatum ohne Zeitzonen-Umrechnung)
+export const formatDay = (iso: string) => iso.slice(0, 10).split('-').reverse().join('.');

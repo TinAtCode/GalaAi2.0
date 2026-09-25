@@ -342,7 +342,7 @@ export function InvoicesSection({ projectId, orderIds }: { projectId: string; or
               </form>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span
               className={`status-badge ${invoice.status === 'issued' ? 'status-done' : invoice.status === 'cancelled' ? 'status-cancelled' : 'status-open'}`}
               data-testid="invoice-status"

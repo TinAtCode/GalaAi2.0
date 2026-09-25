@@ -140,7 +140,9 @@ export class QuotesService {
       companyId,
       {
         projectId,
-        vatRate: Number(source.vatRate),
+        // Satz nur bei normaler USt übernehmen – ein 0 % aus § 19 oder § 13b
+        // würde sonst als "normal mit 0 %" im neuen Angebot landen
+        ...(source.vatTreatment === 'standard' ? { vatRate: Number(source.vatRate) } : {}),
         // Kleinunternehmer ergibt sich aus der Firma, nicht aus dem alten Angebot
         vatTreatment: source.vatTreatment === 'reverse_charge' ? 'reverse_charge' : 'standard',
         ...(source.introText ? { introText: source.introText } : {}),

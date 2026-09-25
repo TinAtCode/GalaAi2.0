@@ -427,9 +427,10 @@ export class PayablesService {
       }
     }
     // neuer Name ohne gewählten Lieferanten: Lieferant neu erkennen
+    const renamed = dto.supplierName !== undefined && dto.supplierName.trim() !== current.supplierName;
     const supplier =
-      dto.supplierName !== undefined && dto.supplierId === undefined
-        ? { supplierId: await this.resolveSupplier(companyId, dto.supplierName) }
+      renamed && dto.supplierId === undefined
+        ? { supplierId: await this.resolveSupplier(companyId, dto.supplierName!) }
         : {};
     // Beleg und Herkunft bleiben wie beim Erfassen (data() übernimmt sie nicht)
     await this.prisma.incomingInvoice.updateMany({
@@ -511,7 +512,9 @@ export class PayablesService {
       throw new BadRequestException('Nur bestätigte Lieferscheine lassen sich einer Rechnung zuordnen.');
     if (notes.some((n) => n.incomingInvoiceId && n.incomingInvoiceId !== id))
       throw new ConflictException('Ein Lieferschein ist schon mit einer anderen Rechnung abgerechnet.');
-    const projects = [...new Set(notes.map((n) => n.projectId).filter((p): p is string => !!p))];
+    // nur wenn wirklich alle Lieferscheine am selben Projekt hängen (Lagerware ohne Projekt
+    // darf die ganze Rechnung nicht einem Projekt zuschlagen)
+    const projects = [...new Set(notes.map((n) => n.projectId))];
     await this.prisma.$transaction(async (tx) => {
       await tx.deliveryNote.updateMany({
         where: { companyId, incomingInvoiceId: id, id: { notIn: ids } },
@@ -528,7 +531,7 @@ export class PayablesService {
       });
       if (count !== ids.length)
         throw new ConflictException('Ein Lieferschein ist schon mit einer anderen Rechnung abgerechnet.');
-      if (!row.projectId && projects.length === 1)
+      if (!row.projectId && projects.length === 1 && projects[0])
         await tx.incomingInvoice.updateMany({ where: { id, companyId }, data: { projectId: projects[0] } });
     });
     return this.deliveryNotes(companyId, id);
@@ -791,7 +794,14 @@ export class PayablesService {
   async cancel(companyId: string, id: string) {
     const row = await this.findRow(companyId, id);
     if (row.status === 'paid') throw new ConflictException('Bezahlte Rechnungen zuerst wieder öffnen.');
-    await this.prisma.incomingInvoice.updateMany({ where: { id, companyId }, data: { status: 'cancelled' } });
+    // stornierte Rechnung rechnet keine Lieferscheine mehr ab – frei für die Ersatzrechnung
+    await this.prisma.$transaction([
+      this.prisma.incomingInvoice.updateMany({ where: { id, companyId }, data: { status: 'cancelled' } }),
+      this.prisma.deliveryNote.updateMany({
+        where: { companyId, incomingInvoiceId: id },
+        data: { incomingInvoiceId: null },
+      }),
+    ]);
     return this.view(await this.findRow(companyId, id));
   }
 

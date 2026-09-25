@@ -115,10 +115,17 @@ export class CustomersService {
         : Promise.resolve(null),
     ]);
     const tz = company.timeZone;
-    // Umsatz je Jahr wie in der Nachkalkulation: ausgestellt, ohne Stornos
+    // Umsatz je Jahr wie in der Nachkalkulation: ausgestellt, ohne Stornos –
+    // aus allen Rechnungen, nicht nur den 200 angezeigten
+    const revenueRows = access.invoices
+      ? await this.prisma.invoice.findMany({
+          where: { ...ofCustomer, status: 'issued', kind: { not: 'cancellation' }, issueDate: { not: null } },
+          select: { issueDate: true, totalNet: true },
+        })
+      : [];
     const byYear = new Map<string, number>();
-    for (const invoice of invoices ?? []) {
-      if (invoice.status !== 'issued' || invoice.kind === 'cancellation' || !invoice.issueDate) continue;
+    for (const invoice of revenueRows) {
+      if (!invoice.issueDate) continue;
       const year = localDayString(invoice.issueDate, tz).slice(0, 4);
       byYear.set(year, (byYear.get(year) ?? 0) + Number(invoice.totalNet));
     }

@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { formatEuro } from '../format';
+import { formatDay, formatEuro } from '../format';
 import { CustomerHistory } from './CustomerHistory';
 
 interface Project {
@@ -74,8 +74,6 @@ interface OpenItem {
   project: { id: string; title: string };
 }
 
-const dayText = (day: string) => day.split('-').reverse().join('.');
-
 // Offene Rechnungen dieses Kunden (nur mit Recht "Rechnungen")
 function CustomerOpenItems({ customerId }: { customerId: string }) {
   const [items, setItems] = useState<OpenItem[] | null>(null);
@@ -121,7 +119,7 @@ function CustomerOpenItems({ customerId }: { customerId: string }) {
                 >
                   {item.daysOverdue > 0
                     ? `seit ${item.daysOverdue} ${item.daysOverdue === 1 ? 'Tag' : 'Tagen'} überfällig`
-                    : `fällig am ${dayText(item.dueDate)}`}
+                    : `fällig am ${formatDay(item.dueDate)}`}
                 </div>
               </div>
               <strong style={{ whiteSpace: 'nowrap' }}>{formatEuro(item.totalOpen)}</strong>

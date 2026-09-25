@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import { formatEuro } from '../format';
+import { formatDay, formatEuro } from '../format';
 
 type ProjectRef = { id: string; number: string | null; title: string };
 
@@ -43,7 +43,6 @@ const INVOICE_KIND: Record<NonNullable<History['invoices']>[number]['kind'], str
   cancellation: 'Storno',
   periodic: 'Pflegevertrag',
 };
-const dayText = (day: string) => day.split('-').reverse().join('.');
 
 // Wie lief es bisher mit dem Kunden? Angebote (mit Annahmequote),
 // Rechnungen und Umsatz je Jahr – vor dem nächsten Angebot auf einen Blick
@@ -104,7 +103,7 @@ export function CustomerHistory({ customerId }: { customerId: string }) {
                   {q.number ?? 'Entwurf'} · {q.project.title}
                 </div>
                 <div className="list-item-meta">
-                  {dayText(q.date)} · {QUOTE_STATUS[q.status]}
+                  {formatDay(q.date)} · {QUOTE_STATUS[q.status]}
                 </div>
               </div>
               {q.totalNet !== null && <span style={{ whiteSpace: 'nowrap' }}>{formatEuro(q.totalNet)}</span>}
@@ -130,7 +129,7 @@ export function CustomerHistory({ customerId }: { customerId: string }) {
                   {i.number ?? 'Rechnung'} · {i.project.title}
                 </div>
                 <div className="list-item-meta">
-                  {i.date ? `${dayText(i.date)} · ` : ''}
+                  {i.date ? `${formatDay(i.date)} · ` : ''}
                   {INVOICE_KIND[i.kind]}
                   {i.status === 'cancelled' && ' · storniert'}
                 </div>
