@@ -7,6 +7,7 @@ import { lockFor } from '../common/advisory-lock';
 import { writeAudit } from '../common/audit';
 import { VAT_TREATMENT_NOTES } from '../common/vat-treatment';
 import { formatDocumentNumber, nextSequenceValue, yearInZone } from '../common/numbering';
+import { localDayString } from '../common/time-zone';
 import { CreateInvoiceFromOrderDto, IssueInvoiceDto, SendInvoiceDto } from './dto/invoice.dto';
 import { BusinessDocumentPdf, PdfParty, renderBusinessDocumentPdf } from '../pdf/business-document.pdf';
 import { XRechnungInput, buildXRechnung } from './xrechnung';
@@ -249,6 +250,25 @@ export class InvoicesService {
       const current = await tx.invoice.findUniqueOrThrow({ where: { id } });
       if (current.status !== 'draft') {
         throw new BadRequestException('Diese Rechnung ist bereits ausgestellt.');
+      }
+      if (dto.issueDate) {
+        // Rechnungsnummern laufen fortlaufend mit dem Datum: nicht in der
+        // Zukunft und nicht vor der zuletzt ausgestellten Rechnung
+        const day = localDayString(issueDate, timeZone);
+        if (day > localDayString(new Date(), timeZone)) {
+          throw new BadRequestException('Das Rechnungsdatum darf nicht in der Zukunft liegen.');
+        }
+        await lockFor(tx, 'invoice-number', companyId);
+        const latest = await tx.invoice.findFirst({
+          where: { companyId, number: { not: null }, issueDate: { not: null } },
+          orderBy: { issueDate: 'desc' },
+          select: { number: true, issueDate: true },
+        });
+        if (latest?.issueDate && day < localDayString(latest.issueDate, timeZone)) {
+          throw new BadRequestException(
+            `Das Rechnungsdatum darf nicht vor der letzten Rechnung ${latest.number} (${formatDate(latest.issueDate, timeZone)}) liegen.`,
+          );
+        }
       }
       const number = formatDocumentNumber('R', year, await nextSequenceValue(tx, companyId, 'invoice', year));
       await tx.invoice.update({
