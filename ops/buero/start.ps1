@@ -47,6 +47,10 @@ $ips = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
     $_.IPAddress -notmatch '^(127\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.)' -and
     $_.InterfaceAlias -notmatch 'vEthernet|WSL|Loopback|Docker|VirtualBox|VMware'
   } | Select-Object -ExpandProperty IPAddress -Unique)
+# Tailscale (Zugriff von unterwegs, siehe BUERO.md)
+if (Get-Command tailscale -ErrorAction SilentlyContinue) {
+  $ips = @($ips + @(tailscale ip -4 2>$null) | Where-Object { $_ } | Select-Object -Unique)
+}
 
 New-Item -ItemType Directory -Force -Path 'ops\buero\certs', 'backups\buero' | Out-Null
 $known = if (Test-Path 'ops\buero\certs\ips') { (Get-Content 'ops\buero\certs\ips' -Raw).Trim() } else { '' }
@@ -58,6 +62,9 @@ if (-not (Test-Path 'ops\buero\certs\server.crt') -or $known -ne ($ips -join ' '
 
 $compose = @('compose', '-f', 'docker-compose.buero.yml', '--env-file', $envFile)
 if ($DemoDaten) { $compose += @('--profile', 'demo') }
+# Cloud-Sicherung und Tunnel laufen mit, sobald sie eingerichtet sind
+if ($settings['CLOUD_REMOTE']) { $compose += @('--profile', 'cloud') }
+if ($settings['CLOUDFLARE_TUNNEL_TOKEN']) { $compose += @('--profile', 'tunnel') }
 Write-Host 'Starte GartenAI (beim ersten Mal werden die Images gebaut, das dauert einige Minuten) ...'
 docker @compose up -d --build
 if ($LASTEXITCODE -ne 0) { Fail 'Start fehlgeschlagen (siehe oben).' }

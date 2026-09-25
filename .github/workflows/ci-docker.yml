@@ -27,7 +27,7 @@ jobs:
         run: |
           POSTGRES_PASSWORD=x JWT_SECRET=x docker compose -f docker-compose.prod.yml config --quiet
           docker compose -f docker-compose.demo.yml --profile https config --quiet
-          POSTGRES_PASSWORD=x JWT_SECRET=x SECRET_KEY=x docker compose -f docker-compose.buero.yml --profile demo config --quiet
+          POSTGRES_PASSWORD=x JWT_SECRET=x SECRET_KEY=x docker compose -f docker-compose.buero.yml --profile demo --profile cloud --profile tunnel config --quiet
       - name: Rauchtest
         run: bash ops/smoke-test.sh
       # Sicherung zurückspielen – mit gelöschten Volumes, Dokument Byte für Byte
@@ -36,6 +36,9 @@ jobs:
       # Demo für Vorführungen (Laptop + Handys im WLAN) mit HTTPS
       - name: Rauchtest Demo
         run: bash ops/tests/demo-smoke.sh
+      # Cloud-Sicherung: verschlüsselt spiegeln und zurückholen (rclone, lokaler Ordner als Cloud)
+      - name: Cloud-Sicherung
+        run: bash ops/tests/cloud-sync.test.sh
       # GartenAI im Büro (ein Rechner, echte Daten): Ersteinrichtung, Sicherung, Zurückspielen
       - name: Rauchtest Büro
         run: bash ops/tests/buero-smoke.sh
