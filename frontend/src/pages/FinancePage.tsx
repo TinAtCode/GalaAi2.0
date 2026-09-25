@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { formatEuro } from '../format';
 import { CategoriesTab } from './finance/CategoriesTab';
+import { ContractsTab } from './finance/ContractsTab';
 import { ForecastSection } from './finance/ForecastSection';
 import { PayablesTab } from './finance/PayablesTab';
 import { RecurringTab } from './finance/RecurringTab';
@@ -246,12 +247,13 @@ function MonthChart({ months }: { months: Month[] }) {
   );
 }
 
-type Tab = 'overview' | 'transactions' | 'payables' | 'recurring' | 'year' | 'categories';
+type Tab = 'overview' | 'transactions' | 'payables' | 'recurring' | 'contracts' | 'year' | 'categories';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Übersicht' },
   { key: 'transactions', label: 'Kontobewegungen' },
   { key: 'payables', label: 'Eingangsrechnungen' },
   { key: 'recurring', label: 'Fixkosten' },
+  { key: 'contracts', label: 'Versicherungen & Verträge' },
   { key: 'year', label: 'Jahresüberblick' },
   { key: 'categories', label: 'Kategorien' },
 ];
@@ -346,6 +348,7 @@ export function FinancePage() {
       {tab === 'transactions' && <TransactionsTab />}
       {tab === 'payables' && <PayablesTab />}
       {tab === 'recurring' && <RecurringTab />}
+      {tab === 'contracts' && <ContractsTab />}
       {tab === 'year' && <YearTab />}
       {tab === 'categories' && <CategoriesTab />}
     </div>

@@ -56,6 +56,7 @@ export const TENANT_MODELS = new Set([
   'Checklist',
   'ChecklistItem',
   'ChecklistComment',
+  'BusinessContract',
   'PushSubscription',
   'AiTaskAssignment',
 ]);

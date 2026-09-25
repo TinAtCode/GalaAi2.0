@@ -5,8 +5,10 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Res,
   UseGuards,
@@ -22,6 +24,7 @@ import { withTotalCount } from '../common/pagination';
 import { FinanceService } from './finance.service';
 import {
   AssignCategoryDto,
+  BusinessContractDto,
   CategoryNameDto,
   CategoryRuleDto,
   ListTransactionsDto,
@@ -29,6 +32,7 @@ import {
 } from './finance.dto';
 import { CategoriesService } from './categories.service';
 import { RecurringService } from './recurring.service';
+import { ContractsService } from './contracts.service';
 
 // Nur Geschäftsführung und Buchhaltung (Recht finance.read)
 @Controller('finance')
@@ -39,6 +43,7 @@ export class FinanceController {
     private financeService: FinanceService,
     private categories: CategoriesService,
     private recurring: RecurringService,
+    private contracts: ContractsService,
   ) {}
 
   // Liquiditätsvorschau der nächsten 13 Wochen
@@ -134,6 +139,31 @@ export class FinanceController {
   @Delete('recurring/:id')
   removeRecurring(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.recurring.remove(user.companyId, id);
+  }
+
+  // Versicherungen und Verträge mit Laufzeit und Kündigungsfrist
+  @Get('contracts')
+  listContracts(@CurrentUser() user: AuthenticatedUser) {
+    return this.contracts.list(user.companyId);
+  }
+
+  @Post('contracts')
+  createContract(@CurrentUser() user: AuthenticatedUser, @Body() dto: BusinessContractDto) {
+    return this.contracts.create(user, dto);
+  }
+
+  @Put('contracts/:id')
+  updateContract(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BusinessContractDto,
+  ) {
+    return this.contracts.update(user, id, dto);
+  }
+
+  @Delete('contracts/:id')
+  removeContract(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.contracts.remove(user, id);
   }
 
   // Jahresüberblick: ?year=2026 (ohne Angabe das laufende Jahr)

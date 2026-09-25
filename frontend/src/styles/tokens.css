@@ -48,6 +48,15 @@
   --touch-target-min: 44px;
   --content-max: 1180px;
 
+  /* Diagramm-Reihen (Anteile, höchstens 5 + "Sonstige"); geprüft auf
+     Farbfehlsichtigkeit, hell und dunkel getrennt gestuft */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-other: #a3a8a2;
+
   /* Sicherheitsabstände für Notches/System-UI (siehe layout/AppShell.tsx) */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -73,6 +82,12 @@
   --color-info: #7fb5ea;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-raised: 0 12px 32px rgb(0 0 0 / 55%);
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-other: #6b716b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -95,6 +110,12 @@
     --color-info: #7fb5ea;
     --shadow-card: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-raised: 0 12px 32px rgb(0 0 0 / 55%);
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-4: #c98500;
+    --chart-5: #d55181;
+    --chart-other: #6b716b;
   }
 }
 
