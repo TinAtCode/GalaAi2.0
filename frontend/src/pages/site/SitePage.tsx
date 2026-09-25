@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { offlineDb } from '../../offline/db';
 import { isNetworkError, subscribeOffline, useOnline } from '../../offline/sync';
 import { SiteThread } from './SiteThread';
+import { DiarySection } from './DiarySection';
 import { PushToggle } from '../../push/PushToggle';
 
 interface SiteAppointment {
@@ -280,6 +281,7 @@ export function SiteProjectPage() {
         </div>
       </header>
       <section className="card">{projectId && <SiteThread projectId={projectId} />}</section>
+      <section className="card">{projectId && <DiarySection projectId={projectId} compact />}</section>
     </div>
   );
 }

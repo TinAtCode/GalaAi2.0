@@ -46,6 +46,8 @@ test.describe('Baustelle', () => {
       await page.getByTestId('site-text').fill(`Bin da ${run}`);
       await page.getByTestId('site-send').click();
       await expect(page.getByTestId('site-message').filter({ hasText: `Bin da ${run}` })).toBeVisible();
+      // erst zählen, wenn alle vorhandenen Fotos geladen sind
+      await expect(page.locator('.site-photo-loading')).toHaveCount(0);
       const photos = await page.getByTestId('site-photo').count();
       await page
         .getByTestId('site-photo-input')
