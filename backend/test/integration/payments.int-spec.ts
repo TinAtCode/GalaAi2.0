@@ -228,4 +228,22 @@ describe('Zahlungen und offene Posten', () => {
       ).body,
     ).toEqual([]);
   });
+
+  it('Nachkalkulation: Deckungsbeitrag aus ausgestellten Rechnungen (ohne Storno)', async () => {
+    const invoice = await issuedPartial(10);
+    const { projectId, totalNet } = await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
+    const issued = await prisma.invoice.findMany({
+      where: { projectId, status: 'issued', kind: { not: 'cancellation' } },
+    });
+    const expected = issued.reduce((sum, i) => sum + Number(i.totalNet), 0);
+    const calc = (await api().get(`/post-calculation/${projectId}`).set(auth).expect(200)).body;
+    expect(calc.margin.orderValue).toBe(10000);
+    expect(calc.margin.invoiced).toBeCloseTo(expected, 2);
+    expect(calc.margin.contribution).toBeCloseTo(expected - calc.margin.costs.total, 2);
+
+    // Storno: die stornierte Rechnung zählt nicht mehr
+    await api().post(`/invoices/${invoice.id}/cancel`).set(auth).send({ reason: 'Test' }).expect(201);
+    const after = (await api().get(`/post-calculation/${projectId}`).set(auth).expect(200)).body;
+    expect(after.margin.invoiced).toBeCloseTo(expected - Number(totalNet), 2);
+  });
 });
