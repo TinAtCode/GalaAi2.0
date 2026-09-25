@@ -30,3 +30,5 @@ backups/
 # GartenAI im Büro (ops/buero): Geheimnisse und Zertifikate dieser Installation
 .env.buero
 ops/buero/certs/
+# Zugang zum Cloud-Speicher (Anmeldetoken, Verschlüsselung) – nie ins Repository
+ops/buero/rclone/

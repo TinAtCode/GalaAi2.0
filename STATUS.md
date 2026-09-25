@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 11.10.2026 – Projektnummer, Lieferscheine erkennen und zuordnen, Mail an Lieferanten; davor Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 12.10.2026 – Mini-Vollversion unterwegs erreichbar (Tailscale, Cloudflare-Tunnel) und verschlüsselte Cloud-Sicherung; davor Projektnummer, Lieferscheine erkennen und zuordnen, Mail an Lieferanten; davor Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -713,6 +713,18 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
     Mail-Entwurf an den gewählten Lieferanten: Projektnummer, Lieferadresse, Kommission und unsere
     Kundennummer. Er öffnet sich im Mail-Programm (`mailto:`) oder lässt sich kopieren; GartenAI
     verschickt ihn nicht selbst.
+
+- **Nachtrag – Cloud-Anbindung der Mini-Vollversion** (siehe `BUERO.md`):
+  - **Cloud-Sicherung:** Einrichten mit `ops/buero/cloud-setup` (rclone: Google Drive, OneDrive,
+    Dropbox, Nextcloud/WebDAV, S3 …). Darüber liegt eine rclone-„crypt“-Verschlüsselung mit
+    zufälligen Passwörtern: Inhalte und Dateinamen werden vor dem Hochladen verschlüsselt, die
+    Passwörter stehen in `.env.buero`. Der Dienst `cloud-backup` (Profil `cloud`, startet
+    automatisch, sobald eingerichtet) spiegelt stündlich `backups/buero`. Die CI prüft mit echtem
+    rclone: verschlüsselt hochladen, keine lesbaren Namen oder Inhalte, Aufräumen spiegeln,
+    Byte für Byte zurückholen. Zugangsdaten (`ops/buero/rclone`) sind in `.gitignore`.
+  - **Unterwegs zugreifen:** Tailscale (empfohlen, nur eigene Geräte; die Tailscale-Adresse kommt
+    automatisch ins Zertifikat) oder Cloudflare-Tunnel (Profil `tunnel`,
+    `CLOUDFLARE_TUNNEL_TOKEN`, Ziel `http://frontend:8080`). Beides ohne offene Ports am Router.
 
 ---
 

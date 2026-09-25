@@ -55,6 +55,8 @@ lan_ips() {
       ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p'
       hostname -I 2>/dev/null | tr ' ' '\n'
     fi
+    # Tailscale (Zugriff von unterwegs, siehe BUERO.md)
+    command -v tailscale >/dev/null 2>&1 && tailscale ip -4 2>/dev/null || true
   } | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | grep -vE '^(127\.|172\.(1[7-9]|2[0-9]|3[01])\.|169\.254\.)' | awk '!seen[$0]++'
 }
 IPS=()
@@ -68,6 +70,10 @@ if [ ! -f ops/buero/certs/server.crt ] || [ "$(cat ops/buero/certs/ips 2>/dev/nu
 fi
 
 [ "$DEMO" = 1 ] && COMPOSE+=(--profile demo)
+# Cloud-Sicherung und Tunnel laufen mit, sobald sie eingerichtet sind
+setting() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
+[ -n "$(setting CLOUD_REMOTE)" ] && COMPOSE+=(--profile cloud)
+[ -n "$(setting CLOUDFLARE_TUNNEL_TOKEN)" ] && COMPOSE+=(--profile tunnel)
 echo "Starte GartenAI (beim ersten Mal werden die Images gebaut, das dauert einige Minuten) …"
 "${COMPOSE[@]}" up -d --build
 
