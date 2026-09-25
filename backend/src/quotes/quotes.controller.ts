@@ -21,7 +21,7 @@ import { AuthenticatedUser } from '../common/authenticated-request';
 import { QuotesService } from './quotes.service';
 import { GaebService } from './gaeb.service';
 import { requiredFile } from '../common/required-file';
-import { CreateQuoteDto, SetQuoteOutcomeDto, UpdateQuoteDto } from './dto/quote.dto';
+import { CopyQuoteDto, CreateQuoteDto, SetQuoteOutcomeDto, UpdateQuoteDto } from './dto/quote.dto';
 
 // Gleiches Prinzip wie bei Kalkulationen: Kosten (costPerUnit) brauchen
 // price.purchase.read, Verkaufspreis (unitPrice/totalNet) braucht
@@ -131,6 +131,14 @@ export class QuotesController {
   @RequirePermissions(PERMISSIONS.QUOTE_CREATE)
   async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateQuoteDto) {
     const quote = await this.quotesService.create(user.companyId, dto);
+    return maskQuote(quote, user.permissions);
+  }
+
+  // Kopie als neuer Entwurf (aktuelle Katalogpreise, freie Positionen ± %)
+  @Post(':id/copy')
+  @RequirePermissions(PERMISSIONS.QUOTE_CREATE)
+  async copy(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: CopyQuoteDto) {
+    const quote = await this.quotesService.copy(user.companyId, id, dto);
     return maskQuote(quote, user.permissions);
   }
 

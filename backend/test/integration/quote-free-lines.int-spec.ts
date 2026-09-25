@@ -197,4 +197,89 @@ describe('Angebote mit freien Positionen', () => {
       .send({ projectId, lineItems: [{ serviceId, quantity: 1 }] })
       .expect(400);
   });
+
+  it('Angebot kopieren: aktuelle Katalogpreise, freie Positionen + %, nur Projekte desselben Kunden', async () => {
+    const original = await api()
+      .post('/quotes')
+      .set(auth)
+      .send({
+        projectId,
+        introText: 'Pflege 2025',
+        lineItems: [
+          { serviceId, quantity: 200 },
+          { description: 'Anfahrt', unit: 'psch', quantity: 1, unitPrice: 40, costPerUnit: 10 },
+        ],
+      })
+      .expect(201);
+    const oldCatalogPrice = Number(original.body.lineItems[0].unitPrice);
+    // Kalkulation teurer: höherer Stundensatz → höherer Katalogpreis
+    const settings = await api().get('/company/settings').set(auth).expect(200);
+    await api()
+      .patch('/company/settings')
+      .set(auth)
+      .send({ hourlyLaborRate: Number(settings.body.hourlyLaborRate) + 30 })
+      .expect(200);
+
+    // neues Jahresprojekt am selben Objekt
+    const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId } });
+    const nextYear = await prisma.project.create({
+      data: { companyId: company.companyId, propertyId: project.propertyId, title: 'Pflege 2026' },
+    });
+    const copy = await api()
+      .post(`/quotes/${original.body.id}/copy`)
+      .set(auth)
+      .send({ projectId: nextYear.id, freeLinePercent: 5 })
+      .expect(201);
+    expect(copy.body).toMatchObject({ projectId: nextYear.id, status: 'draft', introText: 'Pflege 2025' });
+    expect(copy.body.id).not.toBe(original.body.id);
+    const [catalog, free] = copy.body.lineItems;
+    expect(catalog.serviceId).toBe(serviceId);
+    expect(Number(catalog.quantity)).toBe(200);
+    expect(Number(catalog.unitPrice)).toBeGreaterThan(oldCatalogPrice);
+    expect(free).toMatchObject({ description: 'Anfahrt', unit: 'psch' });
+    expect(Number(free.unitPrice)).toBe(42);
+    // Kosten bleiben (ein Test weiter oben nimmt das Recht auf Einkaufspreise – daher aus der DB)
+    const stored = await prisma.quoteLineItem.findUniqueOrThrow({ where: { id: free.id } });
+    expect(Number(stored.costPerUnit)).toBe(10);
+
+    // ohne Ziel: im selben Projekt; Original unverändert
+    const same = await api().post(`/quotes/${original.body.id}/copy`).set(auth).send({}).expect(201);
+    expect(same.body.projectId).toBe(projectId);
+    const untouched = await api().get(`/quotes/${original.body.id}`).set(auth).expect(200);
+    expect(Number(untouched.body.lineItems[0].unitPrice)).toBe(oldCatalogPrice);
+
+    // gelöschte Leistung wird zur freien Position mit altem Preis
+    const temp = await api()
+      .post('/services')
+      .set(auth)
+      .send({ name: 'Laub saugen', unit: 'm2' })
+      .expect(201);
+    await api().post(`/services/${temp.body.id}/components`).set(auth).send({ laborMinutes: 2 });
+    const withTemp = await api()
+      .post('/quotes')
+      .set(auth)
+      .send({ projectId, lineItems: [{ serviceId: temp.body.id, quantity: 10 }] })
+      .expect(201);
+    // (in der App nicht löschbar – Absicherung für Altdaten)
+    await prisma.serviceComponent.deleteMany({ where: { serviceId: temp.body.id } });
+    await prisma.service.delete({ where: { id: temp.body.id } });
+    const orphan = await api().post(`/quotes/${withTemp.body.id}/copy`).set(auth).send({}).expect(201);
+    expect(orphan.body.lineItems[0]).toMatchObject({ serviceId: null, description: 'Laub saugen' });
+    expect(Number(orphan.body.lineItems[0].unitPrice)).toBe(Number(withTemp.body.lineItems[0].unitPrice));
+
+    // anderer Kunde → 400, fremde Firma → 404
+    const { projectId: otherCustomersProject } = await createProject(app, company.token);
+    await api()
+      .post(`/quotes/${original.body.id}/copy`)
+      .set(auth)
+      .send({ projectId: otherCustomersProject })
+      .expect(400);
+    const foreign = await createCompany(app, prisma, 'Fremd Kopie GmbH');
+    await api()
+      .post(`/quotes/${original.body.id}/copy`)
+      .set({ Authorization: `Bearer ${foreign.token}` })
+      .send({})
+      .expect(404);
+    await api().post(`/quotes/${original.body.id}/copy`).set(auth).send({ freeLinePercent: 500 }).expect(400);
+  });
 });

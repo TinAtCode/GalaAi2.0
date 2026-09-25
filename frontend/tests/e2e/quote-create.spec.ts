@@ -116,4 +116,25 @@ test.describe('Angebot anlegen (Projekt-Detail)', () => {
     await form.getByTestId('quote-submit').click();
     await expect(form.locator('.field-error')).toContainText('Menge größer 0');
   });
+
+  test('Angebot kopieren: neuer Entwurf im selben Projekt', async ({ page, request }) => {
+    const token = await apiLogin(request);
+    const quoteId = await createDraftQuote(request, token);
+    await loginViaUi(page);
+    await page.goto(`/projekte/${SEED.projectId}`);
+
+    const card = page.locator(`[data-testid="quote-card"][data-quote-id="${quoteId}"]`);
+    await card.getByTestId('quote-copy').click();
+    await expect(card.getByTestId('quote-copy-project')).toBeVisible();
+    await card.getByTestId('quote-copy-percent').fill('5');
+    const [response] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith(`/quotes/${quoteId}/copy`)),
+      card.getByTestId('quote-copy-submit').click(),
+    ]);
+    expect(response.status()).toBe(201);
+    const copy = await response.json();
+    const copied = page.locator(`[data-testid="quote-card"][data-quote-id="${copy.id}"]`);
+    await expect(copied.getByTestId('quote-status')).toHaveText('Entwurf');
+    await expect(card.getByTestId('quote-copy-form')).toHaveCount(0);
+  });
 });

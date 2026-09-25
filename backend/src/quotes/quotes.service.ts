@@ -82,6 +82,74 @@ export class QuotesService {
     return this.assertQuoteBelongsToCompany(companyId, id);
   }
 
+  // Angebot als neuen Entwurf kopieren (z.B. Pflege vom Vorjahr), gleiches
+  // oder anderes Projekt desselben Kunden. Katalog-Leistungen bekommen die
+  // aktuellen Preise aus der Kalkulation; freie Positionen behalten ihren
+  // Preis, optional um freeLinePercent angepasst (z.B. +5 %).
+  async copy(companyId: string, id: string, dto: { projectId?: string; freeLinePercent?: number }) {
+    const source = await this.assertQuoteBelongsToCompany(companyId, id);
+    const projectId = dto.projectId ?? source.projectId;
+    if (projectId !== source.projectId) {
+      const [from, to] = await Promise.all([
+        this.prisma.project.findFirst({
+          where: { id: source.projectId, companyId },
+          select: { property: { select: { customerId: true } } },
+        }),
+        this.prisma.project.findFirst({
+          where: { id: projectId, companyId },
+          select: { property: { select: { customerId: true } } },
+        }),
+      ]);
+      if (!to) throw new NotFoundException('Projekt nicht gefunden.');
+      if (to.property.customerId !== from?.property.customerId)
+        throw new BadRequestException('Angebote lassen sich nur in Projekte desselben Kunden kopieren.');
+    }
+    // gelöschte Katalog-Leistungen werden zu freien Positionen (alter Preis)
+    const serviceIds = [
+      ...new Set(source.lineItems.map((li) => li.serviceId).filter((v): v is string => !!v)),
+    ];
+    const existing = new Set(
+      (
+        await this.prisma.service.findMany({
+          where: { id: { in: serviceIds }, companyId },
+          select: { id: true },
+        })
+      ).map((s) => s.id),
+    );
+    const factor = new Prisma.Decimal(1).plus(new Prisma.Decimal(dto.freeLinePercent ?? 0).dividedBy(100));
+    const lineItems = [...source.lineItems]
+      .sort((a, b) => a.position - b.position)
+      .map((li) => {
+        const rounding = {
+          ...(li.roundingDecimals !== null ? { roundingDecimals: li.roundingDecimals } : {}),
+          ...(li.roundingMode !== null ? { roundingMode: li.roundingMode } : {}),
+          ...(li.roundingStep !== null ? { roundingStep: Number(li.roundingStep) } : {}),
+        };
+        const quantity = Number(li.quantityExact ?? li.quantity);
+        const common = { quantity, ...rounding, ...(li.gaebOz ? { gaebOz: li.gaebOz } : {}) };
+        if (li.serviceId && existing.has(li.serviceId)) return { serviceId: li.serviceId, ...common };
+        return {
+          ...common,
+          description: li.description,
+          unit: li.unit,
+          unitPrice: li.unitPrice.times(factor).toDecimalPlaces(2).toNumber(),
+          costPerUnit: li.costPerUnit.toNumber(),
+        };
+      });
+    return this.create(
+      companyId,
+      {
+        projectId,
+        vatRate: Number(source.vatRate),
+        // Kleinunternehmer ergibt sich aus der Firma, nicht aus dem alten Angebot
+        vatTreatment: source.vatTreatment === 'reverse_charge' ? 'reverse_charge' : 'standard',
+        ...(source.introText ? { introText: source.introText } : {}),
+        lineItems,
+      },
+      source.gaebInfo ? { gaebInfo: source.gaebInfo as Prisma.InputJsonValue } : {},
+    );
+  }
+
   // Positionen berechnen: Katalog-Leistungen aus der aktuellen Kalkulation,
   // freie Positionen wie eingegeben. Ergebnis ist der Snapshot, der am
   // Angebot gespeichert wird.
