@@ -44,6 +44,7 @@ export const TENANT_MODELS = new Set([
   'ProjectMessageRead',
   'AiProviderConfig',
   'Absence',
+  'SiteDiaryEntry',
   'CalendarEvent',
   'PushSubscription',
   'AiTaskAssignment',

@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 06.10.2026 – Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 06.10.2026 – Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -664,6 +664,17 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
   - **Neu im Katalog:** Leerrohre, Gebäude und Höhenpunkte, DN 10–1000.
   - **Bedienung:** Objekte lassen sich skalieren; die Mengenliste gibt es als CSV.
   - **Angebot:** Die Formstücke kommen wie alle Mengen ins Angebot, auf Leistungen zugeordnet.
+- **Erledigt am 06.10.2026:** Bautagebuch am Projekt und auf der Baustelle. Je Tag gibt es einen
+  Eintrag:
+  - Wetter und Temperatur
+  - Besetzung
+  - ausgeführte Arbeiten
+  - Verzögerung oder Behinderung mit Stunden, Ursache und Beschreibung
+  - Notizen
+
+  Die Fotos des Tages aus den Baustellen-Nachrichten stehen dabei. Einträge in der Zukunft gibt es
+  nicht, jede Änderung steht mit altem und neuem Wert im Audit-Log. Dazu kommen die Summe der
+  Verzögerungen je Ursache und eine Druckansicht (oder PDF über den Browser).
 - **Erledigt am 05.10.2026:** GartenAI im Büro (`BUERO.md`), eine Mini-Vollversion für einen Rechner
   mit echten Daten:
   - Geheimnisse je Installation

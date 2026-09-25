@@ -8,6 +8,7 @@ import { PlansSection } from './plans/PlansSection';
 import { InvoicesSection } from './InvoicesSection';
 import { ContractsSection } from './contracts/ContractsSection';
 import { SiteThread } from './site/SiteThread';
+import { DiarySection } from './site/DiarySection';
 import { Contract } from './contracts/types';
 import { QuoteForm } from './QuoteForm';
 import { MaterialCard, PostCalculationCard } from './ProjectInsights';
@@ -194,6 +195,7 @@ export function ProjectDetailPage() {
     ['rechnungen', 'Rechnungen', showInvoices],
     ['plaene', 'Lagepläne', hasPermission('plan.read')],
     ['dokumente', 'Dokumente', hasPermission('document.read')],
+    ['bautagebuch', 'Bautagebuch', hasPermission('site.use')],
     ['baustelle', 'Baustelle', hasPermission('site.use')],
     ['termine', 'Termine', true],
     ['nachkalkulation', 'Nachkalkulation', true],
@@ -511,6 +513,12 @@ export function ProjectDetailPage() {
           {projectId && hasPermission('document.read') && (
             <section className="card" id="dokumente">
               <DocumentsSection projectId={projectId} canDelete={hasPermission('document.delete')} />
+            </section>
+          )}
+
+          {projectId && hasPermission('site.use') && (
+            <section className="card" id="bautagebuch">
+              <DiarySection projectId={projectId} />
             </section>
           )}
         </div>
