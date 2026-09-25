@@ -32,7 +32,9 @@ export const PLAN_AI_PROMPT = [
   'Punkte je Art: line mindestens 2, area mindestens 3 (Umriss, ohne den ersten Punkt zu wiederholen),',
   'opening genau 2, symbol und text genau 1. Kreisfläche: props.shape "circle" mit Mittelpunkt und Randpunkt.',
   'Erlaubte props: mowingEdge (Rasen, true/false), spaces (Parkplatz, Anzahl), icon (Piktogramm, siehe Liste),',
-  'dn (Nennweite bei Leitungen/Rinnen), depth (Verlegetiefe in m bei Leitungen). text braucht ein label.',
+  'dn (Nennweite bei Leitungen/Rinnen/Leerrohren, DN 10–1000), depth (Verlegetiefe in m bei Leitungen,',
+  'Standard 0,50), height (Höhe in m bei Flächen und Höhenpunkten, Standard 0). text braucht ein label.',
+  'Fallrohre und Gullys direkt auf die Leitung setzen: Bögen und Abzweige rechnet GartenAI selbst.',
   'Zeichne nur, was verlangt ist; vorhandene Objekte nicht wiederholen.',
 ].join('\n');
 

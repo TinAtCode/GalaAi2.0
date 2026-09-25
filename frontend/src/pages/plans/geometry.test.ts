@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { insertPoint, removePoint, setListValue, setSegmentLength } from './geometry';
+import { insertPoint, removePoint, scaleObject, setListValue, setSegmentLength } from './geometry';
 import { Point } from './geometry';
 
 const square: Point[] = [
@@ -44,6 +44,42 @@ describe('Punkte einfügen und löschen', () => {
       [150, 0],
       [150, 100],
       [0, 100],
+    ]);
+  });
+});
+
+describe('Skalieren', () => {
+  it('um die Mitte, Radien und Bögen mit', () => {
+    const square = {
+      points: [
+        [0, 0],
+        [10, 0],
+        [10, 10],
+        [0, 10],
+      ] as Point[],
+      props: { radii: [1, 0, 0, 0], bulges: [0, 0, 5, 0] },
+    };
+    const big = scaleObject(square, 2);
+    expect(big.points).toEqual([
+      [-5, -5],
+      [15, -5],
+      [15, 15],
+      [-5, 15],
+    ]);
+    expect(big.props).toEqual({ radii: [2, 0, 0, 0], bulges: [0, 0, 10, 0] });
+  });
+
+  it('Kreis: um den Mittelpunkt', () => {
+    const circle = {
+      points: [
+        [5, 5],
+        [8, 5],
+      ] as Point[],
+      props: { shape: 'circle' as const },
+    };
+    expect(scaleObject(circle, 0.5).points).toEqual([
+      [5, 5],
+      [6.5, 5],
     ]);
   });
 });

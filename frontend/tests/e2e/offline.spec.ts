@@ -1,6 +1,9 @@
 import { test, expect, Page } from '@playwright/test';
 import { API_BASE_URL, apiLogin, loginViaUi, SEED } from './fixtures';
 
+// hohes Fenster: Werkzeugleiste und Zeichenfläche ganz sichtbar (Klicks per Koordinate)
+test.use({ viewport: { width: 1280, height: 1000 } });
+
 async function clickAt(page: Page, x: number, y: number) {
   const box = (await page.getByTestId('plan-canvas').boundingBox())!;
   await page.mouse.click(box.x + x, box.y + y);
