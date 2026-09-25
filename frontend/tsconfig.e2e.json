@@ -10,5 +10,5 @@
     "noEmit": true,
     "esModuleInterop": true
   },
-  "include": ["tests/e2e", "playwright.config.ts"]
+  "include": ["tests/e2e", "tests/buero", "playwright.config.ts", "playwright.buero.config.ts"]
 }

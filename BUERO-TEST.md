@@ -8,6 +8,15 @@ dem Protokoll melden:
 docker compose -f docker-compose.buero.yml --env-file .env.buero logs --tail=200 backend
 ```
 
+Automatisch geprüft: Bei jedem Push spielt die CI einen großen Teil davon auf einem frischen Rechner
+durch (`ops/tests/buero-smoke.sh`, Browser-Teil in `frontend/tests/buero`):
+- A4 und B1, B3–B8: Einrichtung, Zugänge je Rolle, alle Bereiche
+- C1–C3 und C5: Handy im WLAN mit installiertem Stammzertifikat, installierbare App, ohne Netz
+- E1–E6: Sicherungen, Zurückspielen, Beenden/Starten, Neustart von Docker, Update
+
+Von Hand bleibt vor allem, was echte Geräte und Konten braucht: Windows mit Docker Desktop, das Handy
+selbst, E-Mail, Cloud und Google.
+
 Tipp: Zum Ausprobieren erst mit Demo-Daten (Teil A), danach sauber neu anfangen und echt einrichten
 (Teil B). Die Befehle stehen jeweils für Windows / macOS-Linux.
 
