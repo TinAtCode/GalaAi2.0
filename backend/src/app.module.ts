@@ -33,6 +33,7 @@ import { CalendarModule } from './calendar/calendar.module';
 import { EquipmentModule } from './equipment/equipment.module';
 import { ChecklistsModule } from './checklists/checklists.module';
 import { DeliveryNotesModule } from './delivery-notes/delivery-notes.module';
+import { OverviewModule } from './overview/overview.module';
 import { MaterialUsageModule } from './material-usage/material-usage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
@@ -92,6 +93,7 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     EquipmentModule,
     ChecklistsModule,
     DeliveryNotesModule,
+    OverviewModule,
     MaterialUsageModule,
     OcrModule,
     HealthModule,

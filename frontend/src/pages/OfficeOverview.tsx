@@ -4,6 +4,15 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatEuro } from '../format';
 
+interface Todo {
+  key: string;
+  label: string;
+  count: number;
+  to: string;
+  meta?: string;
+  examples?: { label: string; to: string }[];
+}
+
 interface Numbers {
   inProgress?: number;
   open?: { count: number; sum: number; overdue: number };
@@ -17,9 +26,15 @@ export function OfficeOverview() {
   const canInvoice = hasPermission('invoice.create');
   const canRead = hasPermission('customer.read');
   const [numbers, setNumbers] = useState<Numbers>({});
+  const [todos, setTodos] = useState<Todo[]>([]);
 
   useEffect(() => {
     let current = true;
+    // was ansteht: je nach Rechten (Lieferscheine, Checklisten, Geräte, Angebote …)
+    api
+      .get<Todo[]>('/overview/todos')
+      .then((list) => current && setTodos(list))
+      .catch(() => undefined);
     const set = (patch: Numbers) => current && setNumbers((n) => ({ ...n, ...patch }));
     if (canRead)
       api
@@ -49,37 +64,70 @@ export function OfficeOverview() {
     };
   }, [canInvoice, canRead]);
 
-  if (!canRead && !canInvoice) return null;
+  if (!canRead && !canInvoice && todos.length === 0) return null;
   return (
-    <div className="stat-grid" data-testid="office-overview">
-      {numbers.inProgress !== undefined && (
-        <Link to="/projekte" className="stat">
-          <div className="stat-label">Projekte in Arbeit</div>
-          <div className="stat-value">{numbers.inProgress}</div>
-        </Link>
+    <>
+      <div className="stat-grid" data-testid="office-overview">
+        {numbers.inProgress !== undefined && (
+          <Link to="/projekte" className="stat">
+            <div className="stat-label">Projekte in Arbeit</div>
+            <div className="stat-value">{numbers.inProgress}</div>
+          </Link>
+        )}
+        {numbers.open && (
+          <Link to="/offene-posten" className="stat" data-testid="overview-open">
+            <div className="stat-label">Offene Posten</div>
+            <div className="stat-value">{formatEuro(numbers.open.sum)}</div>
+            <div className="stat-meta">
+              {numbers.open.count} Rechnung{numbers.open.count === 1 ? '' : 'en'}
+              {numbers.open.overdue > 0 && (
+                <span style={{ color: 'var(--color-danger)' }}>
+                  {' '}
+                  · {formatEuro(numbers.open.overdue)} überfällig
+                </span>
+              )}
+            </div>
+          </Link>
+        )}
+        {numbers.bank !== undefined && (
+          <Link to="/bankabgleich" className="stat">
+            <div className="stat-label">Zahlungseingänge zuordnen</div>
+            <div className="stat-value">{numbers.bank}</div>
+            <div className="stat-meta">aus dem Kontoauszug</div>
+          </Link>
+        )}
+      </div>
+      {todos.length > 0 && (
+        <section className="card todo-list" data-testid="todo-list">
+          <h3 style={{ marginTop: 0 }}>Zu erledigen</h3>
+          <ul>
+            {todos.map((t) => (
+              <li key={t.key} data-testid={`todo-${t.key}`}>
+                <Link to={t.to}>
+                  <span className="todo-count">{t.count}</span> {t.label}
+                </Link>
+                {t.meta && (
+                  <span className="list-item-meta" style={{ color: 'var(--color-danger)' }}>
+                    {' '}
+                    · {t.meta}
+                  </span>
+                )}
+                {t.examples && t.examples.length > 0 && (
+                  <div className="list-item-meta">
+                    {t.examples.map((e, i) => (
+                      <span key={e.to + i}>
+                        {i > 0 && ' · '}
+                        <Link to={e.to}>{e.label}</Link>
+                      </span>
+                    ))}
+                    {t.count > t.examples.length && ' …'}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
-      {numbers.open && (
-        <Link to="/offene-posten" className="stat" data-testid="overview-open">
-          <div className="stat-label">Offene Posten</div>
-          <div className="stat-value">{formatEuro(numbers.open.sum)}</div>
-          <div className="stat-meta">
-            {numbers.open.count} Rechnung{numbers.open.count === 1 ? '' : 'en'}
-            {numbers.open.overdue > 0 && (
-              <span style={{ color: 'var(--color-danger)' }}>
-                {' '}
-                · {formatEuro(numbers.open.overdue)} überfällig
-              </span>
-            )}
-          </div>
-        </Link>
-      )}
-      {numbers.bank !== undefined && (
-        <Link to="/bankabgleich" className="stat">
-          <div className="stat-label">Zahlungseingänge zuordnen</div>
-          <div className="stat-value">{numbers.bank}</div>
-          <div className="stat-meta">aus dem Kontoauszug</div>
-        </Link>
-      )}
-    </div>
+    </>
   );
 }
