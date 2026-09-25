@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+  <title>gAla – Garten Landschaft Bau App</title>
+  <g transform="translate(340 40) scale(0.9)">  <!-- Bildmarke gAla: Handy mit Garten -->
+  <defs>
+    <clipPath id="screen"><rect x="32" y="32" width="296" height="396" rx="34"/></clipPath>
+  </defs>
+  <rect x="14" y="14" width="332" height="432" rx="52" fill="#fff" stroke="#1f4a2e" stroke-width="28"/>
+  <rect x="148" y="46" width="64" height="14" rx="7" fill="#1f4a2e"/>
+  <g clip-path="url(#screen)">
+    <!-- Baum -->
+    <circle cx="120" cy="150" r="64" fill="#1f4a2e"/>
+    <path d="M120 125 V300 M120 180 L92 152 M120 172 L150 142" stroke="#fff" stroke-width="12" stroke-linecap="round" fill="none"/>
+    <!-- Sträucher -->
+    <path d="M40 320 C40 280 78 270 100 290 C112 262 150 262 160 292 C176 270 214 276 214 314 L214 340 L40 340 Z" fill="#1f4a2e"/>
+    <!-- Rasen -->
+    <path d="M32 345 C110 318 210 318 300 332 L300 430 L32 430 Z" fill="#6c9a3c"/>
+    <!-- Mauer mit Gräsern -->
+    <g fill="#6e6e6e">
+      <path d="M232 238 H268 V260 H236 Z"/><path d="M274 234 H316 V256 H274 Z"/>
+      <path d="M236 266 H290 V288 H240 Z"/><path d="M296 262 H316 V284 H296 Z"/>
+      <path d="M244 294 H276 V316 H248 Z"/><path d="M282 290 H316 V312 H282 Z"/>
+      <path d="M252 322 H300 V344 H256 Z"/><path d="M306 318 H316 V340 H306 Z"/>
+    </g>
+    <path d="M246 234 C236 200 222 176 206 164 C226 170 244 190 254 214 C256 186 262 160 276 138 C272 166 272 196 272 226 C282 200 298 178 318 168 C302 188 292 210 286 234 Z" fill="#6c9a3c"/>
+    <!-- Pflasterweg -->
+    <g fill="#6e6e6e">
+      <path d="M96 430 C112 400 136 382 160 372 L178 390 C158 400 140 414 128 430 Z"/>
+      <path d="M170 368 C190 360 212 356 232 355 L236 376 C218 378 200 382 186 388 Z"/>
+      <path d="M244 354 C262 354 280 356 296 360 L292 380 C278 377 262 376 248 376 Z"/>
+    </g>
+    <!-- Hügel rechts unten -->
+    <path d="M150 430 C190 380 260 362 330 370 L330 430 Z" fill="#1f4a2e"/>
+  </g>
+</g>
+  <g transform="translate(118 470) scale(1.0)">
+  <g fill="#1f4a2e">
+    <!-- g -->
+    <circle cx="100" cy="185" r="48" fill="none" stroke="#1f4a2e" stroke-width="46"/>
+    <path d="M148 114 H194 V262 C194 322 150 346 88 342 C70 341 56 338 44 333 L58 298 C70 303 84 306 98 306 C134 306 148 290 148 262 Z"/>
+    <!-- l: oben und unten geschwungen, gespiegelt -->
+    <path d="M536 14 C500 26 476 52 476 96 L476 214 C476 234 470 246 462 256 C498 248 524 226 524 176 L524 58 C524 38 529 24 536 14 Z"/>
+    <!-- a -->
+    <circle cx="640" cy="185" r="48" fill="none" stroke="#1f4a2e" stroke-width="46"/>
+    <rect x="688" y="114" width="46" height="136"/>
+  </g>
+  <!-- A mit Pflastersteinen -->
+  <path d="M232 250 L316 28 L364 28 L448 250 L400 250 L340 90 L280 250 Z" fill="#6c9a3c" stroke="#6c9a3c" stroke-width="6" stroke-linejoin="round"/>
+  <g fill="#6e6e6e" stroke="#6e6e6e" stroke-width="8" stroke-linejoin="round">
+    <path d="M326 156 H354 L362 180 H318 Z"/>
+    <path d="M308 198 H334 L330 240 H296 Z"/>
+    <path d="M346 198 H372 L384 240 H350 Z"/>
+  </g>
+  </g>
+  <text x="500" y="905" text-anchor="middle" font-family="'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="64" font-weight="600" fill="#1f4a2e">Garten Landschaft Bau App</text>
+</svg>
