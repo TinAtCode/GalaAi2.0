@@ -56,7 +56,7 @@ lan_ips() {
       hostname -I 2>/dev/null | tr ' ' '\n'
     fi
     # Tailscale (Zugriff von unterwegs, siehe BUERO.md)
-    command -v tailscale >/dev/null 2>&1 && tailscale ip -4 2>/dev/null || true
+    if command -v tailscale >/dev/null 2>&1; then tailscale ip -4 2>/dev/null || true; fi
   } | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | grep -vE '^(127\.|172\.(1[7-9]|2[0-9]|3[01])\.|169\.254\.)' | awk '!seen[$0]++'
 }
 IPS=()
