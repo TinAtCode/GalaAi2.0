@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { formatEuro } from '../format';
 import { quantityText } from '../rounding';
@@ -14,6 +15,8 @@ interface PostCalculation {
   orders: number;
   labor: Deviation; // Minuten
   material: Deviation | null; // Euro, ohne Einkaufspreis-Recht null
+  // Eingangsrechnungen am Projekt, netto (ohne Einkaufspreis-Recht null)
+  purchases: { count: number; net: number } | null;
 }
 
 const hours = (minutes: number) =>
@@ -46,7 +49,15 @@ function Row({ label, value, format }: { label: string; value: Deviation; format
 }
 
 // Nachkalkulation: Soll aus den Aufträgen, Ist aus Zeiten und Material
-export function PostCalculationCard({ projectId, reloadKey }: { projectId: string; reloadKey: number }) {
+export function PostCalculationCard({
+  projectId,
+  reloadKey,
+  canSeePayables = false,
+}: {
+  projectId: string;
+  reloadKey: number;
+  canSeePayables?: boolean;
+}) {
   const [data, setData] = useState<PostCalculation | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,6 +88,17 @@ export function PostCalculationCard({ projectId, reloadKey }: { projectId: strin
           </p>
           <Row label="Arbeitszeit" value={data.labor} format={hours} />
           {data.material && <Row label="Material" value={data.material} format={formatEuro} />}
+          {data.purchases && data.purchases.count > 0 && (
+            <p className="list-item-meta" data-testid="postcalc-purchases">
+              Eingangsrechnungen am Projekt: {data.purchases.count} · {formatEuro(data.purchases.net)} netto
+              {canSeePayables && (
+                <>
+                  {' · '}
+                  <Link to={`/finanzen?tab=payables&projekt=${projectId}`}>ansehen</Link>
+                </>
+              )}
+            </p>
+          )}
         </>
       )}
     </section>

@@ -700,7 +700,13 @@ export function ProjectDetailPage() {
             )}
           </section>
 
-          {projectId && <PostCalculationCard projectId={projectId} reloadKey={insightsKey} />}
+          {projectId && (
+            <PostCalculationCard
+              projectId={projectId}
+              reloadKey={insightsKey}
+              canSeePayables={hasPermission('finance.read')}
+            />
+          )}
           {projectId && (
             <MaterialCard
               projectId={projectId}

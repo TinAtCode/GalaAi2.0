@@ -18,6 +18,6 @@ export class PostCalculationController {
     const result = await this.postCalculationService.calculateForProject(user.companyId, projectId);
     // Materialkosten beruhen auf Einkaufspreisen: nur mit price.purchase.read
     if (user.permissions.includes(PERMISSIONS.PRICE_PURCHASE_READ)) return result;
-    return { ...result, material: null };
+    return { ...result, material: null, purchases: null };
   }
 }

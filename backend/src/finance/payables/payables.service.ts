@@ -32,6 +32,7 @@ const MATCH_WINDOW_DAYS = 180;
 type Row = IncomingInvoice & {
   category?: { id: string; name: string } | null;
   document?: { id: string; fileName: string } | null;
+  project?: { id: string; number: string | null; title: string } | null;
 };
 type UploadedFile = { originalname: string; buffer: Buffer; mimetype: string };
 
@@ -79,6 +80,7 @@ export class PayablesService {
       discountedAmount: discountedAmount(p.amount.toFixed(2), p.discountPercent?.toFixed(2) ?? null),
       category: p.category ? { id: p.category.id, name: p.category.name } : null,
       document: p.document ? { id: p.document.id, fileName: p.document.fileName } : null,
+      project: p.project ? { id: p.project.id, number: p.project.number, title: p.project.title } : null,
       source: p.source,
       status: p.status,
       paidAt: day(p.paidAt),
@@ -92,6 +94,7 @@ export class PayablesService {
   private include = {
     category: { select: { id: true, name: true } },
     document: { select: { id: true, fileName: true } },
+    project: { select: { id: true, number: true, title: true } },
   } as const;
 
   private async company(companyId: string) {
@@ -303,6 +306,10 @@ export class PayablesService {
       });
       if (!category) throw new NotFoundException('Kategorie nicht gefunden.');
     }
+    if (dto.projectId) {
+      const project = await this.prisma.project.findFirst({ where: { id: dto.projectId, companyId } });
+      if (!project) throw new NotFoundException('Projekt nicht gefunden.');
+    }
     if (dto.documentId) {
       // nur Belege aus "Beleg einlesen", keine Projektdokumente
       const document = await this.prisma.document.findFirst({
@@ -329,6 +336,7 @@ export class PayablesService {
       ...set('discountPercent', (v) => v),
       ...set('discountUntil', (v) => toDate(v)),
       ...set('categoryId', (v) => v),
+      ...set('projectId', (v) => v),
       ...set('notes', (v) => v.trim() || null),
     };
   }
@@ -505,7 +513,11 @@ export class PayablesService {
     const company = await this.company(companyId);
     const today = localDayString(new Date(), company.timeZone);
     const rows = await this.prisma.incomingInvoice.findMany({
-      where: { companyId, ...(status === 'all' ? {} : { status }) },
+      where: {
+        companyId,
+        ...(status === 'all' ? {} : { status }),
+        ...(query.projectId ? { projectId: query.projectId } : {}),
+      },
       include: this.include,
       orderBy:
         status === 'open'

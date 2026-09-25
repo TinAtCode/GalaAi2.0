@@ -78,6 +78,14 @@ function createPrismaMock() {
         Promise.resolve(materialUsages.filter((m) => m.projectId === where.projectId)),
       ),
     },
+    incomingInvoice: {
+      findMany: jest.fn(() =>
+        Promise.resolve([
+          { amount: '119.00', netAmount: '100.00' },
+          { amount: '20.00', netAmount: null },
+        ]),
+      ),
+    },
   };
 }
 
@@ -98,6 +106,7 @@ describe('PostCalculationService', () => {
     expect(result.material.actual).toBe(100);
     expect(result.material.deviationAbs).toBe(0);
     expect(result.material.deviationPercent).toBe(0);
+    expect(result.purchases).toEqual({ count: 2, net: 120 });
   });
 
   it('Projekt einer fremden Firma ist nicht erreichbar', async () => {
