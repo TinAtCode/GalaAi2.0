@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 25.09.2026 (Nachträge #35–#44) – Server-Probe in der CI, Aufgaben-Übersicht und Querverbindungen, Korrekturen aus dem Code-Review, Eingangsrechnungen am Projekt und mit Lieferscheinen abgeglichen, Deckungsbeitrag, Kundenverlauf, Sammelaktionen, Angebot kopieren; davor GAEB-Leistungsverzeichnisse (X83 einlesen, X84 abgeben); davor DATEV-Debitoren-Stammdaten; davor Neudesign: gAla-Erscheinungsbild als Standard (GartenAI wählbar); davor Anmelden mit Google (OIDC); davor Mini-Vollversion unterwegs erreichbar (Tailscale, Cloudflare-Tunnel) und verschlüsselte Cloud-Sicherung; davor Plantafel-Entwurf („was wäre wenn“) und Sprachbefehle ohne KI; davor Projektnummer, Lieferscheine erkennen und zuordnen, Mail an Lieferanten; davor Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 25.09.2026 (Nachträge #35–#48) – Server-Probe in der CI, Aufgaben-Übersicht und Querverbindungen, Korrekturen aus dem Code-Review, Eingangsrechnungen am Projekt und mit Lieferscheinen abgeglichen, Deckungsbeitrag, Kundenverlauf, Sammelaktionen, Angebot kopieren, Prüfung des Rechnungsdatums, E2E-Durchstiche und Rollentests; davor GAEB-Leistungsverzeichnisse (X83 einlesen, X84 abgeben); davor DATEV-Debitoren-Stammdaten; davor Neudesign: gAla-Erscheinungsbild als Standard (GartenAI wählbar); davor Anmelden mit Google (OIDC); davor Mini-Vollversion unterwegs erreichbar (Tailscale, Cloudflare-Tunnel) und verschlüsselte Cloud-Sicherung; davor Plantafel-Entwurf („was wäre wenn“) und Sprachbefehle ohne KI; davor Projektnummer, Lieferscheine erkennen und zuordnen, Mail an Lieferanten; davor Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -805,6 +805,24 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
 - **Nachtrag – Angebot kopieren (#44):** Neuer Entwurf im selben oder einem anderen Projekt desselben
   Kunden; Katalog-Leistungen mit aktuellen Preisen, freie Positionen mit altem Preis ± %. Mengen,
   Rundung, Ordnungszahlen, Anschreiben und GAEB-Angaben bleiben.
+- **Nachtrag – Prüfung von #40–#44 (#46):**
+  - Korrekturen aus dem Code-Review:
+    - Eine stornierte Eingangsrechnung gibt ihre Lieferscheine wieder frei.
+    - Lieferscheinnummern werden nur als ganzes Wort erkannt.
+    - Der Umsatz je Jahr zählt alle Rechnungen.
+    - Beim Kopieren bleibt der Steuersatz nur, wenn er der Standardsatz ist.
+    - Das Projekt wird nur übernommen, wenn alle Lieferscheine zum selben Projekt gehören.
+  - Hinweis in der Nachkalkulation, wenn Material und Eingangsrechnungen dasselbe doppelt zählen könnten.
+  - Oberfläche:
+    - Knöpfe umbrechen auf schmalen Bildschirmen.
+    - Pflichtfelder rutschen nicht mehr unter die feste Navigation.
+  - Neuer E2E-Durchstich von Kunde bis Zahlung, bei 1280 px und 390 px Breite.
+- **Nachtrag – Rechnungsdatum (#47):**
+  - Ein frei gewähltes Rechnungsdatum darf nicht in der Zukunft liegen.
+  - Es darf auch nicht vor der zuletzt ausgestellten Rechnung liegen, damit Nummern und Daten in derselben Reihenfolge laufen (GoBD).
+  - Die Beispieldaten sind entsprechend sortiert.
+  - Neuer E2E-Durchstich Einkauf: Eingangsrechnung am Projekt bis in die Nachkalkulation.
+- **Nachtrag – Rollen im Browser (#48):** E2E-Tests für Mitarbeiter und Buchhaltung. Sie prüfen, was jede Rolle sieht und darf und welche Beträge ausgeblendet sind.
 
 ---
 
