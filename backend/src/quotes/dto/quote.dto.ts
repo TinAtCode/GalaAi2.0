@@ -150,3 +150,17 @@ export class SetQuoteOutcomeDto {
   @IsIn(['accepted', 'rejected', 'expired'])
   status!: 'accepted' | 'rejected' | 'expired';
 }
+
+// Angebot kopieren: Zielprojekt (desselben Kunden, ohne Angabe dasselbe) und
+// Anpassung der freien Positionen in Prozent
+export class CopyQuoteDto {
+  @IsOptional()
+  @IsString()
+  projectId?: string;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(-50)
+  @Max(100)
+  freeLinePercent?: number;
+}

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatEuro } from '../format';
@@ -13,6 +13,7 @@ import { ChecklistsSection } from './checklists/ChecklistsSection';
 import { ProjectDeliverySection } from './delivery-notes/ProjectDeliverySection';
 import { Contract } from './contracts/types';
 import { QuoteForm } from './QuoteForm';
+import { QuoteCopy } from './QuoteCopy';
 import { MaterialCard, PostCalculationCard } from './ProjectInsights';
 import { quantityText, SOURCE_LABELS } from '../rounding';
 
@@ -116,6 +117,9 @@ export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   // Angebot, dessen Entwurf gerade bearbeitet wird
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  // Angebot, das gerade kopiert wird (Zielprojekt wählen)
+  const [copyingQuoteId, setCopyingQuoteId] = useState<string | null>(null);
+  const navigate = useNavigate();
   const { user, hasPermission } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
@@ -488,6 +492,17 @@ export function ProjectDetailPage() {
                       </button>
                     </>
                   )}
+                  {hasPermission('quote.create') && copyingQuoteId !== quote.id && (
+                    <button
+                      className="btn"
+                      disabled={busyId !== null}
+                      onClick={() => setCopyingQuoteId(quote.id)}
+                      title="Als neuen Entwurf kopieren – z.B. das Angebot vom Vorjahr"
+                      data-testid="quote-copy"
+                    >
+                      Kopieren
+                    </button>
+                  )}
                   {quote.status === 'accepted' &&
                     !hasOrderForQuote(quote.id) &&
                     hasPermission('order.create') && (
@@ -505,6 +520,19 @@ export function ProjectDetailPage() {
                       </button>
                     )}
                 </div>
+                {copyingQuoteId === quote.id && project && (
+                  <QuoteCopy
+                    quoteId={quote.id}
+                    customerId={project.property.customer.id}
+                    projectId={projectId!}
+                    onCancel={() => setCopyingQuoteId(null)}
+                    onCopied={(target) => {
+                      setCopyingQuoteId(null);
+                      if (target === projectId) load();
+                      else navigate(`/projekte/${target}#angebote`);
+                    }}
+                  />
+                )}
               </article>
             ))}
 
