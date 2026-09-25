@@ -26,14 +26,18 @@ export function clearSessionCookie(res: Response) {
   res.clearCookie(SESSION_COOKIE, cookieOptions());
 }
 
-export function sessionTokenFromCookie(req: Request): string | null {
+export function readCookie(req: Request, cookie: string): string | null {
   const header = req.headers.cookie;
   if (!header) return null;
   for (const part of header.split(';')) {
     const [name, ...rest] = part.trim().split('=');
-    if (name === SESSION_COOKIE) return decodeURIComponent(rest.join('='));
+    if (name === cookie) return decodeURIComponent(rest.join('='));
   }
   return null;
+}
+
+export function sessionTokenFromCookie(req: Request): string | null {
+  return readCookie(req, SESSION_COOKIE);
 }
 
 // CSRF-Schutz zusätzlich zu SameSite: Ändernde Anfragen, die sich über das

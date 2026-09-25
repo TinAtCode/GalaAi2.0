@@ -1,5 +1,8 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
+// volle Adresse eines Backend-Pfads (für Seitenwechsel, z. B. Anmelden mit Google)
+export const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
+
 // Die Anmeldung steckt in einem httpOnly-Cookie, das der Browser selbst
 // mitschickt (credentials: 'include'); JavaScript sieht das Token nie.
 // X-Requested-With ist der CSRF-Schutz des Backends (auth/session-cookie.ts).

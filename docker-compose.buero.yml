@@ -43,6 +43,13 @@ services:
       # ohne SMTP_URL werden Mails nicht verschickt (Einstellung in .env.buero)
       SMTP_URL: ${SMTP_URL:-test}
       MAIL_FROM: ${MAIL_FROM:-GartenAI <noreply@localhost>}
+      # Anmelden mit Google oder einem anderen OIDC-Anbieter (BUERO.md / BETRIEB.md)
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
+      OIDC_ALLOWED_DOMAINS: ${OIDC_ALLOWED_DOMAINS:-}
+      OIDC_LABEL: ${OIDC_LABEL:-}
     extra_hosts:
       - host.docker.internal:host-gateway
     volumes:
