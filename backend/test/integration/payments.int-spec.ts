@@ -93,6 +93,19 @@ describe('Zahlungen und offene Posten', () => {
     });
     expect(Number(item.paid)).toBe(1000);
     expect(Number(item.open)).toBe(2570);
+    // Kundenseite: nur die Posten dieses Kunden
+    const ofCustomer = (await api().get(`/open-items?customerId=${item.customer.id}`).set(auth).expect(200))
+      .body;
+    expect(ofCustomer.map((i: { invoiceId: string }) => i.invoiceId)).toContain(invoice.id);
+    const otherCustomer = await prisma.customer.create({
+      data: {
+        companyId: (await prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } })).companyId,
+        name: 'Ohne Rechnung',
+      },
+    });
+    expect(
+      (await api().get(`/open-items?customerId=${otherCustomer.id}`).set(auth).expect(200)).body,
+    ).toEqual([]);
 
     const tooMuch = await pay(invoice.id, { amount: 2570.01, paidOn: today }).expect(400);
     expect(tooMuch.body.message).toContain('2570,00 €');

@@ -143,11 +143,14 @@ export function OpenItemsPage() {
         >
           <div>
             <div className="list-item-name">
-              {KIND_LABELS[item.kind]} {item.number} · {item.customer.name}
+              {KIND_LABELS[item.kind]} {item.number} ·{' '}
+              <Link to={`/kunden/${item.customer.id}`}>{item.customer.name}</Link>
             </div>
             <div className="list-item-meta">
-              <Link to={`/projekte/${item.project.id}`}>{item.project.title}</Link> · fällig am{' '}
-              {day(item.dueDate)}
+              <Link to={`/projekte/${item.project.id}`} data-testid="open-item-project">
+                {item.project.title}
+              </Link>{' '}
+              · fällig am {day(item.dueDate)}
               {Number(item.paid) > 0 &&
                 ` · bezahlt ${formatEuro(item.paid)} von ${formatEuro(item.totalGross)}`}
             </div>

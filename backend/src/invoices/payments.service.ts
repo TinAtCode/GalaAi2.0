@@ -194,11 +194,17 @@ export class PaymentsService {
 
   // Offene Posten: ausgestellte Rechnungen mit Restbetrag, älteste
   // Fälligkeit zuerst. Fällig = Rechnungsdatum + Zahlungsziel.
-  async openItems(companyId: string) {
+  async openItems(companyId: string, customerId?: string) {
     const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
     const tz = company.timeZone;
     const invoices = await this.prisma.invoice.findMany({
-      where: { companyId, status: 'issued', kind: { not: 'cancellation' }, totalGross: { gt: 0 } },
+      where: {
+        companyId,
+        status: 'issued',
+        kind: { not: 'cancellation' },
+        totalGross: { gt: 0 },
+        ...(customerId ? { project: { property: { customerId } } } : {}),
+      },
       include: {
         payments: true,
         chargeWaivers: true,

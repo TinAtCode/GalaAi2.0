@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, StreamableFile, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, StreamableFile, UseGuards } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { DunningService } from './dunning.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -146,8 +146,9 @@ export class InvoicesController {
 export class OpenItemsController {
   constructor(private paymentsService: PaymentsService) {}
 
+  // ?customerId=: nur die Posten eines Kunden (Kundenseite)
   @Get()
-  list(@CurrentUser() user: AuthenticatedUser) {
-    return this.paymentsService.openItems(user.companyId);
+  list(@CurrentUser() user: AuthenticatedUser, @Query('customerId') customerId?: string) {
+    return this.paymentsService.openItems(user.companyId, customerId || undefined);
   }
 }
