@@ -1,5 +1,6 @@
 import { PICTOGRAMS, PIPE_TYPES, PLAN_OBJECT_TYPES, PlanObject, PlanObjectType } from './plan-catalog';
 import { isCircle, outline } from './outline';
+import { isFittingKey, pipeFittings } from './plan-fittings';
 
 type Point = [number, number];
 
@@ -76,7 +77,8 @@ export function validateObjects(objects: unknown): string | null {
     if (type.kind === 'text' && !o.label?.trim()) return 'Beschriftung ohne Text.';
     if (o.props !== undefined) {
       if (typeof o.props !== 'object' || o.props === null) return 'Ungültige Eigenschaften.';
-      const { mowingEdge, spaces, icon, dn, depth, locked, fixed, radii, bulges, shape, ...rest } = o.props;
+      const { mowingEdge, spaces, icon, dn, depth, height, locked, fixed, radii, bulges, shape, ...rest } =
+        o.props;
       if (Object.keys(rest).length) return 'Unbekannte Eigenschaft.';
       if (mowingEdge !== undefined && typeof mowingEdge !== 'boolean') return 'Ungültige Mähkante.';
       if (locked !== undefined && typeof locked !== 'boolean') return 'Ungültige Fixierung.';
@@ -108,6 +110,13 @@ export function validateObjects(objects: unknown): string | null {
       )
         return 'Ungültige Verlegetiefe.';
       if (depth !== undefined && type.kind !== 'line') return `${type.label}: keine Verlegetiefe.`;
+      if (
+        height !== undefined &&
+        (typeof height !== 'number' || !Number.isFinite(height) || Math.abs(height) > 100)
+      )
+        return 'Ungültige Höhe.';
+      if (height !== undefined && type.kind !== 'area' && o.type !== 'height_point')
+        return `${type.label}: keine Höhe.`;
       if (spaces !== undefined && (!Number.isInteger(spaces) || spaces < 0 || spaces > 10_000))
         return 'Ungültige Anzahl Stellplätze.';
       if (
@@ -180,6 +189,7 @@ export function planQuantities(objects: PlanObject[], unitsPerMeter: number): Qu
           } else add(o.type, type.label, 'Stk', 1);
           break;
         }
+        if (o.type === 'building') break; // Gebäude: nur Bezug, keine Menge
         add(o.type, type.label, 'm²', area);
         if (o.type === 'lawn' && o.props?.mowingEdge) add('lawn:mowingEdge', 'Mähkante', 'm', perimeter);
         if (o.type === 'parking' && o.props?.spaces)
@@ -187,6 +197,7 @@ export function planQuantities(objects: PlanObject[], unitsPerMeter: number): Qu
         break;
       }
       case 'symbol':
+        if (o.type === 'height_point') break;
         if (o.type === 'pictogram' && o.props?.icon)
           add(`pictogram:${o.props.icon}`, PICTOGRAMS[o.props.icon], 'Stk', 1);
         else add(o.type, type.label, 'Stk', 1);
@@ -195,6 +206,7 @@ export function planQuantities(objects: PlanObject[], unitsPerMeter: number): Qu
         break;
     }
   }
+  for (const f of pipeFittings(objects, unitsPerMeter)) add(f.key, f.label, f.unit, f.quantity);
   return [...rows.values()].map((r) => ({ ...r, quantity: round(r.quantity, r.unit === 'Stk' ? 0 : 2) }));
 }
 
@@ -203,7 +215,9 @@ export function isQuantityKey(key: string): boolean {
   const [base, extra, ...rest] = key.split(':');
   if (rest.length || !Object.prototype.hasOwnProperty.call(PLAN_OBJECT_TYPES, base)) return false;
   const kind = PLAN_OBJECT_TYPES[base as PlanObjectType].kind;
-  if (extra === undefined) return kind !== 'text' && base !== 'pictogram';
+  if (extra === undefined)
+    return kind !== 'text' && !['pictogram', 'building', 'height_point'].includes(base);
+  if (isFittingKey(base as PlanObjectType, extra)) return true;
   if (base === 'lawn') return extra === 'mowingEdge';
   if (base === 'parking') return extra === 'spaces';
   if (kind === 'opening') return extra === 'width';

@@ -1,6 +1,9 @@
 import { test, expect, Page } from '@playwright/test';
 import { loginViaUi, SEED } from './fixtures';
 
+// hohes Fenster: Werkzeugleiste und Zeichenfläche ganz sichtbar (Klicks per Koordinate)
+test.use({ viewport: { width: 1280, height: 1000 } });
+
 // Klick in die Zeichenfläche, relativ zu ihrer linken oberen Ecke
 async function clickAt(page: Page, x: number, y: number, options: { dblclick?: boolean } = {}) {
   const box = (await page.getByTestId('plan-canvas').boundingBox())!;
@@ -196,7 +199,7 @@ test.describe('Lagepläne', () => {
     // Eingabe und direkt in die leere Zeichenfläche klicken (Auswahl endet): wird trotzdem übernommen
     await page.getByTestId('plan-tool-select').click();
     await segment.nth(0).fill('10');
-    await clickAt(page, 550, 330);
+    await clickAt(page, 550, 250);
     await expect(page.getByTestId('plan-selection')).toHaveCount(0);
     await expect(quantities).toContainText('Rasen40,00 m²');
     const lawnPath = page.locator('[data-testid="plan-object"][data-type="lawn"] path').first();

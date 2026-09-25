@@ -9,6 +9,7 @@ export type ObjectType =
   | 'drain_channel'
   | 'manhole'
   | 'cable'
+  | 'conduit'
   | 'fence'
   | 'gate'
   | 'door'
@@ -16,9 +17,11 @@ export type ObjectType =
   | 'lawn'
   | 'parking'
   | 'planting'
+  | 'building'
   | 'downpipe'
   | 'gully'
   | 'pictogram'
+  | 'height_point'
   | 'text';
 export type Pictogram = 'tree' | 'shrub' | 'lamp' | 'shaft' | 'water' | 'power' | 'bench' | 'play';
 
@@ -32,7 +35,8 @@ export interface PlanObject {
     spaces?: number;
     icon?: Pictogram;
     dn?: number;
-    depth?: number;
+    depth?: number; // Leitung: Verlegetiefe in m (Standard 0,50)
+    height?: number; // Fläche/Höhenpunkt: Höhe über Bezug in m (Standard 0)
     locked?: boolean; // Lage fixiert
     fixed?: number[]; // fixierte Punkte (Indizes)
     radii?: number[]; // Eckradius je Punkt in m (0 = spitz)
@@ -66,6 +70,14 @@ export const TYPES: Record<ObjectType, TypeInfo> = {
     dash: '10 5',
     width: 2.5,
   },
+  conduit: {
+    kind: 'line',
+    label: 'Leerrohr',
+    group: 'Leitungen & Grenzen',
+    color: '#7a3fb0',
+    dash: '6 4',
+    width: 2.5,
+  },
   fence: {
     kind: 'line',
     label: 'Zaun',
@@ -86,7 +98,9 @@ export const TYPES: Record<ObjectType, TypeInfo> = {
     color: '#5f8f3a',
     fill: 'url(#plan-planting)',
   },
+  building: { kind: 'area', label: 'Gebäude', group: 'Flächen', color: '#4b4b4b', fill: '#cfcfcf' },
   pictogram: { kind: 'symbol', label: 'Piktogramm', group: 'Symbole', color: '#2f6b2f' },
+  height_point: { kind: 'symbol', label: 'Höhenpunkt', group: 'Symbole', color: '#b0372c' },
   text: { kind: 'text', label: 'Beschriftung', group: 'Symbole', color: '#1b1b1b' },
 };
 
@@ -105,8 +119,15 @@ export const GROUPS = ['Entwässerung', 'Leitungen & Grenzen', 'Flächen', 'Symb
 export type Group = (typeof GROUPS)[number];
 
 // Leitungen mit Nennweite (wie PIPE_TYPES im Backend); übliche DN im GaLaBau
-export const PIPE_TYPES: ObjectType[] = ['rainwater', 'wastewater', 'drain_channel'];
-export const DN_OPTIONS = [50, 70, 100, 110, 125, 150, 160, 200, 250, 300, 400];
+export const PIPE_TYPES: ObjectType[] = ['rainwater', 'wastewater', 'drain_channel', 'conduit'];
+export const DN_OPTIONS = [
+  10, 15, 20, 25, 32, 40, 50, 63, 70, 75, 90, 100, 110, 125, 150, 160, 200, 250, 300, 315, 400, 500, 600, 800,
+  1000,
+];
+// Rohrleitungen mit Formstücken (Bögen, Abzweige), Rinnen liegen an der Oberfläche
+export const FITTING_TYPES: ObjectType[] = ['rainwater', 'wastewater', 'conduit'];
+// ohne Angabe: Leitungen 0,50 m unter, Flächen auf 0 (Bezugshöhe)
+export const DEFAULT_PIPE_DEPTH = 0.5;
 
 // Muster für Flächen (in Bildschirmgröße, unabhängig vom Zoom)
 export function PatternDefs({ zoom }: { zoom: number }) {
@@ -146,6 +167,18 @@ export function SymbolGlyph({ object, r }: { object: PlanObject; r: number }) {
   );
   if (object.type === 'downpipe')
     return circle('#ffffff', '#1f6fd1', <circle cx={x} cy={y} r={r * 0.35} fill="#1f6fd1" />);
+  if (object.type === 'height_point') {
+    const h = object.props?.height ?? 0;
+    return (
+      <g>
+        <path d={`M${x - r} ${y} H${x + r} M${x} ${y - r} V${y + r}`} stroke="#b0372c" strokeWidth={sw} />
+        <circle cx={x} cy={y} r={r * 0.3} fill="#b0372c" />
+        <text x={x + r * 1.2} y={y - r * 0.4} fontSize={r * 1.1} fill="#b0372c" fontWeight={600}>
+          {`${h >= 0 ? '+' : ''}${h.toFixed(2).replace('.', ',')}`}
+        </text>
+      </g>
+    );
+  }
   if (object.type === 'gully')
     return (
       <g>
