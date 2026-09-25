@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 06.10.2026 – Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 08.10.2026 – Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -642,6 +642,24 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
     liefern 404.
   - **API:** `GET/POST /calendar/events`, `PUT/DELETE /calendar/events/:id`, Zeitraum höchstens 62 Tage.
     Die Plantafel-Abfrage erlaubt dafür bis zu 42 Tage.
+
+- **Nachtrag – Geräte und Fahrzeuge**: Seite „Geräte“ (Recht `site.use`) mit den Reitern Geräte,
+  Schäden, Wartung und Inventur.
+  - **Geräte:** Art (Fahrzeug, Maschine, Anhänger, Werkzeug), Inventarnummer (je Firma eindeutig),
+    Kennzeichen, Seriennummer, Standort, optional die Maschine aus der Kalkulation; ausmustern statt
+    löschen.
+  - **Schäden melden** darf jeder auf der Baustelle: Beschreibung und Nutzbarkeit (Kleinigkeit,
+    eingeschränkt, nicht nutzbar). Der Zustand des Geräts folgt dem schlimmsten offenen Schaden
+    (einsatzbereit, eingeschränkt, defekt). Erledigen mit Kosten und Notiz macht das Büro
+    (`masterdata.write`); alles steht im Audit-Log.
+  - **Wartung und Prüfungen** (HU/TÜV, UVV, DGUV V3, Ölwechsel …) mit Intervall in Monaten und
+    nächster Fälligkeit. „Erledigt“ protokolliert Datum, Kosten und Notiz und rückt die Fälligkeit
+    weiter (am Monatsende gekappt); ohne Intervall ist die Wartung danach beendet. Fällige
+    Wartungen erscheinen im Kalender als eigene Ebene „Wartung“ und unter
+    `GET /equipment/maintenance/due`.
+  - **Inventur:** Das Büro startet einen Durchgang (immer nur einer offen), jeder hakt Geräte als
+    vorhanden oder fehlend ab (auch auf dem Handy). Beim Abschließen bekommen gefundene Geräte
+    Datum und Standort der Inventur; fehlende stehen im Audit-Log.
 
 ---
 

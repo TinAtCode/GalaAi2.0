@@ -121,6 +121,12 @@ model Company {
   absences             Absence[]
   siteDiary            SiteDiaryEntry[]
   calendarEvents       CalendarEvent[]
+  equipment            Equipment[]
+  equipmentDamages     EquipmentDamage[]
+  equipmentMaintenance EquipmentMaintenance[]
+  maintenanceLogs      EquipmentMaintenanceLog[]
+  inventoryCounts      InventoryCount[]
+  inventoryCountItems  InventoryCountItem[]
   pushSubscriptions    PushSubscription[]
   projectMessages      ProjectMessage[]
   projectMessageReads  ProjectMessageRead[]
@@ -446,6 +452,7 @@ model Machine {
   active     Boolean @default(true)
 
   serviceComponents ServiceComponent[]
+  equipment         Equipment[]
 
   @@index([companyId])
 }
@@ -1444,4 +1451,154 @@ model CalendarEvent {
 enum CalendarScope {
   company
   personal
+}
+
+// ─────────────────────────────────────────────
+// Geräte und Fahrzeuge: Schäden, Wartung, Inventur
+// ─────────────────────────────────────────────
+// Jedes Gerät, Fahrzeug oder Werkzeug; optional mit der Maschine aus der
+// Kalkulation verknüpft (Stundensatz). Der Zustand ergibt sich aus den offenen
+// Schäden (schlimmster offener Schaden), "ausgemustert" setzt das Büro.
+model Equipment {
+  id              String          @id @default(uuid())
+  companyId       String
+  company         Company         @relation(fields: [companyId], references: [id])
+  name            String
+  kind            EquipmentKind
+  inventoryNumber String?
+  licensePlate    String?
+  serialNumber    String?
+  location        String?
+  status          EquipmentStatus @default(ready)
+  retired         Boolean         @default(false)
+  machineId       String?
+  machine         Machine?        @relation(fields: [machineId], references: [id])
+  notes           String?
+  lastInventoryAt DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  damages     EquipmentDamage[]
+  maintenance EquipmentMaintenance[]
+  counts      InventoryCountItem[]
+
+  @@unique([companyId, inventoryNumber])
+  @@index([companyId, name])
+}
+
+enum EquipmentKind {
+  vehicle
+  machine
+  trailer
+  tool
+  other
+}
+
+enum EquipmentStatus {
+  ready
+  limited
+  broken
+}
+
+// Schadensmeldung – von jedem auf der Baustelle, erledigt vom Büro/Werkstatt
+model EquipmentDamage {
+  id               String         @id @default(uuid())
+  companyId        String
+  company          Company        @relation(fields: [companyId], references: [id])
+  equipmentId      String
+  equipment        Equipment      @relation(fields: [equipmentId], references: [id])
+  projectId        String?
+  reportedByUserId String
+  description      String
+  severity         DamageSeverity
+  status           DamageStatus   @default(open)
+  repairCost       Decimal?       @db.Decimal(10, 2)
+  resolutionNote   String?
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+  createdAt        DateTime       @default(now())
+
+  @@index([companyId, status])
+  @@index([equipmentId, createdAt])
+}
+
+enum DamageSeverity {
+  minor // Kleinigkeit, voll nutzbar
+  limited // eingeschränkt nutzbar
+  unusable // nicht mehr nutzbar
+}
+
+enum DamageStatus {
+  open
+  in_repair
+  fixed
+}
+
+// Wartung/Prüfung mit Fälligkeit (TÜV, UVV, Ölwechsel …); nach "erledigt"
+// rückt die Fälligkeit um das Intervall weiter
+model EquipmentMaintenance {
+  id             String    @id @default(uuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id])
+  equipmentId    String
+  equipment      Equipment @relation(fields: [equipmentId], references: [id])
+  title          String
+  intervalMonths Int?
+  nextDue        DateTime  @db.Date
+  lastDone       DateTime? @db.Date
+  notes          String?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  logs EquipmentMaintenanceLog[]
+
+  @@index([companyId, nextDue])
+}
+
+model EquipmentMaintenanceLog {
+  id            String               @id @default(uuid())
+  companyId     String
+  company       Company              @relation(fields: [companyId], references: [id])
+  maintenanceId String
+  maintenance   EquipmentMaintenance @relation(fields: [maintenanceId], references: [id])
+  doneOn        DateTime             @db.Date
+  userId        String
+  note          String?
+  cost          Decimal?             @db.Decimal(10, 2)
+  createdAt     DateTime             @default(now())
+
+  @@index([maintenanceId, doneOn])
+}
+
+// Inventur: ein Durchgang, in dem jedes Gerät als vorhanden/fehlend erfasst wird
+model InventoryCount {
+  id              String    @id @default(uuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  title           String
+  startedByUserId String
+  closedAt        DateTime?
+  closedByUserId  String?
+  createdAt       DateTime  @default(now())
+
+  items InventoryCountItem[]
+
+  @@index([companyId, createdAt])
+}
+
+model InventoryCountItem {
+  id              String         @id @default(uuid())
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id])
+  countId         String
+  count           InventoryCount @relation(fields: [countId], references: [id])
+  equipmentId     String
+  equipment       Equipment      @relation(fields: [equipmentId], references: [id])
+  found           Boolean
+  location        String?
+  note            String?
+  countedByUserId String
+  countedAt       DateTime       @default(now())
+
+  @@unique([countId, equipmentId])
 }

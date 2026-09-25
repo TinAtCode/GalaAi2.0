@@ -27,12 +27,21 @@ interface Board {
   absences: { id: string; userId: string; startDate: string; endDate: string; kind: string }[];
 }
 
-type Layer = 'company' | 'site' | 'team' | 'personal';
+interface Maintenance {
+  id: string;
+  title: string;
+  due: string;
+  overdue: boolean;
+  equipment: { id: string; name: string };
+}
+
+type Layer = 'company' | 'site' | 'team' | 'personal' | 'maintenance';
 const LAYERS: { key: Layer; label: string; color: string }[] = [
   { key: 'company', label: 'Firma', color: '#7a3fb0' },
   { key: 'site', label: 'Baustellen', color: '#1f6fd1' },
   { key: 'team', label: 'Team (Abwesenheiten)', color: '#b0372c' },
   { key: 'personal', label: 'Persönlich', color: '#2f6b2f' },
+  { key: 'maintenance', label: 'Wartung', color: '#b07a1f' },
 ];
 const COLOR = Object.fromEntries(LAYERS.map((l) => [l.key, l.color])) as Record<Layer, string>;
 const ABSENCE: Record<string, string> = {
@@ -91,9 +100,11 @@ export function CalendarPage() {
     site: true,
     team: true,
     personal: true,
+    maintenance: true,
   });
   const [onlyMine, setOnlyMine] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [maintenance, setMaintenance] = useState<Maintenance[]>([]);
   const [canWriteCompany, setCanWriteCompany] = useState(false);
   const [board, setBoard] = useState<Board | null>(null);
   const [selected, setSelected] = useState(today);
@@ -109,12 +120,13 @@ export function CalendarPage() {
 
   const load = useCallback(() => {
     api
-      .get<{ events: CalendarEvent[]; canWriteCompany: boolean }>(
+      .get<{ events: CalendarEvent[]; maintenance?: Maintenance[]; canWriteCompany: boolean }>(
         `/calendar/events?from=${gridStart}&to=${gridEnd}`,
       )
       .then((r) => {
         setError(null);
         setEvents(r.events);
+        setMaintenance(r.maintenance ?? []);
         setCanWriteCompany(r.canWriteCompany);
       })
       .catch(() => setError('Kalender konnte nicht geladen werden.'));
@@ -165,9 +177,16 @@ export function CalendarPage() {
           label: `${names.get(ab.userId) ?? 'Mitarbeiter'}: ${ABSENCE[ab.kind] ?? 'abwesend'}`,
         });
     }
+    for (const m of maintenance)
+      push(m.due, {
+        key: `m:${m.id}`,
+        layer: 'maintenance',
+        label: `${m.equipment.name}: ${m.title}${m.overdue ? ' (überfällig)' : ''}`,
+        link: `/geraete/${m.equipment.id}`,
+      });
     for (const list of map.values()) list.sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''));
     return map;
-  }, [events, board, onlyMine, user?.id, gridStart, gridEnd]);
+  }, [events, maintenance, board, onlyMine, user?.id, gridStart, gridEnd]);
 
   const visible = (day: string) => (byDay.get(day) ?? []).filter((i) => layers[i.layer]);
 
