@@ -503,6 +503,8 @@ export class PayablesService {
   async setDeliveryNotes(companyId: string, id: string, dto: SetDeliveryNotesDto) {
     const row = await this.findRow(companyId, id);
     const ids = [...new Set(dto.deliveryNoteIds)];
+    if (row.status === 'cancelled' && ids.length)
+      throw new ConflictException('Einer stornierten Rechnung lassen sich keine Lieferscheine zuordnen.');
     const notes = await this.prisma.deliveryNote.findMany({
       where: { id: { in: ids }, companyId },
       select: { id: true, status: true, projectId: true, incomingInvoiceId: true },

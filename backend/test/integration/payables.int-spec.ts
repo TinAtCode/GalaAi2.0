@@ -785,6 +785,12 @@ ${debits
         where: { id: { in: [forProject.id, stock.id] }, incomingInvoiceId: null },
       }),
     ).toBe(2);
+    // die stornierte Rechnung nimmt keine Lieferscheine mehr an
+    await api()
+      .put(`/finance/payables/${bill.body.id}/delivery-notes`)
+      .set(auth)
+      .send({ deliveryNoteIds: [stock.id] })
+      .expect(409);
     const replacement = await api()
       .post('/finance/payables')
       .set(auth)
