@@ -141,6 +141,19 @@ export function DatevSection({ canEdit, canExport }: { canEdit: boolean; canExpo
     }
   };
 
+  // Stammdaten der Debitoren (Name, Anschrift) – einmal vorab und bei neuen Kunden
+  const downloadDebtors = async () => {
+    setExportMessage(null);
+    setBusy(true);
+    try {
+      await api.downloadFile('/datev/debtors', 'EXTF_Debitoren.csv');
+    } catch (err) {
+      setExportMessage(err instanceof ApiError ? err.message : 'Export fehlgeschlagen.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <section className="settings-section" data-testid="datev-section">
       <h3>DATEV-Export</h3>
@@ -188,6 +201,17 @@ export function DatevSection({ canEdit, canExport }: { canEdit: boolean; canExpo
           Zahlungseingänge mitexportieren (Bank bzw. Kasse an Debitor) – nur, wenn der Steuerberater die
           Bankumsätze nicht selbst aus dem Bankkonto übernimmt, sonst sind sie doppelt gebucht.
         </label>
+      )}
+      {canExport && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+          <button className="btn" onClick={downloadDebtors} disabled={busy} data-testid="datev-debtors">
+            Debitoren (Kunden) herunterladen
+          </button>
+          <span className="list-item-meta">
+            Name, Anschrift, USt-IdNr. und Kontakt je Debitorenkonto – vor dem ersten Buchungsstapel und bei
+            neuen Kunden an den Steuerberater geben.
+          </span>
+        </div>
       )}
       {exportMessage && (
         <p className="field-error" data-testid="datev-export-message">

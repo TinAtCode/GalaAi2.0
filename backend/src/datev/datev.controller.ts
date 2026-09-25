@@ -34,4 +34,18 @@ export class DatevController {
       disposition: `attachment; filename="${fileName}"`,
     });
   }
+
+  // GET /datev/debtors[?invoiced=1]: Debitoren-Stammdaten (Name, Anschrift)
+  @Get('debtors')
+  async debtors(@CurrentUser() user: AuthenticatedUser, @Query('invoiced') invoiced = '') {
+    const { buffer, fileName } = await this.datevService.exportDebtors(
+      user.companyId,
+      user.userId,
+      invoiced === '1' || invoiced === 'true',
+    );
+    return new StreamableFile(buffer, {
+      type: 'text/csv; charset=windows-1252',
+      disposition: `attachment; filename="${fileName}"`,
+    });
+  }
 }
