@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -55,6 +56,13 @@ class QuoteLineItemInputDto {
   @Min(0)
   @Max(99_999_999.99)
   costPerUnit?: number;
+
+  // Ordnungszahl im GAEB-Leistungsverzeichnis (bleibt beim Bearbeiten erhalten)
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  @Matches(/^[0-9A-Za-z]+(\.[0-9A-Za-z]+)*$/, { message: 'Ungültige Ordnungszahl.' })
+  gaebOz?: string;
 
   // Genaue Menge (bis 3 Nachkommastellen, z.B. mm in m). Für Angebot und
   // Summe wird sie nach der Rundungsregel gerundet: Position → Leistung →

@@ -311,6 +311,9 @@ model Quote {
   validUntil   DateTime?
   // Anschreiben über den Positionen (PDF); nur im Entwurf änderbar
   introText    String?
+  // aus einem GAEB-Leistungsverzeichnis eingelesen: Projekt, LV-Name und
+  // Gliederung (BoQBkdn) für die Angebotsabgabe als X84 (quotes/gaeb)
+  gaebInfo     Json?
   createdAt    DateTime     @default(now())
 
   lineItems QuoteLineItem[]
@@ -331,6 +334,8 @@ model QuoteLineItem {
   serviceId        String? // nur Referenz/Nachvollziehbarkeit, keine Live-Daten; null = freie Position
   description      String // Snapshot des Leistungsnamens zum Zeitpunkt der Erstellung
   unit             String
+  // Ordnungszahl im GAEB-Leistungsverzeichnis, z.B. "01.02.0030"
+  gaebOz           String?
   // gerundete Menge (Angebot, PDF, Summe); die genaue Menge bleibt für die
   // Nachkalkulation erhalten
   quantity         Decimal           @db.Decimal(12, 3)
