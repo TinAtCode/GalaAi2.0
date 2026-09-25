@@ -148,28 +148,30 @@ export class TimeEntriesService {
   async approveMany(companyId: string, userId: string, ids: string[]) {
     const unique = [...new Set(ids)];
     return this.prisma.$transaction(async (tx) => {
-      const candidates = await tx.timeEntry.findMany({
+      const approvedAt = new Date();
+      // Status in der Bedingung: gleichzeitig freigegebene oder geänderte bleiben unberührt
+      const { count } = await tx.timeEntry.updateMany({
         where: { id: { in: unique }, companyId, status: 'completed' },
-        select: { id: true },
+        data: { status: 'approved', approvedByUserId: userId, approvedAt },
       });
-      const approvedIds = candidates.map((c) => c.id);
-      if (approvedIds.length > 0) {
-        // Status nochmal in der Bedingung: gleichzeitig geänderte bleiben unberührt
-        await tx.timeEntry.updateMany({
-          where: { id: { in: approvedIds }, companyId, status: 'completed' },
-          data: { status: 'approved', approvedByUserId: userId, approvedAt: new Date() },
+      if (count > 0) {
+        // genau die Einträge, die dieser Aufruf freigegeben hat
+        const approved = await tx.timeEntry.findMany({
+          where: { id: { in: unique }, companyId, approvedByUserId: userId, approvedAt },
+          select: { id: true },
         });
-        for (const entityId of approvedIds) {
-          await writeAudit(tx, {
+        await tx.auditLog.createMany({
+          data: approved.map((e) => ({
             companyId,
             userId,
             action: 'time_entry_approve',
             entity: 'TimeEntry',
-            entityId,
-          });
-        }
+            entityId: e.id,
+            source: 'manual' as const,
+          })),
+        });
       }
-      return { approved: approvedIds.length, skipped: unique.length - approvedIds.length };
+      return { approved: count, skipped: unique.length - count };
     });
   }
 

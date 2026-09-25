@@ -804,6 +804,8 @@ input[type='radio'] {
 
 .list-item {
   display: flex;
+  /* Knöpfe rutschen in die nächste Zeile statt aus der Spalte zu ragen */
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
@@ -2201,4 +2203,13 @@ input[type='radio'] {
 .plain-table tr:last-child td {
   border-top: 1px solid var(--color-border, currentColor);
   padding-top: 6px;
+}
+
+/* Beim Springen zu einem Feld (Pflichtfeld-Hinweis des Browsers, Anker)
+   nicht unter der festen Abschnittsleiste verschwinden */
+input,
+select,
+textarea,
+[id] {
+  scroll-margin-top: 120px;
 }

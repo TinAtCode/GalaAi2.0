@@ -131,6 +131,8 @@ export function TeamPage() {
               className={selectedId === emp.id ? 'active' : ''}
               onClick={() => {
                 setNotice(null);
+                // alte Einträge sofort weg: „Alle freigeben“ darf nie die vorige Person treffen
+                if (emp.id !== selectedId) setEntries(null);
                 setSelectedId(emp.id);
               }}
               data-testid="team-employee-tab"

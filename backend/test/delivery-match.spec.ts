@@ -1,4 +1,9 @@
-import { findSupplier, rankNotes, supplierKey } from '../src/finance/payables/delivery-match';
+import {
+  findSupplier,
+  noteNumberPattern,
+  rankNotes,
+  supplierKey,
+} from '../src/finance/payables/delivery-match';
 
 describe('Lieferschein ↔ Eingangsrechnung', () => {
   const suppliers = [
@@ -38,5 +43,22 @@ describe('Lieferschein ↔ Eingangsrechnung', () => {
       { id: 'a', noteNumber: '12', noteDate: null },
     ]);
     expect(ranked[0].reasons).toEqual([]);
+  });
+
+  it('Nummer nur an Wortgrenzen: nicht in Beträgen, Daten oder längeren Zahlen', () => {
+    const hit = (number: string, text: string) => noteNumberPattern(number)!.test(text.toLowerCase());
+    expect(hit('4711', 'Betrag 47,11 €')).toBe(false);
+    expect(hit('0320', 'Datum 12.03.2026')).toBe(false);
+    expect(hit('4711', 'Kundennr. 147110')).toBe(false);
+    expect(hit('4711', 'Lieferschein 4711 vom 3.5.')).toBe(true);
+    expect(hit('LS-2026/0042', 'laut LS 2026 0042')).toBe(true);
+    expect(hit('LS-0042', 'LS0042')).toBe(true);
+    expect(noteNumberPattern('12')).toBeNull();
+    // falscher Treffer wäre sonst vorausgewählt und ganz oben
+    const ranked = rankNotes({ invoiceDate: '2026-05-31', text: 'Summe 47,11 € vom 12.03.2026' }, [
+      { id: 'x', noteNumber: '4711', noteDate: null },
+      { id: 'y', noteNumber: '0320', noteDate: null },
+    ]);
+    expect(ranked.every((r) => !r.reasons.includes('number'))).toBe(true);
   });
 });

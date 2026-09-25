@@ -716,4 +716,88 @@ ${debits
       (await prisma.deliveryNote.findUniqueOrThrow({ where: { id: byDate.id } })).incomingInvoiceId,
     ).toBeNull();
   });
+
+  it('Review-Fixes: Storno gibt Lieferscheine frei, gemischte Projekte, Lieferant bleibt beim Bearbeiten', async () => {
+    const cid = company.companyId;
+    const supplier = await prisma.supplier.create({ data: { companyId: cid, name: 'Baumschule West' } });
+    const customer = await prisma.customer.create({ data: { companyId: cid, name: 'Kunde RF' } });
+    const property = await prisma.property.create({
+      data: { companyId: cid, customerId: customer.id, label: 'Garten' },
+    });
+    const project = await prisma.project.create({
+      data: { companyId: cid, propertyId: property.id, title: 'Hecke' },
+    });
+    const note = async (noteNumber: string, projectId: string | null) => {
+      const document = await prisma.document.create({
+        data: {
+          companyId: cid,
+          fileName: `${noteNumber}.pdf`,
+          storagePath: `x/${noteNumber}.pdf`,
+          documentType: 'delivery_note',
+        },
+      });
+      return prisma.deliveryNote.create({
+        data: {
+          companyId: cid,
+          documentId: document.id,
+          supplierId: supplier.id,
+          projectId,
+          noteNumber,
+          status: 'confirmed',
+        },
+      });
+    };
+    const forProject = await note('BW-1', project.id);
+    const stock = await note('BW-2', null); // Lagerware ohne Projekt
+
+    const bill = await api()
+      .post('/finance/payables')
+      .set(auth)
+      .send({ supplierName: 'Baumschule West', invoiceNumber: 'BW-R1', amount: 300 })
+      .expect(201);
+    expect(bill.body.supplier?.id).toBe(supplier.id);
+
+    // gemischt (mit und ohne Projekt): die Rechnung bekommt KEIN Projekt
+    await api()
+      .put(`/finance/payables/${bill.body.id}/delivery-notes`)
+      .set(auth)
+      .send({ deliveryNoteIds: [forProject.id, stock.id] })
+      .expect(200);
+    expect(
+      (await prisma.incomingInvoice.findUniqueOrThrow({ where: { id: bill.body.id } })).projectId,
+    ).toBeNull();
+
+    // Bearbeiten ohne Namensänderung: Lieferant bleibt, auch wenn er nicht mehr eindeutig wäre
+    await prisma.supplier.create({ data: { companyId: cid, name: 'Baumschule West GmbH' } });
+    await api()
+      .patch(`/finance/payables/${bill.body.id}`)
+      .set(auth)
+      .send({ supplierName: 'Baumschule West', notes: 'nur Notiz geändert' })
+      .expect(200);
+    expect((await prisma.incomingInvoice.findUniqueOrThrow({ where: { id: bill.body.id } })).supplierId).toBe(
+      supplier.id,
+    );
+
+    // Storno: Lieferscheine wieder frei, die Ersatzrechnung bekommt sie
+    await api().post(`/finance/payables/${bill.body.id}/cancel`).set(auth).expect(201);
+    expect(
+      await prisma.deliveryNote.count({
+        where: { id: { in: [forProject.id, stock.id] }, incomingInvoiceId: null },
+      }),
+    ).toBe(2);
+    const replacement = await api()
+      .post('/finance/payables')
+      .set(auth)
+      .send({ supplierName: 'Baumschule West', invoiceNumber: 'BW-R2', amount: 300, supplierId: supplier.id })
+      .expect(201);
+    await api()
+      .put(`/finance/payables/${replacement.body.id}/delivery-notes`)
+      .set(auth)
+      .send({ deliveryNoteIds: [forProject.id] })
+      .expect(200);
+    // nur Lieferscheine eines Projekts → Projekt übernommen
+    expect(
+      (await prisma.incomingInvoice.findUniqueOrThrow({ where: { id: replacement.body.id } })).projectId,
+    ).toBe(project.id);
+  });
 });

@@ -282,4 +282,23 @@ describe('Angebote mit freien Positionen', () => {
       .expect(404);
     await api().post(`/quotes/${original.body.id}/copy`).set(auth).send({ freeLinePercent: 500 }).expect(400);
   });
+
+  it('Kopie eines Angebots ohne USt (§ 19) bekommt den aktuellen Steuersatz der Firma', async () => {
+    const created = await api()
+      .post('/quotes')
+      .set(auth)
+      .send({ projectId, lineItems: [{ description: 'Pflege', unit: 'psch', quantity: 1, unitPrice: 100 }] })
+      .expect(201);
+    // wie ein altes Angebot aus der Zeit als Kleinunternehmer
+    await prisma.quote.update({
+      where: { id: created.body.id },
+      data: { vatTreatment: 'small_business', vatRate: 0, totalVat: 0, totalGross: 100 },
+    });
+    const company = await prisma.company.findUniqueOrThrow({
+      where: { id: (await prisma.quote.findUniqueOrThrow({ where: { id: created.body.id } })).companyId },
+    });
+    const copy = await api().post(`/quotes/${created.body.id}/copy`).set(auth).send({}).expect(201);
+    expect(copy.body.vatTreatment).toBe(company.smallBusiness ? 'small_business' : 'standard');
+    expect(Number(copy.body.vatRate)).toBe(company.smallBusiness ? 0 : Number(company.defaultVatRate));
+  });
 });

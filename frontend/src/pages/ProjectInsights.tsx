@@ -67,6 +67,13 @@ function MarginTable({ margin }: { margin: NonNullable<PostCalculation['margin']
           </tr>
         </tbody>
       </table>
+      {margin.costs.material > 0 && margin.costs.purchases > 0 && (
+        <p className="list-item-meta" data-testid="postcalc-double-hint">
+          Hinweis: Materialverbrauch und Eingangsrechnungen zählen beide. Lagermaterial als Verbrauch
+          erfassen, direkt gelieferte Ware nur über die Eingangsrechnung – sonst steht sie doppelt in den
+          Kosten.
+        </p>
+      )}
       {margin.orderValue > margin.invoiced && (
         <p className="list-item-meta" style={{ marginBottom: 0 }}>
           Auftragswert {formatEuro(margin.orderValue)} – noch{' '}

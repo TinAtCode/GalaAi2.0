@@ -56,8 +56,15 @@ export interface NoteCandidate {
 
 export type NoteReason = 'number' | 'date';
 
-// nur Ziffern und Buchstaben: "LS-2026/0042" = "ls20260042"
-const compact = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '');
+// Lieferscheinnummer als Muster mit Wortgrenzen: die Teile der Nummer dürfen
+// durch Leer- oder Satzzeichen getrennt sein ("LS-2026/0042" findet
+// "LS 2026 0042"), aber nicht mitten in einem Betrag oder Datum stehen
+// ("4711" findet weder "47,11 €" noch "147110").
+export function noteNumberPattern(noteNumber: string): RegExp | null {
+  const parts = noteNumber.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  if (parts.join('').length < 3) return null;
+  return new RegExp(`(?<![a-z0-9])${parts.join('[^a-z0-9]*')}(?![a-z0-9])`);
+}
 
 const DAY_MS = 86_400_000;
 // Lieferscheine bis zu vier Monate vor dem Rechnungsdatum (Sammelrechnungen)
@@ -70,13 +77,13 @@ export function rankNotes(
   invoice: { invoiceDate: string | null; text: string },
   notes: NoteCandidate[],
 ): (NoteCandidate & { reasons: NoteReason[] })[] {
-  const text = compact(invoice.text);
+  const text = invoice.text.toLowerCase();
   const invoiceTime = invoice.invoiceDate ? Date.parse(`${invoice.invoiceDate}T00:00:00Z`) : null;
   return notes
     .map((note) => {
       const reasons: NoteReason[] = [];
-      const number = note.noteNumber ? compact(note.noteNumber) : '';
-      if (number.length >= 3 && text.includes(number)) reasons.push('number');
+      const pattern = note.noteNumber ? noteNumberPattern(note.noteNumber) : null;
+      if (pattern?.test(text)) reasons.push('number');
       let inWindow = true;
       if (invoiceTime !== null && note.noteDate) {
         const days = (invoiceTime - Date.parse(`${note.noteDate}T00:00:00Z`)) / DAY_MS;
