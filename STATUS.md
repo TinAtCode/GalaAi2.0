@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 12.10.2026 – GAEB-Leistungsverzeichnisse (X83 einlesen, X84 abgeben); davor DATEV-Debitoren-Stammdaten; davor Neudesign: gAla-Erscheinungsbild als Standard (GartenAI wählbar); davor Anmelden mit Google (OIDC); davor Mini-Vollversion unterwegs erreichbar (Tailscale, Cloudflare-Tunnel) und verschlüsselte Cloud-Sicherung; davor Plantafel-Entwurf („was wäre wenn“) und Sprachbefehle ohne KI; davor Projektnummer, Lieferscheine erkennen und zuordnen, Mail an Lieferanten; davor Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 25.09.2026 (Nachträge #35–#44) – Server-Probe in der CI, Aufgaben-Übersicht und Querverbindungen, Korrekturen aus dem Code-Review, Eingangsrechnungen am Projekt und mit Lieferscheinen abgeglichen, Deckungsbeitrag, Kundenverlauf, Sammelaktionen, Angebot kopieren; davor GAEB-Leistungsverzeichnisse (X83 einlesen, X84 abgeben); davor DATEV-Debitoren-Stammdaten; davor Neudesign: gAla-Erscheinungsbild als Standard (GartenAI wählbar); davor Anmelden mit Google (OIDC); davor Mini-Vollversion unterwegs erreichbar (Tailscale, Cloudflare-Tunnel) und verschlüsselte Cloud-Sicherung; davor Plantafel-Entwurf („was wäre wenn“) und Sprachbefehle ohne KI; davor Projektnummer, Lieferscheine erkennen und zuordnen, Mail an Lieferanten; davor Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -772,6 +772,39 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   ergänzte Positionen stehen in einem eigenen Titel. Ohne Preise keine Abgabe. Dateien mit DOCTYPE
   werden abgewiesen. Die X84 ist gegen den eigenen Parser getestet, nicht gegen ein AVA-Programm –
   beim ersten echten LV die Abgabe beim Auftraggeber bzw. in dessen AVA prüfen lassen.
+- **Nachtrag – Server-Probe (#35):** `ci-server.yml` spielt den Server-Betrieb auf einer CI-Maschine
+  durch: Einrichten mit v1 über SSH, Anmeldung über HTTPS (Caddy, eigene CA, Secure-Cookie), Update
+  auf v2 mit Sicherung vorher, kaputtes v3 wird automatisch auf v2 zurückgerollt, `--rollback` auf
+  v1, Daten danach vollständig. Anleitung für eine eigene Test-VM in `SERVER-TEST.md`.
+- **Nachtrag – Querverbindungen (#36, #38, #39):** „Zu erledigen“ in der Übersicht (Lieferscheine,
+  Checklisten-Vorschläge, Schäden, Wartungen, Angebote, Zeiten, fällige Eingangsrechnungen), Suche
+  nach Angebots- und Rechnungsnummern, Mein Tag mit Link zu Baustelle/Projekt und Route.
+  Eingangsrechnungen lassen sich einem Projekt zuordnen (`IncomingInvoice.projectId`, Filter
+  `?projekt=`) und stehen in der Nachkalkulation. Kundenseite mit offenen Posten und Knöpfen
+  „Anrufen“/„E-Mail“; offene Posten verlinken den Kunden.
+- **Nachtrag – Code-Review (#37):** GAEB (Bedarfspositionen mit Gesamtbetrag, Einheit beim
+  Katalogpreis, `gaebInfo` im selben Schreibvorgang, freie Ordnungszahlen, IDs in der X84), DATEV
+  (60-s-Transaktion, Objekt-Anschrift als Ersatz), Anmeldung (State-Cookie immer Lax,
+  `OIDC_TRUST_EMAIL` für Entra ID ohne `email_verified`, nie bei common/organizations/consumers).
+- **Nachtrag – Lieferschein ↔ Eingangsrechnung (#40):** Eingangsrechnungen erkennen den Lieferanten
+  aus den Stammdaten (ohne Rechtsform, nur eindeutig). „Lieferscheine“ an der Rechnung schlägt
+  bestätigte, noch nicht abgerechnete Lieferscheine des Lieferanten aus bis zu vier Monaten vor dem
+  Rechnungsdatum vor; steht die Lieferscheinnummer im Beleg, ist der Vorschlag vorausgewählt. Nach
+  dem Zuordnen gilt der Lieferschein als „abgerechnet“; gehören alle zum selben Projekt, übernimmt die
+  Rechnung das Projekt. Übersicht: „Lieferscheine ohne Rechnung (über 30 Tage)“.
+- **Nachtrag – Deckungsbeitrag (#41):** Nachkalkulation mit Umsatz (ausgestellte Rechnungen netto,
+  ohne Stornos) minus Lohn (Ist-Stunden × Kalkulations-Stundensatz), Material und
+  Eingangsrechnungen; Hinweis auf den noch nicht berechneten Auftragswert. Nur mit Einkaufspreis-
+  und Rechnungsrecht. Der Lohn ist zum Kalkulationssatz bewertet, nicht zu den echten Lohnkosten je
+  Mitarbeiter.
+- **Nachtrag – Kundenverlauf (#42):** Kundenseite mit Umsatz je Jahr, Annahmequote der Angebote und
+  den letzten Angeboten/Rechnungen; Beträge nur mit den jeweiligen Rechten.
+- **Nachtrag – Sammelaktionen (#43):** Team: alle abgeschlossenen Zeiten einer Person auf einmal
+  freigeben (eine Transaktion, je Eintrag im Audit-Log). Offene Posten: alle fälligen Mahnungen auf
+  einmal erstellen; der Versand bleibt einzeln.
+- **Nachtrag – Angebot kopieren (#44):** Neuer Entwurf im selben oder einem anderen Projekt desselben
+  Kunden; Katalog-Leistungen mit aktuellen Preisen, freie Positionen mit altem Preis ± %. Mengen,
+  Rundung, Ordnungszahlen, Anschreiben und GAEB-Angaben bleiben.
 
 ---
 
