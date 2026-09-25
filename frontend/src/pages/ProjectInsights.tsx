@@ -17,6 +17,64 @@ interface PostCalculation {
   material: Deviation | null; // Euro, ohne Einkaufspreis-Recht null
   // Eingangsrechnungen am Projekt, netto (ohne Einkaufspreis-Recht null)
   purchases: { count: number; net: number } | null;
+  // nur mit Einkaufspreisen und Rechnungsrecht
+  margin: {
+    orderValue: number;
+    invoiced: number;
+    costs: { labor: number; material: number; purchases: number; total: number };
+    hourlyRate: number;
+    contribution: number;
+    contributionPercent: number | null;
+  } | null;
+}
+
+// Deckungsbeitrag: Umsatz laut Rechnungen gegen die Ist-Kosten
+function MarginTable({ margin }: { margin: NonNullable<PostCalculation['margin']> }) {
+  const negative = margin.contribution < 0;
+  return (
+    <div data-testid="postcalc-margin" style={{ marginTop: 12 }}>
+      <div className="list-item-name">Deckungsbeitrag</div>
+      <table className="plain-table" style={{ width: '100%', marginTop: 4 }}>
+        <tbody>
+          <tr>
+            <td>Umsatz (Rechnungen netto)</td>
+            <td style={{ textAlign: 'right' }}>{formatEuro(margin.invoiced)}</td>
+          </tr>
+          <tr className="list-item-meta">
+            <td>Lohn ({formatEuro(margin.hourlyRate)}/h)</td>
+            <td style={{ textAlign: 'right' }}>− {formatEuro(margin.costs.labor)}</td>
+          </tr>
+          <tr className="list-item-meta">
+            <td>Material (Verbrauch)</td>
+            <td style={{ textAlign: 'right' }}>− {formatEuro(margin.costs.material)}</td>
+          </tr>
+          <tr className="list-item-meta">
+            <td>Eingangsrechnungen</td>
+            <td style={{ textAlign: 'right' }}>− {formatEuro(margin.costs.purchases)}</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Deckungsbeitrag</strong>
+            </td>
+            <td
+              style={{ textAlign: 'right', color: negative ? 'var(--color-danger)' : undefined }}
+              data-testid="postcalc-contribution"
+            >
+              <strong>{formatEuro(margin.contribution)}</strong>
+              {margin.contributionPercent !== null &&
+                ` (${margin.contributionPercent.toLocaleString('de-DE')} %)`}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {margin.orderValue > margin.invoiced && (
+        <p className="list-item-meta" style={{ marginBottom: 0 }}>
+          Auftragswert {formatEuro(margin.orderValue)} – noch{' '}
+          {formatEuro(margin.orderValue - margin.invoiced)} nicht berechnet.
+        </p>
+      )}
+    </div>
+  );
 }
 
 const hours = (minutes: number) =>
@@ -99,6 +157,7 @@ export function PostCalculationCard({
               )}
             </p>
           )}
+          {data.margin && <MarginTable margin={data.margin} />}
         </>
       )}
     </section>

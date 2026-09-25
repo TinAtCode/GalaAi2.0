@@ -18,6 +18,43 @@ export interface PostCalculationResult {
   material: DeviationResult; // in Euro (Einkaufspreis-Basis)
   // dem Projekt zugeordnete Eingangsrechnungen (Einkauf, Fremdleistung), netto
   purchases: { count: number; net: number };
+  margin: MarginResult;
+}
+
+// Deckungsbeitrag: Umsatz (ausgestellte Rechnungen netto) minus Lohn,
+// Material und Eingangsrechnungen. Lohn zum Kalkulations-Stundensatz der
+// Firma (enthält Lohnnebenkosten, wie im Angebot kalkuliert).
+export interface MarginResult {
+  orderValue: number; // Summe der Aufträge (netto)
+  invoiced: number; // ausgestellte Rechnungen netto, Stornos abgezogen
+  costs: { labor: number; material: number; purchases: number; total: number };
+  hourlyRate: number;
+  contribution: number; // invoiced - costs.total
+  contributionPercent: number | null; // bezogen auf den Umsatz
+}
+
+export function calculateMargin(input: {
+  orderValue: number;
+  invoiced: number;
+  laborMinutes: number;
+  hourlyRate: number;
+  material: number;
+  purchases: number;
+}): MarginResult {
+  const labor = round2((input.laborMinutes / 60) * input.hourlyRate);
+  const material = round2(input.material);
+  const purchases = round2(input.purchases);
+  const total = round2(labor + material + purchases);
+  const invoiced = round2(input.invoiced);
+  const contribution = round2(invoiced - total);
+  return {
+    orderValue: round2(input.orderValue),
+    invoiced,
+    costs: { labor, material, purchases, total },
+    hourlyRate: input.hourlyRate,
+    contribution,
+    contributionPercent: invoiced > 0 ? round2((contribution / invoiced) * 100) : null,
+  };
 }
 
 // Reine, deterministische Funktion (Punkt 14: KI interpretiert, Software
@@ -148,9 +185,28 @@ export class PostCalculationService {
     });
     const purchasesNet = payables.reduce((sum, p) => sum + Number(p.netAmount ?? p.amount), 0);
 
+    // Umsatz: ausgestellte Rechnungen; Schlussrechnungen ziehen Abschläge
+    // schon ab, stornierte Rechnungen stehen auf "cancelled"
+    const [invoices, company] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: { projectId, companyId, status: 'issued', kind: { not: 'cancellation' } },
+        select: { totalNet: true },
+      }),
+      this.prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { hourlyLaborRate: true } }),
+    ]);
+    const margin = calculateMargin({
+      orderValue: orders.reduce((sum, o) => sum + Number(o.quote.totalNet), 0),
+      invoiced: invoices.reduce((sum, i) => sum + Number(i.totalNet), 0),
+      laborMinutes: actualMinutes,
+      hourlyRate: Number(company.hourlyLaborRate),
+      material: actualMaterialCost,
+      purchases: purchasesNet,
+    });
+
     return {
       orders: orders.length,
       purchases: { count: payables.length, net: round2(purchasesNet) },
+      margin,
       labor: calculateDeviation(sumPlannedMinutes(plannedLaborItems), actualMinutes),
       material: calculateDeviation(sumPlannedMaterialCost(plannedMaterialItems), actualMaterialCost),
     };
