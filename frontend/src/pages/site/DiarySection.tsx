@@ -99,19 +99,22 @@ export function DiarySection({ projectId, compact }: { projectId: string; compac
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Beim ersten Laden Formular und Liste im selben Schritt setzen: sonst erscheint das Formular
+  // kurz leer und überschreibt danach, was schon eingetippt wurde
   const load = useCallback(
-    () =>
+    (initForm = false) =>
       api
         .get<Diary>(`/projects/${projectId}/diary`)
         .then((d) => {
           setDiary(d);
+          if (initForm) setForm(formOf(d.entries.find((e) => e.day === localToday())));
           return d;
         })
         .catch(() => null),
     [projectId],
   );
   useEffect(() => {
-    void load().then((d) => d && setForm(formOf(d.entries.find((e) => e.day === localToday()))));
+    void load(true);
   }, [load]);
 
   const pick = (next: string) => {
