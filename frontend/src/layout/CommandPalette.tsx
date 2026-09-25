@@ -50,10 +50,13 @@ export function CommandPalette({
       Promise.all([
         api.get<CustomerHit[]>(`/customers?q=${q}&take=5`),
         api.get<ProjectHit[]>(`/projects?q=${q}&take=5`),
+        // Angebots- und Rechnungsnummern (A-2026-…, R-2026-…) → Projekt
+        api.get<Result[]>(`/overview/search?q=${q}`).catch(() => [] as Result[]),
       ])
-        .then(([customers, projects]) => {
+        .then(([customers, projects, documents]) => {
           if (!current) return;
           setFound([
+            ...documents,
             ...projects.map((p) => ({
               to: `/projekte/${p.id}`,
               label: p.title,

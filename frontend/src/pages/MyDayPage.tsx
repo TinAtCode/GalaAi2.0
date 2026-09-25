@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { TimeTrackingWidget } from './TimeTrackingWidget';
 import { OfficeOverview } from './OfficeOverview';
 
@@ -7,6 +9,7 @@ interface MyDayItem {
   id: string;
   time: string;
   task: string;
+  projectId?: string;
   site: string;
   customer: string;
   address: string;
@@ -18,7 +21,21 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Route zur Baustelle in der Karten-App des Handys (Google Maps öffnet auf
+// Android die App, auf dem iPhone Apple Karten über maps.apple.com)
+const routeUrl = (address: string) =>
+  /iPhone|iPad|Macintosh/.test(navigator.userAgent)
+    ? `https://maps.apple.com/?daddr=${encodeURIComponent(address)}`
+    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
+
 export function MyDayPage() {
+  const { hasPermission } = useAuth();
+  const projectLink = (id: string) =>
+    hasPermission('site.use')
+      ? `/baustelle/${id}`
+      : hasPermission('customer.read')
+        ? `/projekte/${id}`
+        : null;
   const [items, setItems] = useState<MyDayItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,13 +72,27 @@ export function MyDayPage() {
       )}
 
       {items?.map((item) => (
-        <article key={item.id} className="job-card appointment-card">
+        <article key={item.id} className="job-card appointment-card" data-testid="my-day-item">
           <div className="job-card-time">{formatTime(item.time)}</div>
           <div className="job-card-task">{item.task}</div>
           <div className="job-card-meta">
-            {item.site} · {item.customer}
+            {item.projectId && projectLink(item.projectId) ? (
+              <Link to={projectLink(item.projectId)!} data-testid="my-day-project">
+                {item.site}
+              </Link>
+            ) : (
+              item.site
+            )}{' '}
+            · {item.customer}
           </div>
-          {item.address && <div className="job-card-meta">{item.address}</div>}
+          {item.address && (
+            <div className="job-card-meta">
+              {item.address} ·{' '}
+              <a href={routeUrl(item.address)} target="_blank" rel="noreferrer" data-testid="my-day-route">
+                Route
+              </a>
+            </div>
+          )}
         </article>
       ))}
     </div>

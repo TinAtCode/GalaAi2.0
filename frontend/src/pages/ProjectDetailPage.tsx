@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { FormEvent, useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatEuro } from '../format';
@@ -120,6 +120,10 @@ export function ProjectDetailPage() {
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [gaebMessage, setGaebMessage] = useState<string | null>(null);
+  // Sprung aus Suche oder „Zu erledigen“ (#angebote, #rechnungen …): erst
+  // nach dem Laden scrollen, vorher gibt es den Abschnitt noch nicht
+  const { hash } = useLocation();
+  const scrolledTo = useRef<string | null>(null);
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
   // Rechnungen neu laden, wenn aus einem Vertrag abgerechnet wurde
@@ -177,6 +181,14 @@ export function ProjectDetailPage() {
       setError(err instanceof ApiError ? err.message : 'Termin konnte nicht angelegt werden.');
     }
   };
+
+  useEffect(() => {
+    if (!hash || hash === scrolledTo.current || quotes === null) return;
+    const target = document.getElementById(hash.slice(1));
+    if (!target) return;
+    target.scrollIntoView({ block: 'start' });
+    scrolledTo.current = hash;
+  }, [hash, quotes, orders]);
 
   const hasOrderForQuote = (quoteId: string) => orders?.some((o) => o.quoteId === quoteId) ?? false;
 

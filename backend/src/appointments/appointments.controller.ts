@@ -23,6 +23,8 @@ function toMyDayItem(appointment: any) {
     id: appointment.id,
     time: appointment.startTime,
     task: appointment.title,
+    // für den Sprung zur Baustelle bzw. zum Projekt
+    projectId: appointment.project.id,
     site: appointment.project.title,
     customer: property.customer.name,
     address: [property.street, property.city].filter(Boolean).join(', '),
