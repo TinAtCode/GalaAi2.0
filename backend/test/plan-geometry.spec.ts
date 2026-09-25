@@ -551,7 +551,7 @@ describe('Lageplan: Umriss im Frontend', () => {
     const body = (path: string) =>
       readFileSync(path, 'utf8')
         .split('\n')
-        .filter((line) => !/^import |^  [A-Za-z_ ]+,$|^} from /.test(line))
+        .filter((line) => !/^import |^ {2}[A-Za-z_ ]+,$|^} from /.test(line))
         .join('\n');
     expect(body(`${__dirname}/../../frontend/src/pages/plans/fittings.ts`)).toBe(
       body(`${__dirname}/../src/plans/plan-fittings.ts`),
