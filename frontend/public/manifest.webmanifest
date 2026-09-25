@@ -1,12 +1,19 @@
 {
-  "name": "GartenAI",
-  "short_name": "GartenAI",
+  "name": "gAla – Garten Landschaft Bau App",
+  "short_name": "gAla",
   "description": "Kalkulation, Projekte, Aufmaß und Lagepläne für den Garten- und Landschaftsbau",
   "lang": "de",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f7f7f4",
-  "theme_color": "#2f4b3c",
-  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "background_color": "#f4f6f2",
+  "theme_color": "#1f4a2e",
+  "icons": [
+    {
+      "src": "/gala-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }

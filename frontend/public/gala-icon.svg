@@ -1,11 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 460">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- App-Symbol gAla: Bildmarke (brand/gala-mark.svg) mittig im sicheren Bereich für maskierbare Symbole -->
+  <rect width="512" height="512" rx="112" fill="#f4f6f2"/>
+  <g transform="translate(130.8 96) scale(0.6957)">
   <!-- Bildmarke gAla: Handy mit Garten -->
   <defs>
-    <clipPath id="screen"><rect x="32" y="32" width="296" height="396" rx="34"/></clipPath>
+    <clipPath id="gala-screen"><rect x="32" y="32" width="296" height="396" rx="34"/></clipPath>
   </defs>
   <rect x="14" y="14" width="332" height="432" rx="52" fill="#fff" stroke="#1f4a2e" stroke-width="28"/>
   <rect x="148" y="46" width="64" height="14" rx="7" fill="#1f4a2e"/>
-  <g clip-path="url(#screen)">
+  <g clip-path="url(#gala-screen)">
     <!-- Baum -->
     <circle cx="120" cy="150" r="64" fill="#1f4a2e"/>
     <path d="M120 125 V300 M120 180 L92 152 M120 172 L150 142" stroke="#fff" stroke-width="12" stroke-linecap="round" fill="none"/>
@@ -29,5 +32,6 @@
     </g>
     <!-- Hügel rechts unten -->
     <path d="M150 430 C190 380 260 362 330 370 L330 430 Z" fill="#1f4a2e"/>
+  </g>
   </g>
 </svg>

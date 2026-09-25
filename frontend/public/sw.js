@@ -11,7 +11,9 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(['/', '/manifest.webmanifest', '/icon.svg', ...PRECACHE]))
+      .then((cache) =>
+        cache.addAll(['/', '/manifest.webmanifest', '/icon.svg', '/gala-icon.svg', ...PRECACHE]),
+      )
       .then(() => self.skipWaiting()),
   );
 });
@@ -65,7 +67,7 @@ self.addEventListener('fetch', (event) => {
       (cached) =>
         cached ||
         fetch(request).then((response) => {
-          if (response.ok && (url.pathname.startsWith('/assets/') || url.pathname === '/icon.svg')) {
+          if (response.ok && (url.pathname.startsWith('/assets/') || url.pathname.endsWith('icon.svg'))) {
             const copy = response.clone();
             caches.open(CACHE).then(async (cache) => {
               await cache.put(request, copy);
@@ -90,8 +92,8 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title || 'GartenAI', {
       body: data.body || '',
       tag: data.tag,
-      icon: '/icon.svg',
-      badge: '/icon.svg',
+      icon: '/gala-icon.svg',
+      badge: '/gala-icon.svg',
       data: { url: data.url || '/' },
     }),
   );
