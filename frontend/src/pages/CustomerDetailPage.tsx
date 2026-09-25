@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { formatEuro } from '../format';
 
 interface Project {
   id: string;
@@ -62,6 +63,74 @@ const filled = (values: Record<string, string>) =>
       .filter(([, v]) => v.trim() !== '')
       .map(([k, v]) => [k, v.trim()]),
   );
+
+interface OpenItem {
+  invoiceId: string;
+  number: string | null;
+  dueDate: string;
+  daysOverdue: number;
+  totalOpen: string;
+  project: { id: string; title: string };
+}
+
+const dayText = (day: string) => day.split('-').reverse().join('.');
+
+// Offene Rechnungen dieses Kunden (nur mit Recht "Rechnungen")
+function CustomerOpenItems({ customerId }: { customerId: string }) {
+  const [items, setItems] = useState<OpenItem[] | null>(null);
+  useEffect(() => {
+    let current = true;
+    api
+      .get<OpenItem[]>(`/open-items?customerId=${encodeURIComponent(customerId)}`)
+      .then((list) => current && setItems(list))
+      .catch(() => current && setItems([]));
+    return () => {
+      current = false;
+    };
+  }, [customerId]);
+  if (!items) return null;
+  const total = items.reduce((sum, i) => sum + Number(i.totalOpen), 0);
+  const overdue = items.filter((i) => i.daysOverdue > 0).length;
+  return (
+    <section className="settings-section" data-testid="customer-open-items">
+      <h3>Offene Posten</h3>
+      {items.length === 0 ? (
+        <p className="list-item-meta">Keine offenen Rechnungen.</p>
+      ) : (
+        <>
+          <p className="list-item-meta" data-testid="customer-open-total">
+            {items.length} offen · {formatEuro(total)}
+            {overdue > 0 && ` · davon ${overdue} überfällig`} ·{' '}
+            <Link to="/offene-posten">alle offenen Posten</Link>
+          </p>
+          {items.map((item) => (
+            <Link
+              key={item.invoiceId}
+              to={`/projekte/${item.project.id}#rechnungen`}
+              className="list-item list-item-link"
+              data-testid="customer-open-item"
+            >
+              <div>
+                <div className="list-item-name">
+                  {item.number ?? 'Rechnung'} · {item.project.title}
+                </div>
+                <div
+                  className="list-item-meta"
+                  style={item.daysOverdue > 0 ? { color: 'var(--color-danger)' } : undefined}
+                >
+                  {item.daysOverdue > 0
+                    ? `seit ${item.daysOverdue} ${item.daysOverdue === 1 ? 'Tag' : 'Tagen'} überfällig`
+                    : `fällig am ${dayText(item.dueDate)}`}
+                </div>
+              </div>
+              <strong style={{ whiteSpace: 'nowrap' }}>{formatEuro(item.totalOpen)}</strong>
+            </Link>
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
 
 export function CustomerDetailPage() {
   const { customerId } = useParams();
@@ -155,6 +224,20 @@ export function CustomerDetailPage() {
     <div>
       <header className="my-day-header">
         <h2 data-testid="customer-heading">{customer.name}</h2>
+        {(customer.phone || customer.email) && (
+          <div className="btn-row" data-testid="customer-contact">
+            {customer.phone && (
+              <a className="btn btn-sm" href={`tel:${customer.phone.replace(/[^\d+]/g, '')}`}>
+                Anrufen
+              </a>
+            )}
+            {customer.email && (
+              <a className="btn btn-sm" href={`mailto:${customer.email}`}>
+                E-Mail
+              </a>
+            )}
+          </div>
+        )}
       </header>
       {error && <p className="field-error">{error}</p>}
 
@@ -203,6 +286,8 @@ export function CustomerDetailPage() {
           </div>
         </form>
       </section>
+
+      {hasPermission('invoice.create') && customerId && <CustomerOpenItems customerId={customerId} />}
 
       <h3 style={{ marginBottom: 8 }}>Objekte und Projekte</h3>
       {customer.properties.length === 0 && <p className="list-item-meta">Noch keine Objekte.</p>}
