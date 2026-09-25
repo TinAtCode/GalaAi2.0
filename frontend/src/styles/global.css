@@ -86,7 +86,7 @@
   padding: 6px 10px;
   border-radius: var(--radius-medium);
   text-decoration: none;
-  color: var(--color-ink-muted);
+  color: var(--nav-ink, var(--color-ink-muted));
   font-size: 0.7rem;
   background: none;
   border: none;
@@ -95,7 +95,7 @@
 
 .app-nav-list a:hover,
 .app-nav-more:hover {
-  color: var(--color-ink);
+  color: var(--nav-ink-strong, var(--color-ink));
 }
 
 .app-nav-list a.active {
@@ -208,7 +208,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--color-ink-muted);
+    color: var(--nav-label, var(--color-ink-muted));
     padding: 14px 12px 4px;
   }
 

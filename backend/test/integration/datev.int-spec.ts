@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import * as iconv from 'iconv-lite';
 import request from 'supertest';
-import { EXTF_COLUMNS } from '../../src/datev/extf-columns';
+import { DEBTOR_COLUMNS, EXTF_COLUMNS } from '../../src/datev/extf-columns';
 import { createApp, createCompany, resetDatabase, TestCompany } from './helpers';
 import { localDayString } from '../../src/common/time-zone';
 
@@ -286,5 +286,64 @@ describe('DATEV-Export', () => {
       where: { permission: { key: 'data.export' }, role: { companyId: other.companyId } },
     });
     await download(range, other.token).expect(403);
+  });
+
+  it('Debitoren-Stammdaten: Kopfzeile, Name, Anschrift, USt-IdNr.; fehlende Nummern werden vergeben', async () => {
+    const firma = await api()
+      .post('/customers')
+      .set(auth)
+      .send({
+        name: 'Wohnbau Rhein GmbH',
+        isBusiness: true,
+        vatId: 'DE 123456789',
+        email: 'buero@wohnbau.de',
+      })
+      .expect(201);
+    await prisma.customer.update({ where: { id: firma.body.id }, data: { debtorNumber: null } });
+    const get = (query = '') =>
+      api()
+        .get(`/datev/debtors${query}`)
+        .set(auth)
+        .buffer(true)
+        .parse((res, done) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(c));
+          res.on('end', () => done(null, Buffer.concat(chunks)));
+        });
+    const res = await get().expect(200);
+    expect(res.headers['content-disposition']).toContain('EXTF_Debitoren.csv');
+    const [head, columns, ...rows] = lines(res.body);
+    expect(head).toMatch(/^"EXTF";700;16;"Debitoren\/Kreditoren";5;\d{17};;"RE";"GartenAI";"";\d+;\d+;/);
+    expect(fields(columns)).toHaveLength(DEBTOR_COLUMNS.length);
+    const cell = (row: string[], name: (typeof DEBTOR_COLUMNS)[number]) => row[DEBTOR_COLUMNS.indexOf(name)];
+    const byName = (name: string) => rows.map(fields).find((r) => r.join(';').includes(name))!;
+
+    const mueller = byName('Müller');
+    const muellerStored = await prisma.customer.findUniqueOrThrow({ where: { id: customerId } });
+    expect(cell(mueller, 'Konto')).toBe(String(muellerStored.debtorNumber));
+    expect(cell(mueller, 'Name (Adressattyp keine Angabe)')).toBe('"Familie Müller & Söhne"');
+    expect(cell(mueller, 'Adressattyp')).toBe('0');
+    expect(cell(mueller, 'Straße')).toBe('"Weg 2"');
+    expect(cell(mueller, 'Ort')).toBe('"Köln"');
+    expect(mueller).toHaveLength(DEBTOR_COLUMNS.length);
+
+    const wohnbau = byName('Wohnbau');
+    expect(cell(wohnbau, 'Name (Adressattyp Unternehmen)')).toBe('"Wohnbau Rhein GmbH"');
+    expect(cell(wohnbau, 'Adressattyp')).toBe('2');
+    expect(cell(wohnbau, 'EU-Land')).toBe('"DE"');
+    expect(cell(wohnbau, 'EU-UStID')).toBe('"123456789"');
+    expect(cell(wohnbau, 'E-Mail')).toBe('"buero@wohnbau.de"');
+    // die fehlende Nummer ist jetzt vergeben und steht in der Datei
+    const stored = await prisma.customer.findUniqueOrThrow({ where: { id: firma.body.id } });
+    expect(stored.debtorNumber).toBeGreaterThanOrEqual(10000);
+    expect(cell(wohnbau, 'Konto')).toBe(String(stored.debtorNumber));
+    // nach Kontonummer sortiert
+    const accounts = rows.map((r) => Number(fields(r)[0]));
+    expect([...accounts].sort((a, b) => a - b)).toEqual(accounts);
+
+    // nur Kunden mit Rechnungen
+    const invoiced = lines((await get('?invoiced=1').expect(200)).body).slice(2);
+    expect(invoiced.some((r) => r.includes('Müller'))).toBe(true);
+    expect(invoiced.some((r) => r.includes('Wohnbau'))).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { writeAudit } from '../common/audit';
 import { addCalendarDays, dayRangeInZone, localDayString, parseDayParam } from '../common/time-zone';
 import { allocateDebtorNumber } from '../customers/debtor-number';
-import { buildBuchungsstapel, ExtfBooking } from './extf-writer';
+import { buildBuchungsstapel, buildDebitoren, ExtfBooking } from './extf-writer';
 import { moneyAccounts, revenueAccountFor, revenueAccounts, chargeAccounts } from './revenue-accounts';
 
 const KIND_LABELS = {
@@ -210,6 +210,81 @@ export class DatevService {
         fileName: `EXTF_Buchungsstapel_${compact(from)}_${compact(to)}.csv`,
         count: bookings.length,
       };
+    });
+  }
+
+  // Debitoren-Stammdaten für DATEV: alle Kunden (Standard) oder nur die mit
+  // Rechnungen, jeweils mit Debitorennummer – fehlende werden jetzt vergeben,
+  // damit Stammdaten und Buchungsstapel dieselben Konten nutzen
+  async exportDebtors(companyId: string, userId: string, onlyInvoiced = false) {
+    const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
+    if (!company.datevConsultantNumber || !company.datevClientNumber) {
+      throw new BadRequestException(
+        'Für den DATEV-Export fehlen Berater- und Mandantennummer (Einstellungen → DATEV).',
+      );
+    }
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        companyId,
+        ...(onlyInvoiced
+          ? {
+              properties: {
+                some: {
+                  projects: { some: { invoices: { some: { status: { in: ['issued', 'cancelled'] } } } } },
+                },
+              },
+            }
+          : {}),
+      },
+      orderBy: [{ debtorNumber: 'asc' }, { createdAt: 'asc' }],
+    });
+    if (customers.length === 0) {
+      throw new BadRequestException(
+        onlyInvoiced ? 'Es gibt noch keine Kunden mit Rechnungen.' : 'Es gibt noch keine Kunden.',
+      );
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const debtors = [];
+      for (const customer of customers) {
+        let number = customer.debtorNumber;
+        if (number === null) {
+          await tx.customer.updateMany({
+            where: { id: customer.id, companyId, debtorNumber: null },
+            data: { debtorNumber: await allocateDebtorNumber(tx, companyId) },
+          });
+          number = (
+            await tx.customer.findFirstOrThrow({
+              where: { id: customer.id, companyId },
+              select: { debtorNumber: true },
+            })
+          ).debtorNumber!;
+        }
+        debtors.push({ ...customer, account: number });
+      }
+      debtors.sort((a, b) => a.account - b.account);
+      const year = new Date().getFullYear();
+      const buffer = buildDebitoren(
+        {
+          consultantNumber: company.datevConsultantNumber!,
+          clientNumber: company.datevClientNumber!,
+          fiscalYearStart: `${year}0101`,
+          from: '',
+          to: '',
+          chart: company.datevChartOfAccounts,
+          label: 'Debitoren',
+          createdAt: new Date(),
+        },
+        debtors,
+      );
+      await writeAudit(tx, {
+        companyId,
+        userId,
+        action: 'datev_export',
+        entity: 'Company',
+        entityId: companyId,
+        newData: { kind: 'debtors', count: debtors.length } as Prisma.InputJsonValue,
+      });
+      return { buffer, fileName: 'EXTF_Debitoren.csv', count: debtors.length };
     });
   }
 }

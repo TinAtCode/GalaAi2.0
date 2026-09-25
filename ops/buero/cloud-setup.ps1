@@ -1,4 +1,4 @@
-# Cloud-Sicherung einrichten (Windows): ops\buero\cloud-setup.cmd
+﻿# Cloud-Sicherung einrichten (Windows): ops\buero\cloud-setup.cmd
 # 1. rclone fragt nach dem Speicher (Google Drive, OneDrive, Nextcloud/WebDAV,
 #    S3 …) und öffnet für die Anmeldung beim Anbieter den Browser.
 # 2. Darüber legt das Skript eine Verschlüsselung (rclone "crypt") mit einem

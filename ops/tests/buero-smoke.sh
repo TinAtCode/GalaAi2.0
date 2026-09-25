@@ -70,4 +70,17 @@ names=$(curl -fsS --cacert "$CA" -H "Authorization: Bearer $TOKEN" "$BASE/custom
 grep -q 'Familie Sicher' <<<"$names" || fail "Kunde aus der Sicherung fehlt: $names"
 if grep -q 'Nach der Sicherung' <<<"$names"; then fail "Zurückspielen hat nichts ersetzt"; fi
 echo "✓ Zurückspielen"
+
+# dasselbe mit dem Windows-Skript (restore.cmd → restore.ps1), wenn PowerShell da ist
+if command -v pwsh >/dev/null 2>&1; then
+  curl -fsS --cacert "$CA" -X POST "$BASE/customers" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+    -d '{"name":"Nach der Sicherung (Windows)"}' >/dev/null
+  pwsh -NoProfile -File ops/buero/restore.ps1 -Dir "$LATEST" -Yes
+  for _ in $(seq 1 60); do curl -fsS --cacert "$CA" -o /dev/null "$BASE/health" 2>/dev/null && break; sleep 2; done
+  TOKEN=$(login) || fail "Anmeldung nach dem Zurückspielen (Windows-Skript)"
+  names=$(curl -fsS --cacert "$CA" -H "Authorization: Bearer $TOKEN" "$BASE/customers" | json 'JSON.stringify(v.items ?? v)')
+  grep -q 'Familie Sicher' <<<"$names" || fail "Kunde aus der Sicherung fehlt (Windows-Skript): $names"
+  if grep -q 'Windows' <<<"$names"; then fail "restore.ps1 hat nichts ersetzt"; fi
+  echo "✓ Zurückspielen mit restore.ps1"
+fi
 echo "Rauchtest Büro bestanden."
