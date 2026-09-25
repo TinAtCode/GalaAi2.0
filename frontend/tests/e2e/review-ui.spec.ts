@@ -83,6 +83,10 @@ test.describe('Oberfläche und Querverbindungen', () => {
     await expect(page.getByTestId('material-item')).toHaveCount(1);
     await expect(page.getByTestId('material-item')).toContainText('4 Sack');
     await expect(postcalc).toContainText('14,00 €');
+    // Deckungsbeitrag: Material zählt als Kosten
+    const margin = page.getByTestId('postcalc-margin');
+    await expect(margin).toContainText('Deckungsbeitrag');
+    await expect(margin).toContainText('− 14,00 €');
   });
 
   test('Preisliste einlesen: Vorschau, Auswahl, Übernahme', async ({ page }) => {

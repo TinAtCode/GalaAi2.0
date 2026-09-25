@@ -1,11 +1,12 @@
 import { NotFoundException } from '@nestjs/common';
-import { PostCalculationService } from '../src/post-calculation/post-calculation.service';
+import { calculateMargin, PostCalculationService } from '../src/post-calculation/post-calculation.service';
 
 function createPrismaMock() {
   const projects = [{ id: 'proj-a', property: { customer: { companyId: 'company-a' } } }];
   const order = {
     projectId: 'proj-a',
     quote: {
+      totalNet: '1500.00',
       lineItems: [{ id: 'li-1', serviceId: 'service-1', quantity: 10 }],
     },
   };
@@ -78,6 +79,12 @@ function createPrismaMock() {
         Promise.resolve(materialUsages.filter((m) => m.projectId === where.projectId)),
       ),
     },
+    invoice: {
+      findMany: jest.fn(() => Promise.resolve([{ totalNet: '600.00' }, { totalNet: '400.00' }])),
+    },
+    company: {
+      findUniqueOrThrow: jest.fn(() => Promise.resolve({ hourlyLaborRate: '45.00' })),
+    },
     incomingInvoice: {
       findMany: jest.fn(() =>
         Promise.resolve([
@@ -107,6 +114,28 @@ describe('PostCalculationService', () => {
     expect(result.material.deviationAbs).toBe(0);
     expect(result.material.deviationPercent).toBe(0);
     expect(result.purchases).toEqual({ count: 2, net: 120 });
+    // Deckungsbeitrag: 1000 Umsatz − (6,5 h × 45 € + 100 € Material + 120 € Einkauf)
+    expect(result.margin).toEqual({
+      orderValue: 1500,
+      invoiced: 1000,
+      costs: { labor: 292.5, material: 100, purchases: 120, total: 512.5 },
+      hourlyRate: 45,
+      contribution: 487.5,
+      contributionPercent: 48.75,
+    });
+  });
+
+  it('ohne Umsatz kein Prozentwert', () => {
+    expect(
+      calculateMargin({
+        orderValue: 0,
+        invoiced: 0,
+        laborMinutes: 60,
+        hourlyRate: 50,
+        material: 0,
+        purchases: 0,
+      }),
+    ).toMatchObject({ contribution: -50, contributionPercent: null });
   });
 
   it('Projekt einer fremden Firma ist nicht erreichbar', async () => {
