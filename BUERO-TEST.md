@@ -58,7 +58,7 @@ Tipp: Zum Ausprobieren erst mit Demo-Daten (Teil A), danach sauber neu anfangen 
 | D5 | Plantafel: Entwurf „was wäre wenn“, Projekt verschieben, verwerfen | Nichts ändert sich ohne „Übernehmen“ |
 | D6 | Lageplan zeichnen, Mengen ins Angebot übernehmen | Mengen passen zum Plan |
 | D7 | Bautagebuch-Eintrag mit Behinderung, Checkliste abhaken | Am Projekt sichtbar |
-| D8 | Lieferschein hochladen (Foto/PDF) | Lieferant und Projekt vorgeschlagen, bestätigen hängt ihn ans Projekt |
+| D8 | Lieferschein hochladen (Foto/PDF); später die Rechnung des Lieferanten einlesen → „Lieferscheine“ | Lieferant und Projekt vorgeschlagen, bestätigen hängt ihn ans Projekt; bei der Rechnung wird der Lieferschein vorgeschlagen, nach dem Zuordnen steht er als „abgerechnet“ am Projekt |
 | D9 | Abschlagsrechnung, dann Schlussrechnung | Abschlag wird abgezogen; PDF und XRechnung herunterladbar |
 | D10 | Rechnung per E-Mail (nur mit `SMTP_URL` in `.env.buero`) | Mail kommt mit PDF und XML an |
 | D11 | Kontoauszug (CSV/MT940/CAMT) einlesen, Zahlung zuordnen | Rechnung bezahlt, offene Posten stimmen |

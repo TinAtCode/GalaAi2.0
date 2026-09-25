@@ -11,6 +11,8 @@ export interface DeliveryNote {
   document: { id: string; fileName: string; createdAt: string; ocrStatus: string | null };
   supplier: { id: string; name: string } | null;
   project: { id: string; number: string | null; title: string } | null;
+  // gesetzt, sobald eine Eingangsrechnung den Lieferschein abrechnet
+  incomingInvoiceId: string | null;
 }
 
 interface Option {
@@ -151,6 +153,7 @@ export function DeliveryNotesPage() {
                     ) : (
                       'ohne Projekt'
                     )}
+                    {n.incomingInvoiceId ? ' · abgerechnet' : ' · noch ohne Rechnung'}
                   </div>
                 </div>
                 <button
