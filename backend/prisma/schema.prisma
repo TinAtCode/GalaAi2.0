@@ -127,6 +127,10 @@ model Company {
   maintenanceLogs      EquipmentMaintenanceLog[]
   inventoryCounts      InventoryCount[]
   inventoryCountItems  InventoryCountItem[]
+  checklistTemplates   ChecklistTemplate[]
+  checklists           Checklist[]
+  checklistItems       ChecklistItem[]
+  checklistComments    ChecklistComment[]
   pushSubscriptions    PushSubscription[]
   projectMessages      ProjectMessage[]
   projectMessageReads  ProjectMessageRead[]
@@ -272,6 +276,7 @@ model Project {
   messages             ProjectMessage[]
   messageReads         ProjectMessageRead[]
   diary                SiteDiaryEntry[]
+  checklists           Checklist[]
 
   @@index([companyId])
   @@index([propertyId])
@@ -1601,4 +1606,90 @@ model InventoryCountItem {
   countedAt       DateTime       @default(now())
 
   @@unique([countId, equipmentId])
+}
+
+// ─────────────────────────────────────────────
+// Checklisten mit Vorlagen (Rolle Einsatzplaner)
+// ─────────────────────────────────────────────
+// Vorlage: vom Einsatzplaner angelegt (freigegeben) oder aus einer Baustellen-
+// Liste vorgeschlagen und vom Einsatzplaner geprüft. Nur freigegebene Vorlagen
+// lassen sich für neue Listen nutzen.
+model ChecklistTemplate {
+  id               String         @id @default(uuid())
+  companyId        String
+  company          Company        @relation(fields: [companyId], references: [id])
+  title            String
+  description      String?
+  // Punkte der Vorlage in Reihenfolge (Liste von Texten)
+  items            Json
+  status           TemplateStatus
+  proposedByUserId String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  reviewNote       String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  checklists Checklist[]
+
+  @@index([companyId, status])
+}
+
+enum TemplateStatus {
+  proposed
+  approved
+  archived
+}
+
+// Liste am Projekt: anlegen nur Einsatzplaner, erweitern, abhaken und
+// kommentieren alle auf der Baustelle
+model Checklist {
+  id              String             @id @default(uuid())
+  companyId       String
+  company         Company            @relation(fields: [companyId], references: [id])
+  projectId       String
+  project         Project            @relation(fields: [projectId], references: [id])
+  title           String
+  templateId      String?
+  template        ChecklistTemplate? @relation(fields: [templateId], references: [id])
+  createdByUserId String
+  createdAt       DateTime           @default(now())
+
+  items    ChecklistItem[]
+  comments ChecklistComment[]
+
+  @@index([companyId, projectId])
+}
+
+model ChecklistItem {
+  id            String    @id @default(uuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  checklistId   String
+  checklist     Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  text          String
+  position      Int
+  addedByUserId String
+  doneAt        DateTime?
+  doneByUserId  String?
+  createdAt     DateTime  @default(now())
+
+  comments ChecklistComment[]
+
+  @@index([checklistId, position])
+}
+
+model ChecklistComment {
+  id          String         @id @default(uuid())
+  companyId   String
+  company     Company        @relation(fields: [companyId], references: [id])
+  checklistId String
+  checklist   Checklist      @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  itemId      String?
+  item        ChecklistItem? @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  userId      String
+  text        String
+  createdAt   DateTime       @default(now())
+
+  @@index([checklistId, createdAt])
 }

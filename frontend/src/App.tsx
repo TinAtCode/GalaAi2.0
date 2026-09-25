@@ -13,6 +13,10 @@ const CustomerDetailPage = lazyPage(() => import('./pages/CustomerDetailPage'), 
 const ProjectsPage = lazyPage(() => import('./pages/ProjectsPage'), 'ProjectsPage');
 const PlanBoardPage = lazyPage(() => import('./pages/PlanBoardPage'), 'PlanBoardPage');
 const CalendarPage = lazyPage(() => import('./pages/CalendarPage'), 'CalendarPage');
+const ChecklistTemplatesPage = lazyPage(
+  () => import('./pages/checklists/ChecklistTemplatesPage'),
+  'ChecklistTemplatesPage',
+);
 const EquipmentPage = lazyPage(() => import('./pages/equipment/EquipmentPage'), 'EquipmentPage');
 const EquipmentDetailPage = lazyPage(
   () => import('./pages/equipment/EquipmentDetailPage'),
@@ -58,6 +62,7 @@ export function App() {
         <Route path="plantafel" element={<PlanBoardPage />} />
         <Route path="kalender" element={<CalendarPage />} />
         <Route path="geraete" element={<EquipmentPage />} />
+        <Route path="checklisten" element={<ChecklistTemplatesPage />} />
         <Route path="geraete/:id" element={<EquipmentDetailPage />} />
         <Route path="baustelle" element={<SitePage />} />
         <Route path="baustelle/:projectId" element={<SiteProjectPage />} />

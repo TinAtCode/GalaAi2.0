@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 08.10.2026 – Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 09.10.2026 – Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -660,6 +660,20 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   - **Inventur:** Das Büro startet einen Durchgang (immer nur einer offen), jeder hakt Geräte als
     vorhanden oder fehlend ab (auch auf dem Handy). Beim Abschließen bekommen gefundene Geräte
     Datum und Standort der Inventur; fehlende stehen im Audit-Log.
+
+- **Nachtrag – Checklisten**: Neues Recht `checklist.manage` und Standardrolle **Einsatzplaner**
+  (Mitarbeiter-Rechte plus Checklisten verwalten; die Geschäftsführung hat das Recht ebenfalls).
+  Die Rolle lässt sich z.B. dem Vorarbeiter zusätzlich geben.
+  - **Vorlagen** (Seite „Checklisten“): Der Einsatzplaner legt Vorlagen an, bearbeitet und
+    archiviert sie.
+  - **Listen am Projekt** (Abschnitt „Checklisten“ im Projekt und in der Baustellen-App): anlegen
+    nur der Einsatzplaner, leer oder aus einer freigegebenen Vorlage. Auf der Baustelle (`site.use`)
+    wird abgehakt (wer, wann), ergänzt und kommentiert; ergänzte Punkte sind markiert. Punkte
+    umbenennen oder löschen und Listen löschen darf nur der Einsatzplaner.
+  - **Vorschlag als Vorlage:** Jede Liste lässt sich als Vorlage vorschlagen. Der Einsatzplaner
+    prüft den Vorschlag, passt Titel und Punkte an und gibt ihn frei oder lehnt ihn ab (mit
+    Notiz, im Audit-Log). Erst freigegebene Vorlagen sind für neue Listen nutzbar. Vom
+    Einsatzplaner selbst gespeicherte Listen sind sofort freigegeben.
 
 ---
 

@@ -1,6 +1,11 @@
 import { Permission, PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { BOOKKEEPING_PERMISSIONS, EMPLOYEE_PERMISSIONS, PERMISSIONS } from '../common/permissions';
+import {
+  BOOKKEEPING_PERMISSIONS,
+  EMPLOYEE_PERMISSIONS,
+  PERMISSIONS,
+  PLANNER_PERMISSIONS,
+} from '../common/permissions';
 
 // Grunddaten des Musterbetriebs (idempotent): Rechte, Firma, Rollen, Admin,
 // ein Kunde mit Projekt, Artikel und Leistung. Genutzt von `prisma db seed`
@@ -69,6 +74,23 @@ export async function seedBase(prisma: PrismaClient) {
       isSystem: true,
       permissions: {
         create: bookkeepingPermissions.map((p: Permission) => ({ permissionId: p.id })),
+      },
+    },
+  });
+
+  // 4c. Rolle "Einsatzplaner": wie Mitarbeiter plus Checklisten verwalten
+  const plannerPermissions = allPermissions.filter((p: Permission) =>
+    (PLANNER_PERMISSIONS as string[]).includes(p.key),
+  );
+  await prisma.role.upsert({
+    where: { companyId_name: { companyId: company.id, name: 'Einsatzplaner' } },
+    update: {},
+    create: {
+      companyId: company.id,
+      name: 'Einsatzplaner',
+      isSystem: true,
+      permissions: {
+        create: plannerPermissions.map((p: Permission) => ({ permissionId: p.id })),
       },
     },
   });

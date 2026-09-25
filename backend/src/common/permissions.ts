@@ -42,6 +42,10 @@ export const PERMISSIONS = {
 
   // Baustelle: Fotos hochladen, Nachrichten je Projekt, eigene Termine erledigen
   SITE_USE: 'site.use',
+
+  // Checklisten: Vorlagen anlegen und prüfen, Listen am Projekt anlegen
+  // (Einsatzplaner); erweitern, abhaken, kommentieren reicht site.use
+  CHECKLIST_MANAGE: 'checklist.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -68,3 +72,8 @@ export const EMPLOYEE_PERMISSIONS: PermissionKey[] = [
   PERMISSIONS.PLAN_READ,
   PERMISSIONS.SITE_USE,
 ];
+
+// Standardrolle "Einsatzplaner" (oft Vorarbeiter oder Geschäftsführung):
+// wie Mitarbeiter, dazu Checklisten und Vorlagen verwalten. Gleiche Liste in
+// der Migration 20261009090000_checklists.
+export const PLANNER_PERMISSIONS: PermissionKey[] = [...EMPLOYEE_PERMISSIONS, PERMISSIONS.CHECKLIST_MANAGE];

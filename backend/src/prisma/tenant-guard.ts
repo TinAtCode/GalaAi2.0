@@ -52,6 +52,10 @@ export const TENANT_MODELS = new Set([
   'EquipmentMaintenanceLog',
   'InventoryCount',
   'InventoryCountItem',
+  'ChecklistTemplate',
+  'Checklist',
+  'ChecklistItem',
+  'ChecklistComment',
   'PushSubscription',
   'AiTaskAssignment',
 ]);
