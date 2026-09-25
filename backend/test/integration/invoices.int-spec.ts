@@ -131,8 +131,23 @@ describe('Rechnungen', () => {
     expect(Number(deduction.lineTotal)).toBe(-372.6);
     expect(Number(final.body.totalNet)).toBe(869.4); // 1.242,00 - 372,60
 
+    // Rechnungsdatum: nicht in der Zukunft, nicht vor der letzten Rechnung (fortlaufende Nummern)
+    const dayOffset = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
+    const future = await api()
+      .post(`/invoices/${final.body.id}/issue`)
+      .set(auth)
+      .send({ issueDate: dayOffset(3) })
+      .expect(400);
+    expect(future.body.message).toContain('Zukunft');
+    const backdated = await api()
+      .post(`/invoices/${final.body.id}/issue`)
+      .set(auth)
+      .send({ issueDate: dayOffset(-40) })
+      .expect(400);
+    expect(backdated.body.message).toContain(R(1));
+
     const issued = await issue(final.body.id).expect(201);
-    expect(issued.body.number).toBe(R(2));
+    expect(issued.body.number).toBe(R(2)); // die Fehlversuche haben keine Nummer verbraucht
     await draft({ kind: 'final' }).expect(400); // nur eine Schlussrechnung
   });
 
