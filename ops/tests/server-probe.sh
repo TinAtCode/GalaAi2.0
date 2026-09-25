@@ -108,14 +108,27 @@ ssh-keygen -q -t ed25519 -N '' -f "$KEY"
 install -m 700 -d ~/.ssh
 cat "$KEY.pub" >>~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
-for _ in $(seq 1 20); do ssh-keyscan -q -p 22 localhost >"$WORK/known_hosts" 2>/dev/null && [ -s "$WORK/known_hosts" ] && break; sleep 1; done
-if [ ! -s "$WORK/known_hosts" ]; then
+# known_hosts direkt aus den Host-Schlüsseln (ssh-keyscan scheitert auf manchen Runnern)
+for f in /etc/ssh/ssh_host_*_key.pub; do
+  printf 'localhost %s\n' "$(cut -d' ' -f1,2 "$f")"
+done >"$WORK/known_hosts"
+SSH_OPTS=(-i "$KEY" -o BatchMode=yes -o UserKnownHostsFile="$WORK/known_hosts" -o StrictHostKeyChecking=yes)
+ok=""
+for _ in $(seq 1 20); do
+  ssh "${SSH_OPTS[@]}" "$(id -un)@localhost" true 2>/dev/null && ok=1 && break
+  sleep 1
+done
+if [ -z "$ok" ]; then
+  ssh -v "${SSH_OPTS[@]}" "$(id -un)@localhost" true 2>&1 | tail -n 30 || true
   sudo /usr/sbin/sshd -t || true
-  sudo systemctl status ssh --no-pager 2>&1 | tail -n 20 || true
-  fail "sshd antwortet nicht"
+  sudo journalctl -u ssh --no-pager -n 20 2>&1 || true
+  ls -ld ~ ~/.ssh ~/.ssh/authorized_keys || true
+  fail "SSH-Anmeldung an localhost klappt nicht"
 fi
+# Pfade und Image sollen hier (auf dem „Arbeitsrechner“) eingesetzt werden
+# shellcheck disable=SC2029
 deploy() {
-  ssh -i "$KEY" -o BatchMode=yes -o UserKnownHostsFile="$WORK/known_hosts" "$(id -un)@localhost" \
+  ssh "${SSH_OPTS[@]}" "$(id -un)@localhost" \
     "cd '$SERVER' && GARTENAI_IMAGE='$IMAGE' HEALTH_TIMEOUT=90 ops/deploy.sh $1"
 }
 
