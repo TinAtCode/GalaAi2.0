@@ -75,7 +75,11 @@ export function ProjectDeliverySection({ projectId, showNotes }: { projectId: st
                   </div>
                   <div className="list-item-meta">
                     {n.noteDate ? day(n.noteDate) : day(n.document.createdAt)}
-                    {n.status === 'open' && ' · noch nicht bestätigt'}
+                    {n.status === 'open'
+                      ? ' · noch nicht bestätigt'
+                      : n.incomingInvoiceId
+                        ? ' · abgerechnet'
+                        : ' · noch ohne Rechnung'}
                   </div>
                 </div>
                 <button

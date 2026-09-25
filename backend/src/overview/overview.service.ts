@@ -150,6 +150,27 @@ export class OverviewService {
           }),
       );
 
+    // bestätigte Lieferscheine, zu denen nach 30 Tagen noch keine Rechnung
+    // zugeordnet ist (fehlende oder übersehene Lieferantenrechnung)
+    if (can(PERMISSIONS.FINANCE_READ))
+      tasks.push(
+        this.prisma.deliveryNote
+          .count({
+            where: {
+              companyId,
+              status: 'confirmed',
+              incomingInvoiceId: null,
+              confirmedAt: { lte: day(addCalendarDays(today, -30)) },
+            },
+          })
+          .then((count) => ({
+            key: 'unbilled_delivery_notes',
+            label: 'Lieferscheine ohne Rechnung (über 30 Tage)',
+            count,
+            to: '/lieferscheine',
+          })),
+      );
+
     // nur, was wirklich ansteht
     return (await Promise.all(tasks)).filter((t): t is Todo => !!t && t.count > 0);
   }

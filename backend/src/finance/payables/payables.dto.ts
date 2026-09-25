@@ -1,8 +1,11 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsIn,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
@@ -81,6 +84,12 @@ export class UpsertPayableDto {
   @IsString()
   categoryId?: string | null;
 
+  // Lieferant aus den Stammdaten; ohne Angabe aus dem Namen erkannt
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  supplierId?: string | null;
+
   // Einkauf/Fremdleistung für ein Projekt
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
@@ -129,4 +138,12 @@ export class ListPayablesDto {
   @IsOptional()
   @IsString()
   projectId?: string;
+}
+
+// Lieferscheine, die eine Eingangsrechnung abrechnet (ersetzt die bisherige Auswahl)
+export class SetDeliveryNotesDto {
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsUUID('all', { each: true })
+  deliveryNoteIds!: string[];
 }
