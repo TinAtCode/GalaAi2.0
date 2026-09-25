@@ -30,6 +30,29 @@ export class AuthService {
       throw new UnauthorizedException('E-Mail oder Passwort ist falsch.');
     }
 
+    return this.session(user, permissions);
+  }
+
+  // Anmeldung über einen externen Anbieter (OIDC, auth/oidc.service.ts):
+  // nur für bestehende, aktive Konten mit dieser E-Mail – neue Konten legt
+  // weiterhin das Büro an
+  async loginWithVerifiedEmail(email: string) {
+    const found = await loadUserWithPermissions(this.prisma, { email: normalizeEmail(email) });
+    if (!found || !found.user.active) return null;
+    return this.session(found.user, found.permissions);
+  }
+
+  private session(
+    user: {
+      id: string;
+      companyId: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      tokenVersion: number;
+    },
+    permissions: string[],
+  ) {
     // Das Token trägt nur noch die Identität und die tokenVersion. Rechte und
     // "aktiv" prüft die JwtStrategy bei jeder Anfrage live – Rollenänderungen
     // und Deaktivierungen wirken damit sofort, nicht erst nach Ablauf des Tokens.
