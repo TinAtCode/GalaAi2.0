@@ -92,6 +92,35 @@ services:
       - ./ops/buero/auto-backup.sh:/auto-backup.sh:ro
     entrypoint: ['sh', '/auto-backup.sh']
 
+  # Cloud-Sicherung (Profil "cloud", eingerichtet mit ops/buero/cloud-setup):
+  # die lokalen Sicherungen verschlüsselt in Google Drive, OneDrive,
+  # Nextcloud, S3 … spiegeln
+  cloud-backup:
+    image: rclone/rclone:1
+    profiles: ['cloud']
+    restart: unless-stopped
+    environment:
+      CLOUD_REMOTE: ${CLOUD_REMOTE:-}
+      CLOUD_INTERVAL: ${CLOUD_INTERVAL:-3600}
+    volumes:
+      - ./backups/buero:/backups:ro
+      - ./ops/buero/rclone:/config/rclone
+      - ./ops/buero/cloud-sync.sh:/cloud-sync.sh:ro
+    entrypoint: ['sh', '/cloud-sync.sh']
+
+  # Zugriff von unterwegs über einen Cloudflare-Tunnel (Profil "tunnel",
+  # CLOUDFLARE_TUNNEL_TOKEN in .env.buero): keine offenen Ports am Router.
+  # Im Cloudflare-Konto als Ziel http://frontend:8080 eintragen.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ['tunnel']
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    command: ['tunnel', '--no-autoupdate', 'run']
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+
   # nur mit --demo-daten: Musterbetrieb zum Ausprobieren und der Demo-Agent
   demo-data:
     image: gartenai-buero-backend

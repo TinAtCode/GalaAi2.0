@@ -58,11 +58,64 @@ leere Installation den Musterbetrieb aus der Demo, mit Demo-Agent und den Demo-Z
   `backups/buero/<Datum-Uhrzeit>`. War der Rechner nachts aus, sichert er beim nächsten Start. Die
   letzten 14 Sicherungen bleiben (`BACKUP_KEEP` in `.env.buero`).
 - **Sofort:** `ops/buero/backup-now.sh` (Windows: `backup-now.cmd`).
-- **Außer Haus:** Den Ordner `backups/buero` und `.env.buero` regelmäßig auf einen USB-Stick oder in
-  die Cloud kopieren. Die automatische Übertragung in die Cloud kommt als Nächstes.
+- **Außer Haus:** automatisch in die Cloud (siehe unten) oder den Ordner `backups/buero` und
+  `.env.buero` regelmäßig auf einen USB-Stick kopieren.
 - **Zurückspielen:** `ops/buero/restore.sh backups/buero/20261004-021500`. Es ersetzt Datenbank und
   Dokumente und prüft vorher die Prüfsummen. Unter Windows im Ordner in einer Git-Bash oder WSL
   ausführen.
+
+## Sicherung in der Cloud
+
+Die täglichen Sicherungen lassen sich automatisch in einen Cloud-Speicher spiegeln: Google Drive,
+OneDrive, Dropbox, Nextcloud/WebDAV, S3 (z.B. Hetzner, IONOS) und vieles mehr (rclone).
+
+- **Verschlüsselt:** Die Dateien werden **vor** dem Hochladen auf diesem Rechner verschlüsselt,
+  Dateinamen eingeschlossen. Der Anbieter sieht nur Datensalat. Das ist wichtig, weil die
+  Sicherungen Kundendaten enthalten (DSGVO).
+- **Einrichten:** `ops/buero/cloud-setup.sh` (Windows: `cloud-setup.cmd`), danach `start.sh` bzw.
+  `start.cmd`. Das Skript startet den Einrichtungsassistenten von rclone: `n` für einen neuen
+  Speicher, einen Namen vergeben (z.B. `drive`), den Anbieter wählen und den Fragen folgen.
+  - Bei **Google Drive, OneDrive und Dropbox** fragt rclone „Use auto config?“. Unter Linux mit
+    `y` antworten. Unter Windows und macOS mit `n` antworten und den angezeigten Befehl
+    `rclone authorize …` in einem zweiten Fenster ausführen. Dafür einmal rclone installieren
+    (`winget install Rclone.Rclone` bzw. `brew install rclone`). Die Anmeldung beim Anbieter öffnet
+    sich im Browser, den Code zurück ins erste Fenster kopieren.
+  - **Nextcloud/WebDAV und S3** brauchen nur Adresse, Benutzer und Passwort bzw. Schlüssel.
+- **Passwörter:** Das Skript legt die Verschlüsselung mit zufälligen Passwörtern an und trägt sie
+  in `.env.buero` ein (`CLOUD_CRYPT_PASSWORD`, `CLOUD_CRYPT_PASSWORD2`). **Ohne sie sind die
+  Sicherungen in der Cloud wertlos.** Deshalb getrennt aufbewahren (ausgedruckt im Safe, im
+  Passwort-Manager).
+- **Ablauf:** Der Dienst `cloud-backup` spiegelt stündlich `backups/buero` in den Speicher,
+  einschließlich des Aufräumens alter Stände (`BACKUP_KEEP`).
+- **Zurückholen** (z.B. neuer Rechner): GartenAI mit der alten `.env.buero` einrichten und
+  `ops/buero/cloud-setup.sh` mit demselben Speicher ausführen. Danach die Passwörter in
+  `ops/buero/rclone/rclone.conf` durch die alten ersetzen, oder den Speicher mit
+  `rclone config` von Hand anlegen. Dann:
+  `docker run --rm -v "$PWD/ops/buero/rclone:/config/rclone" -v "$PWD/backups/buero:/backups" rclone/rclone:1 copy gartenai-sicher: /backups`
+  und `ops/buero/restore.sh backups/buero/<Stand>`.
+
+## Unterwegs zugreifen
+
+Im Büro-Netz reicht die Adresse des Rechners. Von unterwegs (Baustelle, Handy im Mobilnetz) gibt es
+zwei Wege; beide kommen ohne offene Ports am Router aus. Der Rechner muss dafür eingeschaltet
+bleiben (Energiesparen aus).
+
+- **Tailscale (empfohlen, privat):** Tailscale auf dem Büro-Rechner und auf den Handys
+  installieren und mit demselben Konto anmelden, dann die Tailscale-Adresse des Rechners nutzen,
+  z.B. `https://100.64.12.3:8443`.
+  - Nur eigene Geräte kommen hinein. GartenAI ist nicht öffentlich erreichbar, und die Verbindung
+    ist Ende-zu-Ende verschlüsselt.
+  - Läuft Tailscale beim Start, nimmt `start.sh` bzw. `start.cmd` die Tailscale-Adresse ins
+    Zertifikat auf. Nach der Installation von Tailscale also einmal neu starten.
+- **Cloudflare-Tunnel (öffentliche Adresse):** GartenAI unter einer eigenen Adresse wie
+  `https://app.musterbetrieb.de` erreichbar machen.
+  1. Im Cloudflare-Konto unter Zero Trust → Networks → Tunnels einen Tunnel anlegen.
+  2. Als öffentliche Adresse deine Domain eintragen und als Dienst `http://frontend:8080`.
+  3. Das angezeigte Token in `.env.buero` eintragen: `CLOUDFLARE_TUNNEL_TOKEN=…`. Danach
+     `start.sh` bzw. `start.cmd` ausführen.
+
+  Cloudflare leitet den Verkehr weiter und sieht ihn entschlüsselt (Auftragsverarbeitung, AVV im
+  Cloudflare-Konto). Für mehr Schutz davor Cloudflare Access (Anmeldung per E-Mail-Code) schalten.
 
 ## Mails
 
