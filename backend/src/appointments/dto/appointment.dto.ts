@@ -73,6 +73,6 @@ export class BoardQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(31)
+  @Max(42) // Monatsansicht im Kalender: bis zu sechs Wochen
   days?: number;
 }
