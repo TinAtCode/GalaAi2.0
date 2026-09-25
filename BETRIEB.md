@@ -7,6 +7,11 @@ Backend weiter. Frontend und API haben so dieselbe Adresse, CORS ist nicht nöti
 Voraussetzungen: Docker mit Compose, 2 GB RAM (Texterkennung), ein Reverse-Proxy
 mit HTTPS davor (z.B. Caddy, Traefik oder ein vorhandener nginx).
 
+Ausprobieren ohne gemieteten Server: `SERVER-TEST.md` (virtuelle Maschine mit Ubuntu auf dem
+eigenen Rechner). Den automatischen Weg – Ausrollen per SSH mit `ops/deploy.sh`, HTTPS davor,
+Update, Rückfall bei einer kaputten Version, `--rollback` – spielt die CI bei jedem Push auf einer
+frischen Ubuntu-VM durch (`ops/tests/server-probe.sh`).
+
 ## Erster Start
 
 ```bash
