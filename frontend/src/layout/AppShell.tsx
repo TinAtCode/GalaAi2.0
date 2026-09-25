@@ -40,6 +40,8 @@ export const NAV_ITEMS: NavItem[] = [
     primary: true,
   },
   { to: '/kunden', label: 'Kunden', icon: 'users', testId: 'nav-customers', group: 'Arbeit', primary: true },
+  // Firma, Baustellen, Team und Persönliches in einer Monatsansicht
+  { to: '/kalender', label: 'Kalender', icon: 'calendar', testId: 'nav-calendar', group: 'Arbeit' },
   // Wer ist wann wo – Termine aller Mitarbeiter einer Woche
   {
     to: '/plantafel',

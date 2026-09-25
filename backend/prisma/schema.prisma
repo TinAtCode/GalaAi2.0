@@ -120,6 +120,7 @@ model Company {
   aiTaskAssignments    AiTaskAssignment[]
   absences             Absence[]
   siteDiary            SiteDiaryEntry[]
+  calendarEvents       CalendarEvent[]
   pushSubscriptions    PushSubscription[]
   projectMessages      ProjectMessage[]
   projectMessageReads  ProjectMessageRead[]
@@ -150,6 +151,7 @@ model User {
   projectMessages     ProjectMessage[]
   projectMessageReads ProjectMessageRead[]
   absences            Absence[]
+  calendarEvents      CalendarEvent[]
   pushSubscriptions   PushSubscription[]
 
   @@index([companyId])
@@ -1416,4 +1418,30 @@ enum DiaryDelayReason {
   plans
   staff
   other
+}
+
+// Kalender: Firmen-Termine (alle sehen sie, z.B. Betriebsurlaub, Schulung)
+// und persönliche Termine (nur der Besitzer). Baustellen- und Teamtermine
+// kommen aus Appointment, Abwesenheiten aus Absence.
+model CalendarEvent {
+  id          String        @id @default(uuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id])
+  scope       CalendarScope
+  ownerUserId String
+  owner       User          @relation(fields: [ownerUserId], references: [id])
+  title       String
+  startTime   DateTime
+  endTime     DateTime?
+  allDay      Boolean       @default(false)
+  notes       String?
+  createdAt   DateTime      @default(now())
+
+  @@index([companyId, startTime])
+  @@index([ownerUserId, startTime])
+}
+
+enum CalendarScope {
+  company
+  personal
 }

@@ -631,6 +631,17 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   - **Speichern:** Der Vorschlag lässt sich rückgängig machen und wird erst mit „Speichern“ gespeichert.
   - **Bild:** Ein eigener Agent darf zusätzlich ein Bild liefern, das man als Hintergrund übernehmen
     kann.
+- **Nachtrag – Kalender**: Seite „Kalender“ (Monatsansicht, Wochen ab Montag) mit vier Ebenen, die
+  sich einzeln ausblenden lassen:
+  - **Firma:** Termine für alle (Betriebsferien, Feiern, Schulungen). Anlegen und ändern darf, wer
+    `employee.data.read` hat (Chef, Büro).
+  - **Baustellen:** die Einsätze aus der Plantafel, auf Wunsch „nur meine Einsätze“; ein Klick führt
+    zum Projekt.
+  - **Team:** Abwesenheiten der Mitarbeiter (die Art sieht nur, wer die Personaldaten sehen darf).
+  - **Persönlich:** eigene Termine, die nur der Nutzer selbst sieht. Fremde persönliche Termine
+    liefern 404.
+  - **API:** `GET/POST /calendar/events`, `PUT/DELETE /calendar/events/:id`, Zeitraum höchstens 62 Tage.
+    Die Plantafel-Abfrage erlaubt dafür bis zu 42 Tage.
 
 ---
 

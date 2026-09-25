@@ -45,6 +45,7 @@ export const TENANT_MODELS = new Set([
   'AiProviderConfig',
   'Absence',
   'SiteDiaryEntry',
+  'CalendarEvent',
   'PushSubscription',
   'AiTaskAssignment',
 ]);

@@ -29,6 +29,7 @@ import { PushModule } from './push/push.module';
 import { DemoModule } from './demo/demo.module';
 import { SetupModule } from './setup/setup.module';
 import { SiteDiaryModule } from './site-diary/site-diary.module';
+import { CalendarModule } from './calendar/calendar.module';
 import { MaterialUsageModule } from './material-usage/material-usage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
@@ -84,6 +85,7 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     DemoModule,
     SetupModule,
     SiteDiaryModule,
+    CalendarModule,
     MaterialUsageModule,
     OcrModule,
     HealthModule,

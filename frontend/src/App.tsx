@@ -12,6 +12,7 @@ const CustomersPage = lazyPage(() => import('./pages/CustomersPage'), 'Customers
 const CustomerDetailPage = lazyPage(() => import('./pages/CustomerDetailPage'), 'CustomerDetailPage');
 const ProjectsPage = lazyPage(() => import('./pages/ProjectsPage'), 'ProjectsPage');
 const PlanBoardPage = lazyPage(() => import('./pages/PlanBoardPage'), 'PlanBoardPage');
+const CalendarPage = lazyPage(() => import('./pages/CalendarPage'), 'CalendarPage');
 const ContractsPage = lazyPage(() => import('./pages/contracts/ContractsPage'), 'ContractsPage');
 const OfflinePlansPage = lazyPage(() => import('./pages/OfflinePlansPage'), 'OfflinePlansPage');
 const PlanEditorPage = lazyPage(() => import('./pages/plans/PlanEditorPage'), 'PlanEditorPage');
@@ -50,6 +51,7 @@ export function App() {
         <Route path="offline" element={<OfflinePlansPage />} />
         <Route path="vertraege" element={<ContractsPage />} />
         <Route path="plantafel" element={<PlanBoardPage />} />
+        <Route path="kalender" element={<CalendarPage />} />
         <Route path="baustelle" element={<SitePage />} />
         <Route path="baustelle/:projectId" element={<SiteProjectPage />} />
         <Route path="kunden" element={<CustomersPage />} />
