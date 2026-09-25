@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 10.10.2026 – Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 12.10.2026 – Plantafel-Entwurf („was wäre wenn“) und Sprachbefehle ohne KI; davor Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -692,6 +692,20 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
     Die fünf größten Posten sind farbig, der Rest ist „Sonstige“. Die Legende zeigt Betrag und
     Anteil, beim Zeigen steht der Posten in der Mitte. Die Farben sind auf Farbfehlsichtigkeit
     geprüft und hell und dunkel getrennt gestuft (`--chart-1…5`).
+
+- **Nachtrag – Plantafel-Entwurf und Sprachbefehle**:
+  - **Entwurf („was wäre wenn“):** In der Plantafel lässt sich ein Entwurf einschalten. Ziehen,
+    Bearbeiten und „Projekt um n Tage verschieben“ ändern dann nur die Vorschau; verschobene
+    Termine sind gestrichelt. Die Tafel zeigt Konflikte: zugeteilt trotz Abwesenheit,
+    Überschneidung beim selben Mitarbeiter, mehr als 8 Stunden an einem Tag. „Übernehmen“ schreibt
+    alle Änderungen; was der Server ablehnt (z.B. Kollision), bleibt im Entwurf. „Verwerfen“ löscht
+    ihn. Der Entwurf wird im Browser dieses Geräts gespeichert.
+  - **Sprachbefehle ohne KI:** in den Einstellungen je Gerät einschaltbar, Standard aus. Der
+    Mikrofon-Knopf (Menü, auf dem Handy schwebend) versteht feste Wörter: Bereiche öffnen („Öffne
+    Plantafel“, „Zeig die Fahrzeuge“), suchen („Suche Müller“, „Projekt P 2026 12“) und „Zurück“.
+    Die Umwandlung Sprache → Text macht der Browser (Chrome/Edge über Google- bzw.
+    Microsoft-Server, Safari teils auf dem Gerät); darauf weist die Einstellung hin. Firefox hat
+    keine Spracherkennung.
 
 ---
 

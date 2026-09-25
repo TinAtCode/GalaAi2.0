@@ -6,6 +6,7 @@ import { CompanySection } from './CompanySection';
 import { AuditLogSection } from './AuditLogSection';
 import { DatevSection } from './DatevSection';
 import { AiProvidersSection } from './AiProvidersSection';
+import { VoiceSection } from '../voice/VoiceSection';
 
 const COLOR_FIELDS: { key: keyof ReturnType<typeof useTheme>['theme']; label: string; hint: string }[] = [
   { key: 'primary', label: 'Primärfarbe', hint: 'Navigation, Buttons, Hervorhebungen' },
@@ -71,6 +72,8 @@ export function SettingsPage() {
           Auf Standardfarben zurücksetzen
         </button>
       </section>
+
+      <VoiceSection />
 
       <ChangePasswordSection />
       {hasPermission('system.settings.write') && <CompanySection />}
