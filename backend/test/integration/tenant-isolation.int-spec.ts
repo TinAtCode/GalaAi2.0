@@ -72,6 +72,7 @@ describe('Mandantentrennung über die API', () => {
 
   it.each([
     ['Kunde', () => `/customers/${ids.customerId}`],
+    ['Kundenverlauf', () => `/customers/${ids.customerId}/history`],
     ['Objekt', () => `/properties/${ids.propertyId}`],
     ['Objekte eines Kunden', () => `/properties/by-customer/${ids.customerId}`],
     ['Projekt', () => `/projects/${ids.projectId}`],
@@ -135,6 +136,15 @@ describe('Mandantentrennung über die API', () => {
       .send({ status: 'cancelled' })
       .expect(404);
     await api().post('/orders').set(as(b)).send({ quoteId: ids.quoteId }).expect(404);
+    await api().post(`/quotes/${ids.quoteId}/copy`).set(as(b)).send({}).expect(404);
+    // eigenes Angebot in ein fremdes Projekt kopieren geht auch nicht
+    const foreignProject = await createProject(app, b.token);
+    await api()
+      .post(`/quotes/${ids.quoteId}/copy`)
+      .set(as(a))
+      .send({ projectId: foreignProject.projectId })
+      .expect(404);
+    expect(await prisma.quote.count({ where: { projectId: foreignProject.projectId } })).toBe(0);
 
     // Nichts davon hat bei Firma A etwas verändert
     const project = await api().get(`/projects/${ids.projectId}`).set(as(a)).expect(200);
