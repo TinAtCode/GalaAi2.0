@@ -42,6 +42,7 @@ export function TeamPage() {
   const [entries, setEntries] = useState<TimeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -91,6 +92,27 @@ export function TeamPage() {
     }
   };
 
+  // alle abgeschlossenen Einträge der gewählten Person auf einmal freigeben
+  const completedIds = entries?.filter((e) => e.status === 'completed').map((e) => e.id) ?? [];
+  const approveAll = async () => {
+    setBusyId('all');
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await api.post<{ approved: number; skipped: number }>('/time-entries/approve', {
+        ids: completedIds,
+      });
+      setNotice(
+        `${result.approved} Einträge freigegeben${result.skipped ? `, ${result.skipped} übersprungen (inzwischen geändert)` : ''}.`,
+      );
+      if (selectedId) loadEntries(selectedId);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Freigabe fehlgeschlagen.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div>
       <header className="my-day-header">
@@ -107,12 +129,33 @@ export function TeamPage() {
             <button
               key={emp.id}
               className={selectedId === emp.id ? 'active' : ''}
-              onClick={() => setSelectedId(emp.id)}
+              onClick={() => {
+                setNotice(null);
+                setSelectedId(emp.id);
+              }}
               data-testid="team-employee-tab"
             >
               {emp.firstName} {emp.lastName}
             </button>
           ))}
+        </div>
+      )}
+
+      {notice && (
+        <p className="list-item-meta" data-testid="team-notice">
+          {notice}
+        </p>
+      )}
+      {completedIds.length > 1 && (
+        <div className="btn-row" style={{ margin: '8px 0' }}>
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={busyId !== null}
+            onClick={() => void approveAll()}
+            data-testid="time-entry-approve-all"
+          >
+            Alle {completedIds.length} abgeschlossenen freigeben
+          </button>
         </div>
       )}
 

@@ -143,6 +143,36 @@ export class TimeEntriesService {
     });
   }
 
+  // Sammelfreigabe (z.B. eine Woche eines Mitarbeiters): alles in einem
+  // Schritt, jeder freigegebene Eintrag einzeln im Audit-Log
+  async approveMany(companyId: string, userId: string, ids: string[]) {
+    const unique = [...new Set(ids)];
+    return this.prisma.$transaction(async (tx) => {
+      const candidates = await tx.timeEntry.findMany({
+        where: { id: { in: unique }, companyId, status: 'completed' },
+        select: { id: true },
+      });
+      const approvedIds = candidates.map((c) => c.id);
+      if (approvedIds.length > 0) {
+        // Status nochmal in der Bedingung: gleichzeitig geänderte bleiben unberührt
+        await tx.timeEntry.updateMany({
+          where: { id: { in: approvedIds }, companyId, status: 'completed' },
+          data: { status: 'approved', approvedByUserId: userId, approvedAt: new Date() },
+        });
+        for (const entityId of approvedIds) {
+          await writeAudit(tx, {
+            companyId,
+            userId,
+            action: 'time_entry_approve',
+            entity: 'TimeEntry',
+            entityId,
+          });
+        }
+      }
+      return { approved: approvedIds.length, skipped: unique.length - approvedIds.length };
+    });
+  }
+
   // Korrektur durch Vorgesetzte: abgeschlossene Einträge anpassen oder einen
   // noch laufenden (vergessenes "Stopp") mit Endzeit abschließen. Freigegebene
   // Einträge sind gesperrt. Jede Korrektur wird mit Begründung protokolliert.

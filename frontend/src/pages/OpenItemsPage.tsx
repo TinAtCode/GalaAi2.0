@@ -108,6 +108,29 @@ export function OpenItemsPage() {
   const charges = (list: OpenItem[]) =>
     list.reduce((total, item) => total + Number(item.charges?.open ?? 0), 0);
   const overdue = items?.filter((i) => i.daysOverdue > 0) ?? [];
+  // Rechnungen, bei denen die nächste Mahnstufe möglich ist
+  const dunnable = items?.filter((i) => i.nextDunningLevel) ?? [];
+
+  // alle fälligen Mahnungen nacheinander erstellen; Versand bleibt einzeln
+  // (Empfänger und PDF prüfen)
+  const dunAll = () => {
+    if (!window.confirm(`${dunnable.length} Mahnungen bzw. Zahlungserinnerungen erstellen?`)) return;
+    run(async () => {
+      let created = 0;
+      const failed: string[] = [];
+      for (const item of dunnable) {
+        try {
+          await api.post(`/invoices/${item.invoiceId}/dunning`);
+          created++;
+        } catch (err) {
+          failed.push(`${item.number}: ${err instanceof ApiError ? err.message : 'fehlgeschlagen'}`);
+        }
+      }
+      setNotice(
+        `${created} erstellt – bitte als PDF prüfen und senden.${failed.length ? ` Nicht erstellt: ${failed.join('; ')}` : ''}`,
+      );
+    });
+  };
 
   return (
     <div>
@@ -127,6 +150,13 @@ export function OpenItemsPage() {
           {overdue.length > 0 && ` · davon ${formatEuro(sum(overdue))} überfällig`}
           {charges(items) > 0 && ` · zzgl. ${formatEuro(charges(items))} Mahnkosten und Zinsen`}
         </p>
+      )}
+      {dunnable.length > 1 && (
+        <div className="btn-row" style={{ margin: '8px 0' }}>
+          <button className="btn btn-sm" disabled={busy} onClick={dunAll} data-testid="dunning-create-all">
+            Alle {dunnable.length} fälligen Mahnungen erstellen
+          </button>
+        </div>
       )}
       {items?.length === 0 && (
         <div className="empty-state">
