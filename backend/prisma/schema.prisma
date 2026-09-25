@@ -131,6 +131,7 @@ model Company {
   checklists           Checklist[]
   checklistItems       ChecklistItem[]
   checklistComments    ChecklistComment[]
+  businessContracts    BusinessContract[]
   pushSubscriptions    PushSubscription[]
   projectMessages      ProjectMessage[]
   projectMessageReads  ProjectMessageRead[]
@@ -1254,6 +1255,7 @@ model RecurringPayment {
   category         ExpenseCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   active           Boolean           @default(true)
   createdAt        DateTime          @default(now())
+  contract         BusinessContract?
 
   @@index([companyId])
 }
@@ -1486,6 +1488,7 @@ model Equipment {
   damages     EquipmentDamage[]
   maintenance EquipmentMaintenance[]
   counts      InventoryCountItem[]
+  contracts   BusinessContract[]
 
   @@unique([companyId, inventoryNumber])
   @@index([companyId, name])
@@ -1692,4 +1695,49 @@ model ChecklistComment {
   createdAt   DateTime       @default(now())
 
   @@index([checklistId, createdAt])
+}
+
+// ─────────────────────────────────────────────
+// Versicherungen und Verträge (Finanzen)
+// ─────────────────────────────────────────────
+// Laufzeit, Verlängerung und Kündigungsfrist; daraus ergibt sich "kündigen bis
+// spätestens". Der Beitrag kann als Fixkosten (RecurringPayment) mitlaufen.
+model BusinessContract {
+  id                 String               @id @default(uuid())
+  companyId          String
+  company            Company              @relation(fields: [companyId], references: [id])
+  name               String
+  kind               BusinessContractKind
+  provider           String?
+  contractNumber     String?
+  amount             Decimal?             @db.Decimal(12, 2)
+  interval           RecurringInterval?
+  startDate          DateTime?            @db.Date
+  // Ende der laufenden Laufzeit; leer = unbefristet
+  termEnd            DateTime?            @db.Date
+  // automatische Verlängerung um n Monate (leer = endet einfach)
+  renewalMonths      Int?
+  noticeMonths       Int                  @default(3)
+  cancelledOn        DateTime?            @db.Date
+  equipmentId        String?
+  equipment          Equipment?           @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  recurringPaymentId String?              @unique
+  recurringPayment   RecurringPayment?    @relation(fields: [recurringPaymentId], references: [id], onDelete: SetNull)
+  notes              String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([companyId, termEnd])
+}
+
+enum BusinessContractKind {
+  insurance
+  vehicle
+  lease
+  rent
+  telecom
+  software
+  energy
+  service
+  other
 }

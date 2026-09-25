@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -9,6 +10,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  IsUUID,
   ValidateIf,
 } from 'class-validator';
 import { PageQueryDto } from '../common/pagination';
@@ -116,4 +118,93 @@ export class UpsertRecurringDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+}
+
+// Versicherung oder Vertrag mit Laufzeit und Kündigungsfrist
+export class BusinessContractDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  name!: string;
+
+  @IsIn(['insurance', 'vehicle', 'lease', 'rent', 'telecom', 'software', 'energy', 'service', 'other'])
+  kind!: 'insurance' | 'vehicle' | 'lease' | 'rent' | 'telecom' | 'software' | 'energy' | 'service' | 'other';
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  @MaxLength(120)
+  provider?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  @MaxLength(60)
+  contractNumber?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(9_999_999.99)
+  amount?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsIn(['monthly', 'quarterly', 'halfyearly', 'yearly'])
+  interval?: 'monthly' | 'quarterly' | 'halfyearly' | 'yearly' | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Matches(DAY)
+  startDate?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Matches(DAY)
+  termEnd?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  renewalMonths?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(60)
+  noticeMonths?: number;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Matches(DAY)
+  cancelledOn?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  equipmentId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  @MaxLength(2000)
+  notes?: string | null;
+
+  // Beitrag als Fixkosten führen (Liquiditätsvorschau, Jahresüberblick)
+  @IsOptional()
+  @IsBoolean()
+  asFixedCost?: boolean;
+
+  // erste Abbuchung für die Fixkosten
+  @IsOptional()
+  @Matches(DAY)
+  firstDue?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  categoryId?: string | null;
 }

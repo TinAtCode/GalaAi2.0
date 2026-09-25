@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../../api/client';
 import { formatEuro } from '../../format';
+import { DonutChart } from '../../components/DonutChart';
 import { day, monthLabel } from './shared';
 
 interface YearMonth {
@@ -400,28 +401,39 @@ export function YearTab() {
           {categoryRows.length === 0 ? (
             <p className="list-item-meta">Keine Ausgaben in {year}.</p>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table className="finance-table" data-testid="year-categories">
-                <thead>
-                  <tr>
-                    <th>Kategorie</th>
-                    <th>bisher</th>
-                    <th>geplant</th>
-                    <th>Jahr</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {categoryRows.map(([id, v]) => (
-                    <tr key={id}>
-                      <td>{name(id)}</td>
-                      <td>{formatEuro(v.spent)}</td>
-                      <td>{v.planned ? formatEuro(v.planned) : '–'}</td>
-                      <td>{formatEuro(v.spent + v.planned)}</td>
+            <>
+              <DonutChart
+                title={`Anteile ${year} (bisher und geplant)`}
+                slices={categoryRows.map(([id, v]) => ({
+                  key: id,
+                  label: name(id),
+                  value: v.spent + v.planned,
+                }))}
+                testId="year-donut"
+              />
+              <div style={{ overflowX: 'auto' }}>
+                <table className="finance-table" data-testid="year-categories">
+                  <thead>
+                    <tr>
+                      <th>Kategorie</th>
+                      <th>bisher</th>
+                      <th>geplant</th>
+                      <th>Jahr</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {categoryRows.map(([id, v]) => (
+                      <tr key={id}>
+                        <td>{name(id)}</td>
+                        <td>{formatEuro(v.spent)}</td>
+                        <td>{v.planned ? formatEuro(v.planned) : '–'}</td>
+                        <td>{formatEuro(v.spent + v.planned)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </>
       )}
