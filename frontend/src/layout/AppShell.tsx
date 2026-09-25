@@ -95,6 +95,15 @@ export const NAV_ITEMS: NavItem[] = [
     testId: 'nav-calculation',
     group: 'Angebote & Stammdaten',
   },
+  // Lieferscheine: erkennen, Lieferant und Projekt zuordnen
+  {
+    to: '/lieferscheine',
+    label: 'Lieferscheine',
+    icon: 'package',
+    permission: 'document.read',
+    testId: 'nav-delivery-notes',
+    group: 'Angebote & Stammdaten',
+  },
   {
     to: '/stammdaten',
     label: 'Stammdaten',

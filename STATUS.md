@@ -3,7 +3,7 @@
 > Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
 > Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
 
-Letzte Aktualisierung: 12.10.2026 – Plantafel-Entwurf („was wäre wenn“) und Sprachbefehle ohne KI; davor Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
+Letzte Aktualisierung: 12.10.2026 – Plantafel-Entwurf („was wäre wenn“) und Sprachbefehle ohne KI; davor Projektnummer, Lieferscheine erkennen und zuordnen, Mail an Lieferanten; davor Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
 ---
 
@@ -693,6 +693,26 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
     Anteil, beim Zeigen steht der Posten in der Mitte. Die Farben sind auf Farbfehlsichtigkeit
     geprüft und hell und dunkel getrennt gestuft (`--chart-1…5`).
 
+- **Nachtrag – Projektnummer und Lieferscheine**:
+  - **Projektnummer:** Jedes neue Projekt bekommt eine fortlaufende Nummer je Jahr (P-2026-0012,
+    atomar wie Angebots- und Rechnungsnummern). Bestehende Projekte wurden per Migration
+    nachnummeriert. Die Nummer steht im Projektkopf und in der Liste und ist suchbar.
+  - **Lieferanten:** neue Felder „unsere Kundennummer“ und Erkennungswörter für Lieferscheine
+    (Firmierung, USt-IdNr. …), in den Stammdaten pflegbar.
+  - **Lieferscheine:** Seite „Lieferscheine“ (Recht `document.read`). Hochladen als PDF oder Foto,
+    auch vom Handy; die Texterkennung läuft im Hintergrund.
+    - Danach schlägt GartenAI den Lieferanten vor, erkannt an Name, Erkennungswörtern oder der
+      E-Mail-Domain.
+    - Das Projekt erkennt GartenAI an der Projektnummer, der Lieferadresse oder der Kommission bzw.
+      dem Bauvorhaben; dazu kommen Lieferscheinnummer und Datum.
+    - Vorgeschlagen wird nur bei eindeutigem Treffer; der Grund steht dabei.
+    - Das Büro bestätigt oder korrigiert, danach hängt der Lieferschein als Dokument am Projekt
+      (Audit-Log). Auch am Projekt hochgeladene oder als Lieferschein erkannte Dokumente landen im
+      Eingang.
+  - **Lieferanten informieren:** Im Projekt unter „Lieferungen“ erzeugt GartenAI einen
+    Mail-Entwurf an den gewählten Lieferanten: Projektnummer, Lieferadresse, Kommission und unsere
+    Kundennummer. Er öffnet sich im Mail-Programm (`mailto:`) oder lässt sich kopieren; GartenAI
+    verschickt ihn nicht selbst.
 - **Nachtrag – Plantafel-Entwurf und Sprachbefehle**:
   - **Entwurf („was wäre wenn“):** In der Plantafel lässt sich ein Entwurf einschalten. Ziehen,
     Bearbeiten und „Projekt um n Tage verschieben“ ändern dann nur die Vorschau; verschobene

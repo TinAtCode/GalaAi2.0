@@ -6,6 +6,7 @@ import { LoadMore } from '../layout/LoadMore';
 interface Project {
   id: string;
   title: string;
+  number: string | null;
   status: 'open' | 'in_progress' | 'done' | 'cancelled';
   property: {
     label: string;
@@ -117,6 +118,7 @@ export function ProjectsPage() {
                   {project.title}
                 </div>
                 <div className="list-item-meta">
+                  {project.number && `${project.number} · `}
                   {project.property.customer.name} · {project.property.label}
                   {project.property.city ? ` · ${project.property.city}` : ''}
                 </div>

@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OcrService } from './ocr.service';
 import { INSTANCE_ID, LEASE_SECONDS, OcrQueue } from './ocr-queue';
+import { DeliveryNotesService } from '../delivery-notes/delivery-notes.service';
 
 type UploadedFile = { originalname: string; buffer: Buffer; mimetype: string };
 
@@ -32,6 +33,7 @@ export class OcrJobsService implements OnModuleInit, OnModuleDestroy {
     private prisma: PrismaService,
     private ocr: OcrService,
     private queue: OcrQueue,
+    private deliveryNotes: DeliveryNotesService,
   ) {}
 
   async onModuleInit() {
@@ -119,6 +121,19 @@ export class OcrJobsService implements OnModuleInit, OnModuleDestroy {
       // Für die Suche: Leerraum (Zeilenumbrüche) vereinheitlicht wie im
       // Suchbegriff; NUL-Zeichen (aus manchen PDFs) kann PostgreSQL nicht speichern
       await setDocument({ ocrStatus: 'done', ocrText: searchableText(result.text) });
+      // Lieferschein erkannt (oder als Lieferschein hochgeladen): Lieferant und Projekt vorschlagen
+      if (documentId) {
+        const document = await this.prisma.document.findFirst({
+          where: { id: documentId, companyId },
+          select: { documentType: true },
+        });
+        if (
+          document &&
+          (document.documentType === 'delivery_note' ||
+            (document.documentType === 'other' && result.guessedDocumentType === 'delivery_note'))
+        )
+          await this.deliveryNotes.recognizeSafely(companyId, documentId);
+      }
     } catch (error) {
       const message =
         error instanceof BadRequestException ? error.message : 'Die Texterkennung ist fehlgeschlagen.';

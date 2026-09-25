@@ -3,6 +3,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { OcrQueue, PrismaSlotStore } from '../../src/ocr/ocr-queue';
 import { OcrJobsService } from '../../src/ocr/ocr-jobs.service';
 import { OcrService } from '../../src/ocr/ocr.service';
+import { DeliveryNotesService } from '../../src/delivery-notes/delivery-notes.service';
 import { resetDatabase } from './helpers';
 
 // Plätze für die Texterkennung in der Datenbank: über mehrere Server hinweg
@@ -83,7 +84,7 @@ describe('OCR-Plätze über mehrere Server', () => {
         heartbeatAt: new Date(),
       },
     });
-    const service = new OcrJobsService(prisma, {} as OcrService, new OcrQueue());
+    const service = new OcrJobsService(prisma, {} as OcrService, new OcrQueue(), {} as DeliveryNotesService);
     expect(await service.sweep()).toBe(1);
     expect((await raw.ocrJob.findUniqueOrThrow({ where: { id: stale.id } })).status).toBe('failed');
     expect((await raw.ocrJob.findUniqueOrThrow({ where: { id: alive.id } })).status).toBe('running');
