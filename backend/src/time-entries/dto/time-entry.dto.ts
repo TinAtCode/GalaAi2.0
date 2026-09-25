@@ -1,4 +1,17 @@
-import { IsDateString, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class StartTimeEntryDto {
   @IsOptional()
@@ -39,4 +52,13 @@ export class CorrectTimeEntryDto {
   @MinLength(3)
   @MaxLength(500)
   reason!: string;
+}
+
+// mehrere abgeschlossene Einträge auf einmal freigeben
+export class ApproveTimeEntriesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @IsUUID('all', { each: true })
+  ids!: string[];
 }

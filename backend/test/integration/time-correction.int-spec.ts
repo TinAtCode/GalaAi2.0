@@ -85,4 +85,50 @@ describe('Zeiteinträge korrigieren und freigeben', () => {
       .send({ breakMinutes: 0, reason: 'nachträglich' })
       .expect(400);
   });
+
+  it('Sammelfreigabe: nur abgeschlossene, fremde und laufende werden übersprungen', async () => {
+    const make = (companyId: string, employeeId: string, status: 'open' | 'completed' | 'approved') =>
+      prisma.timeEntry.create({
+        data: {
+          companyId,
+          employeeId,
+          startTime: hoursAgo(5),
+          endTime: status === 'open' ? null : hoursAgo(4),
+          status,
+        },
+      });
+    const a = await make(boss.companyId, boss.employeeId, 'completed');
+    const b = await make(boss.companyId, boss.employeeId, 'completed');
+    const running = await make(boss.companyId, boss.employeeId, 'open');
+    const done = await make(boss.companyId, boss.employeeId, 'approved');
+    const foreign = await make(other.companyId, other.employeeId, 'completed');
+
+    const result = await api()
+      .post('/time-entries/approve')
+      .set(as(boss))
+      .send({ ids: [a.id, b.id, running.id, done.id, foreign.id, a.id] })
+      .expect(201);
+    expect(result.body).toEqual({ approved: 2, skipped: 3 });
+    const after = await prisma.timeEntry.findMany({
+      where: { id: { in: [a.id, b.id, running.id, foreign.id] } },
+    });
+    const status = Object.fromEntries(after.map((e) => [e.id, e.status]));
+    expect(status).toEqual({
+      [a.id]: 'approved',
+      [b.id]: 'approved',
+      [running.id]: 'open',
+      [foreign.id]: 'completed',
+    });
+    expect(
+      await prisma.auditLog.count({
+        where: { entityId: { in: [a.id, b.id] }, action: 'time_entry_approve' },
+      }),
+    ).toBe(2);
+    await api().post('/time-entries/approve').set(as(boss)).send({ ids: [] }).expect(400);
+    await api()
+      .post('/time-entries/approve')
+      .set(as(boss))
+      .send({ ids: ['kein-uuid'] })
+      .expect(400);
+  });
 });

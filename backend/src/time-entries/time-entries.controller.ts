@@ -7,7 +7,12 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { parseDayParam } from '../common/time-zone';
 import { TimeEntriesService } from './time-entries.service';
-import { CorrectTimeEntryDto, StartTimeEntryDto, StopTimeEntryDto } from './dto/time-entry.dto';
+import {
+  ApproveTimeEntriesDto,
+  CorrectTimeEntryDto,
+  StartTimeEntryDto,
+  StopTimeEntryDto,
+} from './dto/time-entry.dto';
 import { Response } from 'express';
 import { PageQueryDto, withTotalCount } from '../common/pagination';
 
@@ -67,6 +72,13 @@ export class TimeEntriesController {
     @Query('date') date?: string,
   ) {
     return this.timeEntriesService.getDailyOvertime(user.companyId, employeeId, parseDayParam(date));
+  }
+
+  // Sammelfreigabe: nur abgeschlossene Einträge, der Rest wird übersprungen
+  @Post('approve')
+  @RequirePermissions(PERMISSIONS.EMPLOYEE_DATA_READ)
+  approveMany(@CurrentUser() user: AuthenticatedUser, @Body() dto: ApproveTimeEntriesDto) {
+    return this.timeEntriesService.approveMany(user.companyId, user.userId, dto.ids);
   }
 
   @Post(':id/approve')

@@ -23,6 +23,22 @@ test.describe('Team – Zeiterfassungs-Freigabe', () => {
     await expect(entry.getByTestId('time-entry-approve')).toHaveCount(0);
   });
 
+  test('mehrere abgeschlossene Einträge auf einmal freigeben', async ({ page, request }) => {
+    const token = await apiLogin(request);
+    await createCompletedTimeEntry(request, token);
+    await createCompletedTimeEntry(request, token);
+
+    await loginViaUi(page);
+    await page.getByTestId('nav-team').click();
+    await page.getByTestId('team-employee-tab').filter({ hasText: 'Max Mustermann' }).click();
+    const all = page.getByTestId('time-entry-approve-all');
+    await expect(all).toBeVisible();
+    await all.click();
+    await expect(page.getByTestId('team-notice')).toContainText('freigegeben');
+    await expect(page.getByTestId('time-entry-approve')).toHaveCount(0);
+    await expect(all).toHaveCount(0);
+  });
+
   test.skip('ohne employee.data.read-Berechtigung ist "Team" in der Navigation nicht sichtbar', async () => {
     // Dokumentiert das erwartete Verhalten für eine eingeschränkte Rolle;
     // übersprungen, solange es im Seed keinen zweiten User ohne diese
