@@ -137,6 +137,10 @@
   --color-success: #3f7a3a;
   --radius-small: 10px;
   --radius-medium: 16px;
+  /* Navigation: warmer Erdton statt Grau, besser lesbar (Kontrast ≥ 4,5:1) */
+  --nav-ink: #7a5a36;
+  --nav-ink-strong: #5b4125;
+  --nav-label: #8a6a45;
 }
 
 :root[data-look='gala'][data-theme='dark'] {
@@ -151,6 +155,9 @@
   --brand-ink: #cfe3d2;
   --brand-lawn: #8cc05a;
   --brand-stone: #a3a8a2;
+  --nav-ink: #d9c4a0;
+  --nav-ink-strong: #f0e2c6;
+  --nav-label: #b89f7a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -166,6 +173,9 @@
     --brand-ink: #cfe3d2;
     --brand-lawn: #8cc05a;
     --brand-stone: #a3a8a2;
+    --nav-ink: #d9c4a0;
+    --nav-ink-strong: #f0e2c6;
+    --nav-label: #b89f7a;
   }
 }
 

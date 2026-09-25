@@ -1,4 +1,4 @@
-# Demo starten (Windows): Doppelklick auf start.cmd oder
+﻿# Demo starten (Windows): Doppelklick auf start.cmd oder
 #   powershell -ExecutionPolicy Bypass -File ops\demo\start.ps1 [-Https]
 # -Https: HTTPS mit eigener Demo-Zertifizierungsstelle (App auf dem Handy
 #         installierbar, auch ohne Netz). Braucht Docker Desktop.

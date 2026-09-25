@@ -1,4 +1,4 @@
-# GartenAI im Büro starten (Windows): Doppelklick auf start.cmd oder
+﻿# GartenAI im Büro starten (Windows): Doppelklick auf start.cmd oder
 #   powershell -ExecutionPolicy Bypass -File ops\buero\start.ps1 [-DemoDaten]
 # -DemoDaten: Musterbetrieb und Demo-Agent zum Ausprobieren laden.
 # Beim ersten Start: Geheimnisse in .env.buero, eigene Zertifizierungsstelle,
