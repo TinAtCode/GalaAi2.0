@@ -14,6 +14,8 @@ interface Service {
 // Rundung der Menge nur für diese Position: '' = automatisch (Leistung,
 // Einheit, Firma), sonst 0–3 Nachkommastellen; Art optional
 interface LineRounding {
+  // Ordnungszahl aus einem GAEB-LV – wird unverändert mitgeschickt
+  gaebOz?: string | null;
   roundingDecimals: string;
   roundingMode: string;
   // Schritt (z.B. 0,5) aus einem bestehenden Angebot; das Formular bietet
@@ -57,6 +59,7 @@ export interface EditableQuote {
     roundingDecimals?: number | null;
     roundingMode?: string | null;
     roundingStep?: number | string | null;
+    gaebOz?: string | null;
   }[];
 }
 
@@ -64,6 +67,7 @@ export interface EditableQuote {
 const linesOf = (quote: EditableQuote): Line[] =>
   quote.lineItems.map((li) => {
     const rounding = {
+      gaebOz: li.gaebOz ?? null,
       roundingDecimals: li.roundingDecimals != null ? String(li.roundingDecimals) : '',
       roundingMode: li.roundingMode ?? '',
       roundingStep: li.roundingStep != null ? String(Number(li.roundingStep)) : '',
@@ -173,6 +177,7 @@ export function QuoteForm({
       return;
     }
     const roundingOf = (l: LineRounding) => ({
+      ...(l.gaebOz ? { gaebOz: l.gaebOz } : {}),
       ...(l.roundingDecimals !== '' ? { roundingDecimals: Number(l.roundingDecimals) } : {}),
       ...(l.roundingMode ? { roundingMode: l.roundingMode } : {}),
       ...(l.roundingStep ? { roundingStep: Number(l.roundingStep) } : {}),

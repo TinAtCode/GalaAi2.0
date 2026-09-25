@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Param, Post, Put, StreamableFile, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  StreamableFile,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Prisma } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
@@ -7,6 +19,8 @@ import { PERMISSIONS } from '../common/permissions';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthenticatedUser } from '../common/authenticated-request';
 import { QuotesService } from './quotes.service';
+import { GaebService } from './gaeb.service';
+import { requiredFile } from '../common/required-file';
 import { CreateQuoteDto, SetQuoteOutcomeDto, UpdateQuoteDto } from './dto/quote.dto';
 
 // Gleiches Prinzip wie bei Kalkulationen: Kosten (costPerUnit) brauchen
@@ -28,6 +42,10 @@ function maskQuote(quote: QuoteWithLines, permissions: string[]) {
     vatRate: quote.vatRate,
     vatTreatment: quote.vatTreatment,
     introText: quote.introText,
+    // aus einem GAEB-LV eingelesen (Name des LV für die Anzeige)
+    gaeb: quote.gaebInfo
+      ? { boqName: (quote.gaebInfo as { boqName?: string | null }).boqName ?? null }
+      : null,
     totalNet: canSale ? quote.totalNet : undefined,
     totalVat: canSale ? quote.totalVat : undefined,
     totalGross: canSale ? quote.totalGross : undefined,
@@ -37,6 +55,7 @@ function maskQuote(quote: QuoteWithLines, permissions: string[]) {
       serviceId: li.serviceId,
       description: li.description,
       unit: li.unit,
+      gaebOz: li.gaebOz,
       quantity: li.quantity,
       // genaue Menge und angewandte Rundung (keine Preisinformation)
       quantityExact: li.quantityExact ?? li.quantity,
@@ -55,7 +74,10 @@ function maskQuote(quote: QuoteWithLines, permissions: string[]) {
 @Controller('quotes')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class QuotesController {
-  constructor(private quotesService: QuotesService) {}
+  constructor(
+    private quotesService: QuotesService,
+    private gaebService: GaebService,
+  ) {}
 
   @Get('by-project/:projectId')
   @RequirePermissions(PERMISSIONS.CUSTOMER_READ)
@@ -73,6 +95,29 @@ export class QuotesController {
       type: 'application/pdf',
       disposition: `inline; filename="${fileName}"`,
     });
+  }
+
+  // GAEB-Angebotsabgabe (X84) mit Einheits- und Gesamtpreisen
+  @Get(':id/gaeb')
+  @RequirePermissions(PERMISSIONS.CUSTOMER_READ, PERMISSIONS.PRICE_SALE_READ)
+  async gaeb(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const { buffer, fileName } = await this.gaebService.exportX84(user.companyId, id);
+    return new StreamableFile(buffer, {
+      type: 'application/xml',
+      disposition: `attachment; filename="${fileName}"`,
+    });
+  }
+
+  // GAEB-Leistungsverzeichnis (X83, auch X81/X82/X86) → Angebotsentwurf
+  @Post('gaeb-import/:projectId')
+  @RequirePermissions(PERMISSIONS.QUOTE_CREATE)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
+  gaebImport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId') projectId: string,
+    @UploadedFile(requiredFile()) file: Express.Multer.File,
+  ) {
+    return this.gaebService.importLv(user.companyId, user.userId, projectId, file.buffer, file.originalname);
   }
 
   @Get(':id')

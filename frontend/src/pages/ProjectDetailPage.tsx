@@ -28,6 +28,8 @@ interface QuoteLineItem {
   serviceId?: string | null;
   description: string;
   unit: string;
+  // Ordnungszahl aus einem GAEB-Leistungsverzeichnis
+  gaebOz?: string | null;
   quantity: number;
   quantityExact?: number | string;
   roundingDecimals?: number | null;
@@ -47,6 +49,7 @@ interface Quote {
   totalNet?: number;
   totalGross?: number;
   createdAt: string;
+  gaeb?: { boqName: string | null } | null;
   lineItems: QuoteLineItem[];
 }
 
@@ -116,6 +119,7 @@ export function ProjectDetailPage() {
   const { user, hasPermission } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
+  const [gaebMessage, setGaebMessage] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
   // Rechnungen neu laden, wenn aus einem Vertrag abgerechnet wurde
@@ -284,6 +288,21 @@ export function ProjectDetailPage() {
                 showCost={hasPermission('price.purchase.read')}
               />
             )}
+            {projectId && hasPermission('quote.create') && (
+              <GaebImport
+                projectId={projectId}
+                onImported={(text) => {
+                  setGaebMessage(text);
+                  load();
+                }}
+                onError={setError}
+              />
+            )}
+            {gaebMessage && (
+              <p className="notice" data-testid="gaeb-message">
+                {gaebMessage}
+              </p>
+            )}
             {!error && quotes === null && <p>Lädt …</p>}
 
             {quotes?.length === 0 && (
@@ -335,6 +354,11 @@ export function ProjectDetailPage() {
                     {quote.lineItems.map((li) => (
                       <tr key={li.id}>
                         <td data-testid="quote-line">
+                          {li.gaebOz && (
+                            <span className="list-item-meta" data-testid="quote-line-oz">
+                              {li.gaebOz}{' '}
+                            </span>
+                          )}
                           {li.description} ({quantityText(li.quantity)} {li.unit})
                           {li.quantityExact != null && Number(li.quantityExact) !== Number(li.quantity) && (
                             <span
@@ -361,6 +385,23 @@ export function ProjectDetailPage() {
                       data-testid="quote-pdf"
                     >
                       PDF
+                    </button>
+                  )}
+                  {hasPermission('price.sale.read') && (
+                    <button
+                      className="btn"
+                      onClick={() =>
+                        runAction(() =>
+                          api.downloadFile(
+                            `/quotes/${quote.id}/gaeb`,
+                            `Angebot_${(quote.number ?? 'Entwurf').replace(/[^A-Za-z0-9-]/g, '')}.X84`,
+                          ),
+                        )
+                      }
+                      title="Angebotsabgabe im GAEB-Format (X84) für AVA-Programme der Auftraggeber"
+                      data-testid="quote-gaeb"
+                    >
+                      GAEB X84
                     </button>
                   )}
                   {quote.status === 'draft' &&
@@ -658,5 +699,56 @@ export function ProjectDetailPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+// GAEB-Leistungsverzeichnis (X83, auch X81/X82/X86) einlesen: daraus wird
+// ein Angebotsentwurf mit den Ordnungszahlen und Mengen des LV
+function GaebImport({
+  projectId,
+  onImported,
+  onError,
+}: {
+  projectId: string;
+  onImported: (text: string) => void;
+  onError: (text: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const r = await api.upload<{
+        number: string | null;
+        imported: number;
+        matched: number;
+        skipped: { oz: string; reason: string }[];
+      }>(`/quotes/gaeb-import/${projectId}`, file);
+      const skipped = r.skipped.length
+        ? ` Nicht übernommen: ${r.skipped.map((s) => `${s.oz} (${s.reason})`).join(', ')}.`
+        : '';
+      onImported(
+        `Leistungsverzeichnis eingelesen: Angebot ${r.number ?? ''} mit ${r.imported} Positionen, davon ${r.matched} mit Preis aus dem Katalog. Die übrigen Preise im Entwurf eintragen („Bearbeiten“).${skipped}`,
+      );
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : 'GAEB-Datei konnte nicht eingelesen werden.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <label className="btn" style={{ marginBottom: 12 }}>
+      {busy ? 'Liest ein …' : 'GAEB-Leistungsverzeichnis einlesen'}
+      <input
+        type="file"
+        accept=".x83,.x81,.x82,.x86,.xml,.X83,.X81,.X82,.X86"
+        hidden
+        onChange={(e) => {
+          void upload(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+        data-testid="gaeb-upload"
+      />
+    </label>
   );
 }

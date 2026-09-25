@@ -107,6 +107,7 @@ export class QuotesService {
           const { quantity, rule } = round({ quantity: item.quantity, unit: item.unit ?? '', position });
           return {
             ...freeLineItem(item, quantity),
+            gaebOz: item.gaebOz ?? null,
             quantityExact: new Prisma.Decimal(item.quantity),
             ...override,
             roundingSource: rule.source,
@@ -147,6 +148,7 @@ export class QuotesService {
           serviceId: item.serviceId,
           description: service.name,
           unit: normalizeUnit(service.unit),
+          gaebOz: item.gaebOz ?? null,
           quantity,
           quantityExact: new Prisma.Decimal(item.quantity),
           ...override,
