@@ -22,10 +22,18 @@ interface ProjectHit {
 }
 
 // Schnellsuche (Strg+K): Bereiche, Kunden und Projekte
-export function CommandPalette({ items, onClose }: { items: NavItem[]; onClose: () => void }) {
+export function CommandPalette({
+  items,
+  onClose,
+  initialQuery = '',
+}: {
+  items: NavItem[];
+  onClose: () => void;
+  initialQuery?: string;
+}) {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [found, setFound] = useState<Result[]>([]);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);

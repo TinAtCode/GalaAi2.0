@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { prefetchPages } from '../lazy-pages';
 import { Icon, IconName } from './icons';
 import { CommandPalette } from './CommandPalette';
+import { VoiceButton } from '../voice/VoiceButton';
 import { offlineDb } from '../offline/db';
 import { api } from '../api/client';
 import { startOfflineSync, useOnline, useOutbox } from '../offline/sync';
@@ -162,6 +163,7 @@ export function AppShell() {
   const { user, logout, hasPermission } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const visible = NAV_ITEMS.filter((item) => !item.permission || hasPermission(item.permission));
   const online = useOnline();
   const outbox = useOutbox();
@@ -251,6 +253,13 @@ export function AppShell() {
         >
           <Icon name="search" size={16} /> Suchen …<kbd>Strg K</kbd>
         </button>
+        <VoiceButton
+          targets={visible}
+          onSearch={(query) => {
+            setSearchQuery(query);
+            setSearchOpen(true);
+          }}
+        />
         {GROUPS.map((group) => {
           const items = visible.filter((item) => item.group === group);
           if (!items.length) return null;
@@ -331,7 +340,16 @@ export function AppShell() {
         </>
       )}
 
-      {searchOpen && <CommandPalette items={visible} onClose={() => setSearchOpen(false)} />}
+      {searchOpen && (
+        <CommandPalette
+          items={visible}
+          initialQuery={searchQuery}
+          onClose={() => {
+            setSearchOpen(false);
+            setSearchQuery('');
+          }}
+        />
+      )}
 
       <main className="app-content">
         {(!online || outbox.length > 0) && (
