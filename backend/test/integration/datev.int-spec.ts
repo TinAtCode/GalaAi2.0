@@ -341,6 +341,26 @@ describe('DATEV-Export', () => {
     const accounts = rows.map((r) => Number(fields(r)[0]));
     expect([...accounts].sort((a, b) => a - b)).toEqual(accounts);
 
+    // ohne eigene Anschrift: die des Objekts
+    const ohne = await api().post('/customers').set(auth).send({ name: 'Ohne Anschrift' }).expect(201);
+    await api()
+      .post('/properties')
+      .set(auth)
+      .send({
+        customerId: ohne.body.id,
+        label: 'Garten',
+        street: 'Lindenweg 3',
+        postalCode: '53111',
+        city: 'Bonn',
+      })
+      .expect(201);
+    const again = lines((await get().expect(200)).body)
+      .slice(2)
+      .map(fields);
+    const row = again.find((r) => r.join(';').includes('Ohne Anschrift'))!;
+    expect(cell(row, 'Straße')).toBe('"Lindenweg 3"');
+    expect(cell(row, 'Ort')).toBe('"Bonn"');
+
     // nur Kunden mit Rechnungen
     const invoiced = lines((await get('?invoiced=1').expect(200)).body).slice(2);
     expect(invoiced.some((r) => r.includes('Müller'))).toBe(true);

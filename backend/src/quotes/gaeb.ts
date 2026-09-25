@@ -131,7 +131,9 @@ export function parseGaeb(content: Buffer | string): GaebParseResult {
       for (const item of asArray(list.Item as Node | Node[])) {
         const oz = [...prefix, String(item['@_RNoPart'] ?? '')].join('.');
         const shortText = shortTextOf(item) || `Position ${oz}`;
-        if (item.Provis !== undefined) {
+        // Bedarfsposition ohne Gesamtbetrag (Eventualposition) zählt nicht zur
+        // Summe; „WithTotal“ ist eine normale Position mit Preis
+        if (item.Provis !== undefined && String(textOf(item.Provis)).trim() !== 'WithTotal') {
           skipped.push({ oz, reason: 'Bedarfsposition (ohne Gesamtbetrag)' });
           continue;
         }
@@ -208,13 +210,28 @@ function assignOz(lines: GaebExportLine[], levels: GaebLevel[]) {
     for (let i = 1; i <= prefix.length; i++)
       extraLabel.set(prefix.slice(0, i).join('.'), 'Zusätzliche Positionen');
   }
-  const used = withOz
+  const usedOz = new Set(withOz.map((l) => l.gaebOz!));
+  const numeric = withOz
     .filter((l) => l.gaebOz!.split('.').slice(0, -1).join('.') === prefix.join('.'))
-    .map((l) => Number(l.gaebOz!.split('.').pop()));
-  let next = (used.length ? Math.max(...used) : 0) + 10;
+    .map((l) => Number(l.gaebOz!.split('.').pop()))
+    .filter(Number.isFinite);
+  const max = 10 ** itemLength - 1;
+  // in Zehnerschritten hinter der letzten OZ; reicht der Platz nicht, Einerschritte
+  let step = 10;
+  let next = (numeric.length ? Math.max(...numeric) : 0) + step;
+  if (next + (without.length - 1) * step > max) {
+    step = 1;
+    next = (numeric.length ? Math.max(...numeric) : 0) + 1;
+  }
   const assigned = without.map((l) => {
+    while (next <= max && usedOz.has([...prefix, pad(next, itemLength)].join('.'))) next += step;
+    if (next > max)
+      throw new BadRequestException(
+        'Für die zusätzlichen Positionen ist in der Gliederung des Leistungsverzeichnisses keine Ordnungszahl mehr frei.',
+      );
     const oz = [...prefix, pad(next, itemLength)].join('.');
-    next += 10;
+    usedOz.add(oz);
+    next += step;
     return { ...l, gaebOz: oz };
   });
   return { lines: [...withOz, ...assigned], extraLabel };
@@ -243,12 +260,16 @@ export function buildX84(input: GaebExportInput): Buffer {
       node.items.reduce((sum, i) => sum.plus(i.line.lineTotal), new Prisma.Decimal(0)),
     );
 
+  // ID-Attribute wie in GAEB DA XML üblich (eindeutig, beginnen mit Buchstaben)
+  let idSeq = 0;
+  const nextId = (prefix: string) => `${prefix}${++idSeq}`;
+  const boqId = nextId('B');
   const indent = (depth: number) => '  '.repeat(depth);
   const body = (node: Tree, path: string[], depth: number): string[] => {
     const out = [`${indent(depth)}<BoQBody>`];
     for (const [part, child] of [...node.children.entries()].sort(([a], [b]) => a.localeCompare(b))) {
       const key = [...path, part].join('.');
-      out.push(`${indent(depth + 1)}<BoQCtgy RNoPart="${esc(part)}">`);
+      out.push(`${indent(depth + 1)}<BoQCtgy ID="${nextId('C')}" RNoPart="${esc(part)}">`);
       if (labels[key]) out.push(`${indent(depth + 2)}<LblTx><p><span>${esc(labels[key])}</span></p></LblTx>`);
       out.push(...body(child, [...path, part], depth + 2));
       out.push(`${indent(depth + 2)}<Totals><Total>${money(total(child))}</Total></Totals>`);
@@ -258,7 +279,7 @@ export function buildX84(input: GaebExportInput): Buffer {
       out.push(`${indent(depth + 1)}<Itemlist>`);
       for (const { part, line } of [...node.items].sort((a, b) => a.part.localeCompare(b.part))) {
         out.push(
-          `${indent(depth + 2)}<Item RNoPart="${esc(part)}">`,
+          `${indent(depth + 2)}<Item ID="${nextId('I')}" RNoPart="${esc(part)}">`,
           `${indent(depth + 3)}<Qty>${qty(line.quantity)}</Qty>`,
           // Einheit wie in GAEB üblich: m2/m3 statt m²/m³
           `${indent(depth + 3)}<QU>${esc(line.unit.replace(/²/g, '2').replace(/³/g, '3'))}</QU>`,
@@ -304,7 +325,7 @@ export function buildX84(input: GaebExportInput): Buffer {
     ...(b.city ? [`        <City>${esc(b.city)}</City>`] : []),
     '      </Address>',
     '    </CTR>',
-    '    <BoQ>',
+    `    <BoQ ID="${boqId}">`,
     '      <BoQInfo>',
     `        <Name>${esc(input.info?.boqName ?? input.quoteNumber)}</Name>`,
     `        <LblTx><p><span>${esc(input.info?.boqLabel ?? `Angebot ${input.quoteNumber}`)}</span></p></LblTx>`,

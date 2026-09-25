@@ -50,6 +50,7 @@ services:
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
       OIDC_ALLOWED_DOMAINS: ${OIDC_ALLOWED_DOMAINS:-}
       OIDC_LABEL: ${OIDC_LABEL:-}
+      OIDC_TRUST_EMAIL: ${OIDC_TRUST_EMAIL:-}
     extra_hosts:
       - host.docker.internal:host-gateway
     volumes:

@@ -15,6 +15,9 @@ export interface OidcConfig {
   afterLogin: string;
   // optional: nur E-Mail-Adressen dieser Domains (kommagetrennt)
   allowedDomains: string[];
+  // Anbieter ohne „email_verified“ (Microsoft Entra ID): E-Mail trotzdem
+  // annehmen – nur mit mandantengebundenem Aussteller (siehe oidcConfig)
+  trustEmail: boolean;
 }
 
 // Liest die Einstellungen aus der Umgebung. Ohne Client-ID und Rücksprung-
@@ -31,6 +34,7 @@ export function oidcConfig(env: NodeJS.ProcessEnv = process.env): OidcConfig | n
     redirectUri,
     label: env.OIDC_LABEL?.trim() || (issuer === 'https://accounts.google.com' ? 'Google' : 'Firmenkonto'),
     afterLogin: env.OIDC_AFTER_LOGIN_URL?.trim() || `${new URL(redirectUri).origin}/`,
+    trustEmail: env.OIDC_TRUST_EMAIL === '1',
     allowedDomains: (env.OIDC_ALLOWED_DOMAINS ?? '')
       .split(',')
       .map((d) => d.trim().toLowerCase())
@@ -131,9 +135,13 @@ export function verifyIdToken(
 
 // E-Mail aus dem Token: muss vom Anbieter bestätigt sein (sonst könnte sich
 // jemand mit einer fremden, unbestätigten Adresse anmelden)
-export function verifiedEmail(claims: IdTokenClaims, allowedDomains: string[]): string {
+export function verifiedEmail(claims: IdTokenClaims, allowedDomains: string[], trustEmail = false): string {
   const email = claims.email?.trim().toLowerCase();
-  const verified = claims.email_verified === true || claims.email_verified === 'true';
+  // ausdrücklich „nicht bestätigt“ gilt nie; fehlt die Angabe, nur mit OIDC_TRUST_EMAIL
+  const verified =
+    claims.email_verified === true ||
+    claims.email_verified === 'true' ||
+    (trustEmail && claims.email_verified === undefined);
   if (!email || !verified)
     throw new OidcError('email', 'Der Anbieter hat keine bestätigte E-Mail-Adresse geliefert.');
   const domain = email.split('@')[1] ?? '';

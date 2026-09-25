@@ -158,6 +158,9 @@ OIDC_ALLOWED_DOMAINS=musterbetrieb.de
 Auf der Login-Seite erscheint dann „Anmelden mit Google“. Andere Anbieter mit OpenID Connect
 (Microsoft 365, Nextcloud, Keycloak) gehen genauso: zusätzlich `OIDC_ISSUER` setzen (z.B.
 `https://login.microsoftonline.com/<Tenant-ID>/v2.0`) und mit `OIDC_LABEL` den Knopf benennen.
+Microsoft schickt keine Angabe, ob die E-Mail bestätigt ist. Dafür zusätzlich `OIDC_TRUST_EMAIL=1`
+setzen. Das geht nur mit der eigenen Tenant-ID in `OIDC_ISSUER`, nie mit `common` oder
+`organizations`, denn dort könnte jeder beliebige E-Mail-Adressen eintragen.
 
 ## Update
 

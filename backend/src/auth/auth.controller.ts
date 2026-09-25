@@ -84,7 +84,13 @@ export class AuthController {
   async oidcStart(@Res() res: Response) {
     try {
       const { url, stateToken } = await this.oidc.start();
-      res.cookie(OIDC_STATE_COOKIE, stateToken, { ...cookieOptions(), maxAge: 10 * 60 * 1000 });
+      // immer Lax: mit „strict“ schickte der Browser das Cookie beim
+      // Rücksprung vom Anbieter (fremde Seite) nicht mit
+      res.cookie(OIDC_STATE_COOKIE, stateToken, {
+        ...cookieOptions(),
+        sameSite: 'lax',
+        maxAge: 10 * 60 * 1000,
+      });
       res.redirect(302, url);
     } catch (err) {
       this.failOidc(res, err);
@@ -104,7 +110,7 @@ export class AuthController {
         { code: query.code, state: query.state, error: query.error },
         readCookie(req, OIDC_STATE_COOKIE),
       );
-      res.clearCookie(OIDC_STATE_COOKIE, cookieOptions());
+      res.clearCookie(OIDC_STATE_COOKIE, { ...cookieOptions(), sameSite: 'lax' });
       setSessionCookie(res, session.accessToken);
       res.redirect(302, config.afterLogin);
     } catch (err) {
@@ -117,7 +123,7 @@ export class AuthController {
     const code = err instanceof OidcError ? err.code : 'provider';
     if (!(err instanceof OidcError) || code === 'provider' || code === 'token')
       this.logger.warn(`Anmeldung über Anbieter fehlgeschlagen: ${(err as Error).message}`);
-    res.clearCookie(OIDC_STATE_COOKIE, cookieOptions());
+    res.clearCookie(OIDC_STATE_COOKIE, { ...cookieOptions(), sameSite: 'lax' });
     const config = this.oidc.config();
     const target = new URL('login', config?.afterLogin ?? 'http://localhost/');
     target.searchParams.set('sso', code);
