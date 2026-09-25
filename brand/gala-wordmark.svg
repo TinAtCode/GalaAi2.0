@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="30 10 720 340">
+  <title>gAla</title>
+  <g fill="#1f4a2e">
+    <!-- g -->
+    <circle cx="100" cy="185" r="48" fill="none" stroke="#1f4a2e" stroke-width="46"/>
+    <path d="M148 114 H194 V262 C194 322 150 346 88 342 C70 341 56 338 44 333 L58 298 C70 303 84 306 98 306 C134 306 148 290 148 262 Z"/>
+    <!-- l: oben und unten geschwungen, gespiegelt -->
+    <path d="M536 14 C500 26 476 52 476 96 L476 214 C476 234 470 246 462 256 C498 248 524 226 524 176 L524 58 C524 38 529 24 536 14 Z"/>
+    <!-- a -->
+    <circle cx="640" cy="185" r="48" fill="none" stroke="#1f4a2e" stroke-width="46"/>
+    <rect x="688" y="114" width="46" height="136"/>
+  </g>
+  <!-- A mit Pflastersteinen -->
+  <path d="M232 250 L316 28 L364 28 L448 250 L400 250 L340 90 L280 250 Z" fill="#6c9a3c" stroke="#6c9a3c" stroke-width="6" stroke-linejoin="round"/>
+  <g fill="#6e6e6e" stroke="#6e6e6e" stroke-width="8" stroke-linejoin="round">
+    <path d="M326 156 H354 L362 180 H318 Z"/>
+    <path d="M308 198 H334 L330 240 H296 Z"/>
+    <path d="M346 198 H372 L384 240 H350 Z"/>
+  </g>
+</svg>
