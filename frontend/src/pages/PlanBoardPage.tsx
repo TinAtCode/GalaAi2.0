@@ -2,6 +2,24 @@ import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { addToDraft, applyDraft, Draft, DraftPatch, draftConflicts, shiftByDays } from './board-draft';
+
+const DRAFT_KEY = 'gartenai.board-draft';
+const readDraft = (): Draft => {
+  try {
+    return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? '{}') as Draft;
+  } catch {
+    return {};
+  }
+};
+const saveDraft = (draft: Draft) => {
+  try {
+    if (Object.keys(draft).length) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    else localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // ohne Speicher bleibt der Entwurf nur bis zum Neuladen
+  }
+};
 
 interface BoardAppointment {
   id: string;
@@ -87,6 +105,15 @@ export function PlanBoardPage() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<BoardAppointment | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  // Entwurf ("was wäre wenn"): Verschiebungen erst sammeln, dann übernehmen
+  const [draft, setDraftState] = useState<Draft>(readDraft);
+  const [draftMode, setDraftMode] = useState(() => Object.keys(readDraft()).length > 0);
+  const [shiftForm, setShiftForm] = useState({ projectId: '', days: '1' });
+  const [applying, setApplying] = useState(false);
+  const setDraft = (next: Draft) => {
+    setDraftState(next);
+    saveDraft(next);
+  };
 
   // nur die Antwort der letzten Anfrage zählt (schnell von Woche zu Woche)
   const latest = useRef(0);
@@ -105,13 +132,29 @@ export function PlanBoardPage() {
   useEffect(load, [load]);
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(from, i)), [from]);
+  // im Entwurf zeigt die Tafel die Vorschau
+  const appointments = useMemo(
+    () => (board ? (draftMode ? applyDraft(board.appointments, draft) : board.appointments) : []),
+    [board, draft, draftMode],
+  );
+  const names = useMemo(
+    () => Object.fromEntries((board?.assignees ?? []).map((a) => [a.id, `${a.firstName} ${a.lastName}`])),
+    [board],
+  );
+  const conflicts = useMemo(
+    () => (draftMode && board ? draftConflicts(appointments, board.absences, names) : []),
+    [draftMode, board, appointments, names],
+  );
+  const conflictIds = new Set(conflicts.map((c) => c.appointmentId));
+  const draftCount = Object.keys(draft).length;
+  const projectsInView = [...new Map(appointments.map((a) => [a.project.id, a.project.title])).entries()];
   const today = iso(new Date());
   const rows = [
     ...(board?.assignees.map((a) => ({ id: a.id, label: `${a.firstName} ${a.lastName}` })) ?? []),
     { id: UNASSIGNED, label: 'Nicht zugeteilt' },
   ];
   const cell = (rowId: string, day: string) =>
-    (board?.appointments ?? []).filter(
+    appointments.filter(
       (a) => (a.assignedUserId ?? UNASSIGNED) === rowId && iso(new Date(a.startTime)) === day,
     );
   const absenceOf = (rowId: string, day: string) =>
@@ -122,8 +165,13 @@ export function PlanBoardPage() {
       return sum + (end.getTime() - new Date(a.startTime).getTime()) / 3_600_000;
     }, 0);
 
-  const move = async (appointment: BoardAppointment, patch: Record<string, unknown>) => {
+  const move = async (appointment: BoardAppointment, patch: DraftPatch) => {
     setError(null);
+    if (draftMode) {
+      const original = board?.appointments.find((a) => a.id === appointment.id) ?? appointment;
+      setDraft(addToDraft(draft, original, patch));
+      return true;
+    }
     try {
       await api.patch(`/appointments/${appointment.id}`, patch);
       load();
@@ -137,7 +185,7 @@ export function PlanBoardPage() {
   const onDrop = (event: DragEvent, rowId: string, day: string) => {
     event.preventDefault();
     setDropTarget(null);
-    const appointment = board?.appointments.find((a) => a.id === event.dataTransfer.getData('text/plain'));
+    const appointment = appointments.find((a) => a.id === event.dataTransfer.getData('text/plain'));
     if (!appointment) return;
     const sameRow = (appointment.assignedUserId ?? UNASSIGNED) === rowId;
     const sameDay = iso(new Date(appointment.startTime)) === day;
@@ -146,6 +194,43 @@ export function PlanBoardPage() {
       startTime: onDay(appointment.startTime, day),
       assignedUserId: rowId === UNASSIGNED ? null : rowId,
     });
+  };
+
+  // alle Änderungen schreiben; was nicht klappt (z.B. Kollision), bleibt im Entwurf
+  const applyAll = async () => {
+    setApplying(true);
+    setError(null);
+    const rest: Draft = { ...draft };
+    const failed: string[] = [];
+    for (const [id, patch] of Object.entries(draft)) {
+      try {
+        await api.patch(`/appointments/${id}`, patch);
+        delete rest[id];
+      } catch (err) {
+        failed.push(err instanceof ApiError ? err.message : id);
+      }
+    }
+    setDraft(rest);
+    setApplying(false);
+    if (failed.length) setError(`Nicht übernommen (${failed.length}): ${failed.join(' · ')}`);
+    else {
+      setDraftMode(false);
+      setNotice('Entwurf übernommen.');
+    }
+    load();
+  };
+
+  // ein Projekt um n Tage verschieben (alle geplanten Termine der Woche)
+  const shiftProject = () => {
+    const n = Number(shiftForm.days);
+    if (!board || !shiftForm.projectId || !Number.isInteger(n) || n === 0) return;
+    let next = draft;
+    for (const a of appointments)
+      if (a.project.id === shiftForm.projectId && a.status === 'planned') {
+        const original = board.appointments.find((o) => o.id === a.id)!;
+        next = addToDraft(next, original, { startTime: shiftByDays(a.startTime, n) });
+      }
+    setDraft(next);
   };
 
   const weekLabel = `${parseDay(days[0]).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' })} – ${parseDay(days[6]).toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: 'numeric' })}`;
@@ -177,6 +262,15 @@ export function PlanBoardPage() {
             →
           </button>
           <strong data-testid="board-week">{weekLabel}</strong>
+          {canEdit && (
+            <button
+              className={`btn btn-sm${draftMode ? ' btn-primary' : ''}`}
+              onClick={() => setDraftMode(!draftMode)}
+              data-testid="board-draft-toggle"
+            >
+              {draftMode ? 'Entwurf ausblenden' : 'Entwurf (was wäre wenn)'}
+            </button>
+          )}
           {canManageAbsences && (
             <button className="btn btn-sm" onClick={() => setAbsenceOpen(true)} data-testid="absence-open">
               Abwesenheit eintragen
@@ -184,6 +278,77 @@ export function PlanBoardPage() {
           )}
         </div>
       </header>
+
+      {draftMode && (
+        <div className="card" style={{ marginBottom: 12 }} data-testid="board-draft">
+          <div className="toolbar" style={{ marginBottom: 0 }}>
+            <strong data-testid="board-draft-count">
+              Entwurf: {draftCount} {draftCount === 1 ? 'Änderung' : 'Änderungen'}
+            </strong>
+            <span className="list-item-meta">
+              Verschieben wirkt erst mit „Übernehmen“. Der Entwurf bleibt auf diesem Gerät gespeichert.
+            </span>
+            <label className="inline-field">
+              <span>Projekt</span>
+              <select
+                value={shiftForm.projectId}
+                onChange={(e) => setShiftForm({ ...shiftForm, projectId: e.target.value })}
+                data-testid="board-shift-project"
+              >
+                <option value="">– wählen –</option>
+                {projectsInView.map(([id, title]) => (
+                  <option key={id} value={id}>
+                    {title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="inline-field">
+              <span>um Tage</span>
+              <input
+                value={shiftForm.days}
+                onChange={(e) => setShiftForm({ ...shiftForm, days: e.target.value.replace(/[^\d-]/g, '') })}
+                style={{ width: 60 }}
+                inputMode="numeric"
+                data-testid="board-shift-days"
+              />
+            </label>
+            <button className="btn btn-sm" onClick={shiftProject} data-testid="board-shift">
+              Verschieben
+            </button>
+            <button
+              className="btn btn-sm btn-primary"
+              disabled={!draftCount || applying}
+              onClick={() => void applyAll()}
+              data-testid="board-draft-apply"
+            >
+              {applying ? 'Übernehme …' : 'Übernehmen'}
+            </button>
+            <button
+              className="btn btn-sm btn-ghost"
+              disabled={!draftCount}
+              onClick={() => setDraft({})}
+              data-testid="board-draft-discard"
+            >
+              Verwerfen
+            </button>
+          </div>
+          {conflicts.length > 0 && (
+            <ul className="field-error" style={{ margin: '8px 0 0 18px' }} data-testid="board-conflicts">
+              {conflicts.map((c, i) => (
+                <li key={i}>
+                  {parseDay(c.day).toLocaleDateString('de-DE', {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'numeric',
+                  })}
+                  : {c.text}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {notice && (
         <p className="list-item-meta" data-testid="board-notice">
@@ -271,7 +436,7 @@ export function PlanBoardPage() {
                         <button
                           key={a.id}
                           type="button"
-                          className={`board-item${a.status === 'done' ? ' is-done' : ''}${a.contractTaskId ? ' is-contract' : ''}`}
+                          className={`board-item${a.status === 'done' ? ' is-done' : ''}${a.contractTaskId ? ' is-contract' : ''}${draftMode && draft[a.id] ? ' is-draft' : ''}${conflictIds.has(a.id) ? ' has-conflict' : ''}`}
                           draggable={canEdit}
                           onDragStart={(e) => e.dataTransfer.setData('text/plain', a.id)}
                           onClick={() => setEditing(a)}
