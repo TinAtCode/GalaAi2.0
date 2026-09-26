@@ -258,6 +258,8 @@ Sicherungen aufbewahren.**
 - NestJS 12 ist noch nicht eingebaut (reines ESM, eigener Umbau).
 - Alarmschwellen nach einigen Wochen echtem Betrieb anpassen (`BETRIEB.md`, „Überwachung“).
 
+- Datenschutz: kein Löschen/Anonymisieren von Kunden und Mitarbeitern, keine Auskunft auf Knopfdruck (`PRUEFUNG.md`, Abschnitt 5).
+
 **Bewusst nicht geplant:** automatischer Kontoabruf (EBICS/FinTS), E-Rechnungs-Versand über Peppol.
 **Noch nicht umgesetzt:** DATANORM, Vergleich mit Hero.
 
@@ -281,6 +283,8 @@ Sicherungen aufbewahren.**
 |---|---|---|
 | `UEBERGABE.md` | dieses Dokument: Gesamtstand und Übergabe | aktuell |
 | `README.md` | Einstieg: Funktionsumfang, Architektur, Betriebsarten, Repository | aktuell |
+| `API.md` | alle Schnittstellen mit Anmeldung, Recht und Limit | aus dem Code erzeugt, von einem Test aktuell gehalten |
+| `PRUEFUNG.md` | Prüfleitfaden: Prüfumgebung, alle Prüfungen, Sicherheit mit Fundstellen, Datenschutz, Checkliste | aktuell |
 | `DATENMODELL.md` | alle Tabellen mit Feldern, Beziehungen, Löschregeln, Mandanten-Schutz, ER-Diagrammen | aus dem Schema erzeugt, von einem Test aktuell gehalten |
 | `BUERO.md` | Einzelplatz einrichten, sichern, unterwegs, Mails, Google, Update, Umzug | aktuell |
 | `BUERO-TEST.md` | Checkliste Einzelplatz (Handtest), mit Hinweis auf die automatischen Punkte | aktuell |
