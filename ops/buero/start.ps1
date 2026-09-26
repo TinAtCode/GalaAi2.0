@@ -54,8 +54,14 @@ if (Get-Command tailscale -ErrorAction SilentlyContinue) {
 
 New-Item -ItemType Directory -Force -Path 'ops\buero\certs', 'backups\buero' | Out-Null
 $known = if (Test-Path 'ops\buero\certs\ips') { (Get-Content 'ops\buero\certs\ips' -Raw).Trim() } else { '' }
-if (-not (Test-Path 'ops\buero\certs\server.crt') -or $known -ne ($ips -join ' ')) {
+# Neues Server-Zertifikat: beim ersten Start, bei neuen Adressen und rechtzeitig
+# vor Ablauf (gilt 825 Tage; nach 760 Tagen erneuern)
+$renewed = $false
+$expiring = (Test-Path 'ops\buero\certs\server.crt') -and
+  (Get-Item 'ops\buero\certs\server.crt').LastWriteTime -lt (Get-Date).AddDays(-760)
+if (-not (Test-Path 'ops\buero\certs\server.crt') -or $known -ne ($ips -join ' ') -or $expiring) {
   Write-Host 'Erzeuge Zertifikate ...'
+  $renewed = $true
   docker run --rm -e 'CA_NAME=GartenAI Buero CA' -v "${PWD}\ops\demo:/demo:ro" -v "${PWD}\ops\buero\certs:/certs" alpine:3.20 sh /demo/make-certs.sh @ips
   if ($LASTEXITCODE -ne 0) { Fail 'Zertifikate konnten nicht erzeugt werden.' }
 }
@@ -68,6 +74,8 @@ if ($settings['CLOUDFLARE_TUNNEL_TOKEN']) { $compose += @('--profile', 'tunnel')
 Write-Host 'Starte GartenAI (beim ersten Mal werden die Images gebaut, das dauert einige Minuten) ...'
 docker @compose up -d --build
 if ($LASTEXITCODE -ne 0) { Fail 'Start fehlgeschlagen (siehe oben).' }
+# lief HTTPS schon, liest es das neue Zertifikat erst nach einem Neustart
+if ($renewed) { docker @compose restart https | Out-Null }
 
 $main = "https://localhost:$port"
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)

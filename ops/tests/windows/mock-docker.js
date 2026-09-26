@@ -122,7 +122,8 @@ if (args[0] === "compose") {
     process.exit(0);
   }
   if (sub === "ps") {
-    console.log("exited 0");
+    // status.ps1 fragt Zustand und Gesundheit ab, start.ps1 das Ende der Demo-Daten
+    console.log(args.some((a) => a.includes(".Health")) ? "running healthy" : "exited 0");
     process.exit(0);
   }
   if (sub === "exec" && args.includes("/auto-backup.sh")) {

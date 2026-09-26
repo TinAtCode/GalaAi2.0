@@ -196,6 +196,27 @@ Unter Windows: Doppelklick auf `ops\buero\update.cmd`. Es sichert zuerst, holt b
 neue Version und startet neu. Bei ZIP-Download wartet es, bis die neue Version über den Ordner
 entpackt ist (`.env.buero` und `backups` bleiben dabei erhalten).
 
+## Prüfen und Hilfe holen
+
+`ops/buero/status.sh` (Windows: Doppelklick auf `ops\buero\status.cmd`) zeigt auf einen Blick:
+- ob alle Dienste laufen und GartenAI über HTTPS antwortet,
+- ob die letzte Sicherung jünger als 36 Stunden und unversehrt ist (Prüfsummen) und ob die
+  automatische Sicherung Fehler gemeldet hat,
+- wie viel Speicher frei ist und ob das Zertifikat bald abläuft.
+
+Am Ende steht „Alles in Ordnung.“ oder die Zahl der Probleme mit einem Hinweis, was zu tun ist.
+
+Für die IT: `status.sh --support` (Windows: `status.cmd -Support`) legt zusätzlich ein
+Support-Paket in `backups/` an: die Übersicht, den Zustand der Container und die letzten Log-Zeilen
+jedes Dienstes. Aus `.env.buero` steht darin nur, welche Einstellungen gesetzt sind, keine Passwörter
+oder Schlüssel. Die Protokolle können Namen und E-Mail-Adressen von Nutzern enthalten.
+
+**Zertifikate:** Das Zertifikat für HTTPS gilt 825 Tage, länger erlauben iPhones und Macs nicht. Der
+Start (`start.sh` bzw. `start.cmd`) erneuert es nach 760 Tagen automatisch. Die eigene
+Zertifizierungsstelle gilt 10 Jahre. Installationen vor dieser Änderung haben eine
+Zertifizierungsstelle mit 825 Tagen: Sie wird bei der ersten Erneuerung ersetzt. Das Stammzertifikat
+muss dann auf den Handys einmal neu installiert werden (siehe „Handys verbinden“).
+
 ## Beenden
 
 `ops/buero/stop.sh` bzw. `stop.cmd`. Die Daten bleiben erhalten. Docker Desktop startet GartenAI beim

@@ -63,10 +63,15 @@ IPS=()
 while IFS= read -r ip; do IPS+=("$ip"); done < <(lan_ips)
 
 mkdir -p ops/buero/certs backups/buero
-if [ ! -f ops/buero/certs/server.crt ] || [ "$(cat ops/buero/certs/ips 2>/dev/null)" != "${IPS[*]:-}" ]; then
+# Neues Server-Zertifikat: beim ersten Start, bei neuen Adressen und rechtzeitig
+# vor Ablauf (gilt 825 Tage; nach 760 Tagen erneuern)
+RENEWED=0
+if [ ! -f ops/buero/certs/server.crt ] || [ "$(cat ops/buero/certs/ips 2>/dev/null)" != "${IPS[*]:-}" ] ||
+  [ -n "$(find ops/buero/certs/server.crt -mtime +760 2>/dev/null)" ]; then
   echo "Erzeuge Zertifikate …"
   docker run --rm -e CA_NAME="GartenAI Buero CA" -v "$PWD/ops/demo:/demo:ro" -v "$PWD/ops/buero/certs:/certs" \
     alpine:3.20 sh /demo/make-certs.sh ${IPS[@]+"${IPS[@]}"}
+  RENEWED=1
 fi
 
 [ "$DEMO" = 1 ] && COMPOSE+=(--profile demo)
@@ -76,6 +81,8 @@ setting() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
 [ -n "$(setting CLOUDFLARE_TUNNEL_TOKEN)" ] && COMPOSE+=(--profile tunnel)
 echo "Starte GartenAI (beim ersten Mal werden die Images gebaut, das dauert einige Minuten) …"
 "${COMPOSE[@]}" up -d --build
+# lief HTTPS schon, liest es das neue Zertifikat erst nach einem Neustart
+[ "$RENEWED" = 1 ] && "${COMPOSE[@]}" restart https >/dev/null
 
 MAIN="https://localhost:$PORT"
 CA=ops/buero/certs/ca.crt

@@ -857,6 +857,16 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 
 ## 7. Offene Punkte
 
+- **Nachtrag – Einzelplatz: Prüfen, Support-Paket, Zertifikate:**
+  - `ops/buero/status.sh` bzw. `status.cmd`: Dienste, HTTPS, Alter und Prüfsummen der letzten
+    Sicherung, Fehler der automatischen Sicherung, freier Speicher, Zertifikat. Mit `--support`
+    (Windows `-Support`) ein Paket für die IT ohne Passwörter und Schlüssel.
+  - Gefunden und behoben: Zertifizierungsstelle und Server-Zertifikat galten 825 Tage, und nichts
+    erneuerte sie. Nach gut zwei Jahren hätten Browser und Handys die Verbindung abgelehnt. Jetzt
+    erneuert der Start das Server-Zertifikat nach 760 Tagen und startet HTTPS neu. Die
+    Zertifizierungsstelle gilt 10 Jahre und wird erneuert, wenn sie in weniger als 800 Tagen abläuft.
+  - Rauchtest Büro (Linux) und Windows-Test prüfen beides, einschließlich einer beschädigten
+    Sicherung.
 - **Zurückgestellt:** Ausrollen auf einen echten Server (Zugang fehlt), Hero-Vergleich, DATANORM. GAEB (X83/X84) und DATEV-Debitoren sind inzwischen umgesetzt (Nachträge „DATEV-Debitoren“ und „GAEB DA XML“). Gesamtstand: `UEBERGABE.md`.
 - **Erledigt am 29.09.2026:** offenes KI-Gateway und Demo-Paket (siehe Nachträge, `KI-ANBINDUNG.md`, `DEMO.md`).
 - **Erledigt am 01.10.2026:** Push-Nachrichten für die Baustelle (siehe Nachtrag).
