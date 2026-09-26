@@ -857,6 +857,14 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 
 ## 7. Offene Punkte
 
+- **Nachtrag – Lageplan: Messen, Drehen, Tastenkürzel:**
+  - **Messen** (Knopf bei den Zoom-Knöpfen, auch mit reinem Leserecht): Punkte anklicken, Länge je
+    Strecke im Plan, Gesamtlänge und Richtung der letzten Strecke; wird nicht gespeichert.
+  - **Drehen** des ausgewählten Objekts um 90° in beide Richtungen oder um einen frei eingegebenen
+    Winkel, um seine Mitte (Kreise um den Mittelpunkt); gesperrte Objekte bleiben stehen.
+  - **Tastatur:** Pfeiltasten verschieben das ausgewählte Objekt um 10 cm (mit Umschalt 1 m),
+    Strg+D dupliziert.
+  - Unit-Tests für Drehen und Richtung, Browser-Test „Messen, Drehen, Duplizieren und Pfeiltasten“.
 - **Zurückgestellt:** Ausrollen auf einen echten Server (Zugang fehlt), Hero-Vergleich, DATANORM. GAEB (X83/X84) und DATEV-Debitoren sind inzwischen umgesetzt (Nachträge „DATEV-Debitoren“ und „GAEB DA XML“). Gesamtstand: `UEBERGABE.md`.
 - **Erledigt am 29.09.2026:** offenes KI-Gateway und Demo-Paket (siehe Nachträge, `KI-ANBINDUNG.md`, `DEMO.md`).
 - **Erledigt am 01.10.2026:** Push-Nachrichten für die Baustelle (siehe Nachtrag).

@@ -40,6 +40,8 @@ import {
   polygonPerimeter,
   polylineLength,
   removePoint,
+  bearing,
+  rotateObject,
   scaleObject,
   setListValue,
   squareMeters,
@@ -72,7 +74,10 @@ interface Plan {
   version: number;
 }
 
-type Tool = 'select' | 'pan' | 'calibrate' | ObjectType;
+type Tool = 'select' | 'pan' | 'calibrate' | 'measure' | ObjectType;
+// Werkzeuge, die Objekte zeichnen (alle anderen: Auswählen, Verschieben, Maßstab, Messen)
+const isDrawTool = (t: Tool): t is ObjectType =>
+  t !== 'select' && t !== 'pan' && t !== 'calibrate' && t !== 'measure';
 type Drag =
   | { mode: 'pan'; start: Point; view: View }
   | { mode: 'move'; id: string; start: Point; original: PlanObject[]; moved?: boolean }
@@ -115,6 +120,8 @@ export function PlanEditorPage() {
   const [cursor, setCursor] = useState<Point | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [calibration, setCalibration] = useState<{ points: Point[]; meters: string } | null>(null);
+  // Messen: Punkte einer Messstrecke (wird nicht gespeichert)
+  const [measure, setMeasure] = useState<Point[]>([]);
   // Objekte, die vor dem Hintergrund auf dem Raster gezeichnet wurden, beim
   // Kalibrieren mitskalieren (ihre Maße bleiben), sonst bleiben sie am Bild
   const [keepSizes, setKeepSizes] = useState(false);
@@ -393,7 +400,7 @@ export function PlanEditorPage() {
     setError(null);
     const target = cursor && distance(cursor, last) > 0 ? cursor : ([last[0] + 1, last[1]] as Point);
     const d = distance(target, last);
-    const kind = tool === 'select' || tool === 'pan' || tool === 'calibrate' ? null : TYPES[tool].kind;
+    const kind = isDrawTool(tool) ? TYPES[tool].kind : null;
     const circle = kind === 'area' && circleMode && draft.length === 1;
     // beim Kreis ist die Eingabe der Durchmesser
     const units = (circle ? m / 2 : m) * unitsPerMeter;
@@ -408,7 +415,7 @@ export function PlanEditorPage() {
   };
 
   const finishDraft = (points = draft) => {
-    if (tool === 'select' || tool === 'pan' || tool === 'calibrate') return;
+    if (!isDrawTool(tool)) return;
     // doppelte Punkte (Doppelklick) entfernen
     const clean = points.filter((p, i) => i === 0 || distance(p, points[i - 1]) > 1e-6);
     const kind = TYPES[tool].kind;
@@ -441,7 +448,11 @@ export function PlanEditorPage() {
       setCalibration({ points, meters: calibration?.meters ?? '' });
       return;
     }
-    if (tool === 'select') return;
+    if (tool === 'measure') {
+      setMeasure([...measure, p]);
+      return;
+    }
+    if (!isDrawTool(tool)) return;
     const kind = TYPES[tool].kind;
     if (kind === 'symbol' || kind === 'text') {
       const object: PlanObject = {
@@ -500,7 +511,8 @@ export function PlanEditorPage() {
       );
       return;
     }
-    if (draft.length || tool === 'calibrate') setCursor(snap(p, event.shiftKey));
+    if (draft.length || tool === 'calibrate' || (tool === 'measure' && measure.length))
+      setCursor(snap(p, event.shiftKey));
   };
 
   const onPointerUp = () => {
@@ -572,6 +584,40 @@ export function PlanEditorPage() {
     if (!selected) return;
     commit(objects.filter((o) => o.id !== selected.id));
     setSelectedId(null);
+  };
+
+  // Kopie leicht versetzt daneben (Strg+D)
+  const duplicateSelected = () => {
+    if (!selected) return;
+    const offset = 20 / view.zoom;
+    const copy = {
+      ...selected,
+      id: newId(),
+      points: selected.points.map(([x, y]) => [round(x + offset), round(y + offset)] as Point),
+    };
+    commit([...objects, copy]);
+    setSelectedId(copy.id);
+  };
+
+  // Lage fixiert oder einzelne Punkte fixiert: nicht verschieben oder drehen
+  const movable = (o: PlanObject | null): o is PlanObject =>
+    !!o && !o.props?.locked && !o.props?.fixed?.length;
+
+  // Pfeiltasten: 10 cm, mit Umschalt 1 m
+  const nudgeSelected = (dx: number, dy: number) => {
+    if (!movable(selected)) return;
+    updateSelected({
+      points: selected.points.map(
+        ([x, y]) => [round(x + dx * unitsPerMeter), round(y + dy * unitsPerMeter)] as Point,
+      ),
+    });
+  };
+
+  const rotateSelected = (degrees: number) => {
+    if (!movable(selected) || !degrees) return;
+    updateSelected({
+      points: rotateObject(selected, degrees).map(([x, y]) => [round(x), round(y)] as Point),
+    });
   };
 
   // Punkt auf einer Kante einfügen (in der Mitte, bei Bögen auf dem Bogen)
@@ -755,7 +801,7 @@ export function PlanEditorPage() {
     }
   }, [plan, canEdit]);
 
-  // Tastatur: Esc, Enter, Entf/Rücktaste, Strg+Z/Y/S
+  // Tastatur: Esc, Enter, Entf/Rücktaste, Strg+Z/Y/S/D, Pfeiltasten
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
@@ -772,9 +818,23 @@ export function PlanEditorPage() {
       } else if (mod && event.key.toLowerCase() === 'y') {
         event.preventDefault();
         redo();
+      } else if (mod && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        duplicateSelected();
+      } else if (event.key.startsWith('Arrow') && selected && tool === 'select') {
+        event.preventDefault();
+        const step = event.shiftKey ? 1 : 0.1;
+        const [dx, dy] = {
+          ArrowLeft: [-step, 0],
+          ArrowRight: [step, 0],
+          ArrowUp: [0, -step],
+          ArrowDown: [0, step],
+        }[event.key as 'ArrowLeft'] ?? [0, 0];
+        nudgeSelected(dx, dy);
       } else if (event.key === 'Escape') {
         setDraft([]);
         setCalibration(null);
+        setMeasure([]);
         setSelectedId(null);
       } else if (event.key === 'Enter') finishDraft();
       else if (event.key === 'Backspace' || event.key === 'Delete') {
@@ -1216,23 +1276,26 @@ export function PlanEditorPage() {
     );
   };
 
-  const drawKind = tool !== 'select' && tool !== 'pan' && tool !== 'calibrate' ? TYPES[tool].kind : null;
+  const drawKind = isDrawTool(tool) ? TYPES[tool].kind : null;
   const preview = draft.length && cursor ? [...draft, cursor] : draft;
+  const measurePath = measure.length && cursor ? [...measure, cursor] : measure;
   const drawCircle = drawKind === 'area' && circleMode;
   const hint =
     tool === 'calibrate'
       ? 'Maßstab: Anfang und Ende einer bekannten Strecke anklicken (z.B. Hauslänge aus dem Plan).'
-      : drawKind === 'line'
-        ? 'Punkte setzen; Doppelklick oder Enter beendet, Rücktaste nimmt den letzten Punkt zurück, Umschalt = rechtwinklig.'
-        : drawCircle
-          ? 'Mittelpunkt anklicken, dann einen Punkt auf dem Rand (oder den Durchmesser eingeben).'
-          : drawKind === 'area'
-            ? 'Eckpunkte setzen; Doppelklick oder Enter schließt die Fläche. Rundungen danach im Maß-Feld.'
-            : drawKind === 'opening'
-              ? 'Anfang und Ende der Öffnung anklicken.'
-              : drawKind
-                ? 'Klicken, um das Symbol zu setzen.'
-                : 'Objekt anklicken zum Auswählen und Verschieben, Punkte ziehen; freie Fläche ziehen = verschieben, Mausrad = zoomen.';
+      : tool === 'measure'
+        ? 'Messen: Punkte anklicken, Länge je Strecke und gesamt; Umschalt = rechtwinklig, Esc = neu. Wird nicht gespeichert.'
+        : drawKind === 'line'
+          ? 'Punkte setzen; Doppelklick oder Enter beendet, Rücktaste nimmt den letzten Punkt zurück, Umschalt = rechtwinklig.'
+          : drawCircle
+            ? 'Mittelpunkt anklicken, dann einen Punkt auf dem Rand (oder den Durchmesser eingeben).'
+            : drawKind === 'area'
+              ? 'Eckpunkte setzen; Doppelklick oder Enter schließt die Fläche. Rundungen danach im Maß-Feld.'
+              : drawKind === 'opening'
+                ? 'Anfang und Ende der Öffnung anklicken.'
+                : drawKind
+                  ? 'Klicken, um das Symbol zu setzen.'
+                  : 'Objekt anklicken zum Auswählen und Verschieben, Punkte ziehen; freie Fläche ziehen = verschieben, Mausrad = zoomen.';
 
   return (
     <div className="plan-editor" data-testid="plan-editor">
@@ -1326,7 +1389,7 @@ export function PlanEditorPage() {
           <label className="plan-tool-compact">
             <span className="plan-tool-label">Zeichnen</span>
             <select
-              value={tool === 'select' || tool === 'pan' || tool === 'calibrate' ? '' : tool}
+              value={isDrawTool(tool) ? tool : ''}
               onChange={(e) => {
                 setTool((e.target.value || 'select') as Tool);
                 setDraft([]);
@@ -1545,7 +1608,12 @@ export function PlanEditorPage() {
             onWheel={onWheel}
             style={{
               touchAction: 'none',
-              cursor: tool === 'pan' ? 'grab' : drawKind || tool === 'calibrate' ? 'crosshair' : 'default',
+              cursor:
+                tool === 'pan'
+                  ? 'grab'
+                  : drawKind || tool === 'calibrate' || tool === 'measure'
+                    ? 'crosshair'
+                    : 'default',
             }}
           >
             <PatternDefs zoom={view.zoom} />
@@ -1626,6 +1694,38 @@ export function PlanEditorPage() {
                 ))}
               </g>
             )}
+            {tool === 'measure' && measurePath.length > 0 && (
+              <g data-ui pointerEvents="none" data-testid="plan-measure-path">
+                <path
+                  d={`M${measurePath.map((p) => p.join(' ')).join(' L')}`}
+                  stroke="#c2185b"
+                  strokeWidth={2 * px}
+                  strokeDasharray={`${8 * px} ${4 * px}`}
+                  fill="none"
+                />
+                {measure.map((p, i) => (
+                  <circle key={i} cx={p[0]} cy={p[1]} r={4 * px} fill="#c2185b" />
+                ))}
+                {measurePath.slice(1).map((p, i) => {
+                  const a = measurePath[i];
+                  return (
+                    <text
+                      key={i}
+                      x={(a[0] + p[0]) / 2}
+                      y={(a[1] + p[1]) / 2 - 6 * px}
+                      fontSize={12 * px}
+                      textAnchor="middle"
+                      fill="#c2185b"
+                      stroke="#fff"
+                      strokeWidth={3 * px}
+                      paintOrder="stroke"
+                    >
+                      {number(toMeters(distance(a, p)))} m
+                    </text>
+                  );
+                })}
+              </g>
+            )}
           </svg>
           <div className="plan-scale" aria-hidden="true">
             <span style={{ width: barMeters * unitsPerMeter * view.zoom }} />
@@ -1640,6 +1740,19 @@ export function PlanEditorPage() {
             </button>
             <button className="plan-tool" onClick={fit} data-testid="plan-fit">
               Einpassen
+            </button>
+            <button
+              className={`plan-tool${tool === 'measure' ? ' active' : ''}`}
+              onClick={() => {
+                setTool(tool === 'measure' ? 'select' : 'measure');
+                setMeasure([]);
+                setDraft([]);
+                setSelectedId(null);
+              }}
+              title="Strecken messen (wird nicht gespeichert)"
+              data-testid="plan-tool-measure"
+            >
+              Messen
             </button>
           </div>
         </div>
@@ -1665,6 +1778,41 @@ export function PlanEditorPage() {
               onImport={importDxf}
               onCancel={() => setDxf(null)}
             />
+          )}
+          {tool === 'measure' && (
+            <div className="job-card" style={{ display: 'block' }} data-testid="plan-measure">
+              <strong>Messen</strong>
+              {measure.length < 2 ? (
+                <p className="list-item-meta">Punkte anklicken; die Messung wird nicht gespeichert.</p>
+              ) : (
+                <>
+                  <p style={{ margin: '6px 0' }}>
+                    Gesamt{' '}
+                    <strong data-testid="plan-measure-total">
+                      {number(toMeters(polylineLength(measure)))} m
+                    </strong>
+                    {measure.length > 2 && ` · ${measure.length - 1} Strecken`}
+                  </p>
+                  <p className="list-item-meta">
+                    Letzte Strecke{' '}
+                    {number(toMeters(distance(measure[measure.length - 2], measure[measure.length - 1])))} m,
+                    Richtung {number(bearing(measure[measure.length - 2], measure[measure.length - 1]), 0)}°
+                  </p>
+                </>
+              )}
+              <div className="btn-row">
+                <button
+                  className="btn btn-sm"
+                  onClick={() => setMeasure(measure.slice(0, -1))}
+                  disabled={!measure.length}
+                >
+                  Letzten Punkt entfernen
+                </button>
+                <button className="btn btn-sm" onClick={() => setMeasure([])} disabled={!measure.length}>
+                  Neu messen
+                </button>
+              </div>
+            </div>
           )}
           {calibration?.points.length === 2 && (
             <div className="job-card" style={{ display: 'block' }} data-testid="plan-calibration">
@@ -2104,20 +2252,49 @@ export function PlanEditorPage() {
                   <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                     <button
                       className="btn"
-                      onClick={() => {
-                        const copy = {
-                          ...selected,
-                          id: newId(),
-                          points: selected.points.map(
-                            ([x, y]) => [round(x + 20 * px), round(y + 20 * px)] as Point,
-                          ),
-                        };
-                        commit([...objects, copy]);
-                        setSelectedId(copy.id);
-                      }}
+                      onClick={duplicateSelected}
+                      title="Strg+D"
+                      data-testid="plan-duplicate"
                     >
                       Duplizieren
                     </button>
+                    {TYPES[selected.type].kind !== 'symbol' && TYPES[selected.type].kind !== 'text' && (
+                      <>
+                        <button
+                          className="btn"
+                          onClick={() => rotateSelected(-90)}
+                          disabled={!movable(selected)}
+                          title="90° gegen den Uhrzeigersinn"
+                          data-testid="plan-rotate-left"
+                        >
+                          ⟲ 90°
+                        </button>
+                        <button
+                          className="btn"
+                          onClick={() => rotateSelected(90)}
+                          disabled={!movable(selected)}
+                          title="90° im Uhrzeigersinn"
+                          data-testid="plan-rotate-right"
+                        >
+                          ⟳ 90°
+                        </button>
+                        <label className="field" style={{ width: 110 }}>
+                          <span>Drehen um °</span>
+                          <input
+                            inputMode="decimal"
+                            placeholder="z.B. 15"
+                            disabled={!movable(selected)}
+                            onKeyDown={(e) => {
+                              if (e.key !== 'Enter') return;
+                              const deg = Number((e.target as HTMLInputElement).value.replace(',', '.'));
+                              if (Number.isFinite(deg)) rotateSelected(deg);
+                              (e.target as HTMLInputElement).value = '';
+                            }}
+                            data-testid="plan-rotate-degrees"
+                          />
+                        </label>
+                      </>
+                    )}
                     <button className="btn" onClick={deleteSelected} data-testid="plan-delete-object">
                       Löschen
                     </button>

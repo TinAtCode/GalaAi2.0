@@ -214,3 +214,24 @@ export function scaleObject<
     ...(o.props ? { props: { ...o.props, radii: scale(o.props.radii), bulges: scale(o.props.bulges) } } : {}),
   };
 }
+
+// Objekt um seine Mitte drehen (Grad, im Uhrzeigersinn auf dem Bildschirm, da y nach unten
+// zeigt); Kreise um den Mittelpunkt. Radien und Bögen bleiben, sie hängen an den Punkten.
+export function rotateObject<O extends { points: Point[]; props?: { shape?: 'circle' } }>(
+  o: O,
+  degrees: number,
+): Point[] {
+  const center = o.props?.shape === 'circle' ? o.points[0] : centroid(o.points);
+  const rad = (degrees * Math.PI) / 180;
+  const [cos, sin] = [Math.cos(rad), Math.sin(rad)];
+  return o.points.map(([x, y]) => {
+    const [dx, dy] = [x - center[0], y - center[1]];
+    return [center[0] + dx * cos - dy * sin, center[1] + dx * sin + dy * cos] as Point;
+  });
+}
+
+// Richtung einer Strecke in Grad (0° = nach rechts, im Uhrzeigersinn), für Messungen
+export function bearing(a: Point, b: Point) {
+  const deg = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
+  return (deg + 360) % 360;
+}

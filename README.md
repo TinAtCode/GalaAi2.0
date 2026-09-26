@@ -29,7 +29,7 @@ auch ohne Netz.
 | **Aufträge und Verträge** | Auftrag aus angenommenem Angebot; Pflege- und Wartungsverträge mit Einsätzen als Termine und Abrechnung je Zeitraum |
 | **Planung** | Plantafel mit Entwurfsmodus („was wäre wenn“), Kalender (Firma, Team, Baustelle, persönlich), Abwesenheiten, „Mein Tag“, Sprachbefehle |
 | **Baustelle (Handy-App)** | Tagesplan, Zeit stempeln, Fotos, Nachrichten ans Büro, Push-Nachrichten; offline mit späterer Übertragung; Bautagebuch mit Behinderungen, Checklisten |
-| **Lagepläne und Aufmaß** | Zeichnen mit Maßstab, Rundungen, Kreisen, Schächten; DXF-Import; Entwässerung mit Formstücken, Höhen, Leerrohren; Mengen ins Angebot; offline |
+| **Lagepläne und Aufmaß** | Zeichnen mit Maßstab, Rundungen, Kreisen, Schächten; Messen, Drehen; DXF-Import; Entwässerung mit Formstücken, Höhen, Leerrohren; Mengen ins Angebot; offline |
 | **Team und Zeiten** | Zeiterfassung als Selbstbedienung, Freigabe (auch gesammelt), Korrekturen mit Protokoll, Überstunden |
 | **Nachkalkulation** | Soll aus dem eingefrorenen Angebot gegen Ist (Zeiten, Material, Eingangsrechnungen), Deckungsbeitrag |
 | **Rechnungen** | Abschlags-, Schluss-, Storno- und Vertragsrechnung; PDF/A, XRechnung, ZUGFeRD; Versand per E-Mail; Rechnungsdatum in der Reihenfolge der Nummern |
