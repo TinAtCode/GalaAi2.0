@@ -393,4 +393,56 @@ test.describe('Lagepläne', () => {
     await item.getByRole('button', { name: 'Löschen' }).click();
     await expect(item).toHaveCount(0);
   });
+
+  test('Messen, Drehen, Duplizieren und Pfeiltasten', async ({ page }) => {
+    const run = String(Date.now()).slice(-6);
+    await loginViaUi(page);
+    await page.goto(`/projekte/${SEED.projectId}`);
+    await page.getByTestId('plan-new-name').fill(`Werkzeuge ${run}`);
+    await page.getByTestId('plan-create').click();
+    await expect(page.getByTestId('plan-editor')).toBeVisible();
+
+    // Leitung 200 px, Maßstab: 10 m
+    await page.getByTestId('plan-tool-rainwater').click();
+    await clickAt(page, 350, 300);
+    await clickAt(page, 550, 300);
+    await page.keyboard.press('Enter');
+    await page.getByTestId('plan-tool-calibrate').click();
+    await clickAt(page, 350, 300);
+    await clickAt(page, 550, 300);
+    await page.getByTestId('plan-calibration-meters').fill('10');
+    await page.getByTestId('plan-calibration-apply').click();
+    const quantities = page.getByTestId('plan-quantities');
+    await expect(quantities).toContainText('Regenwasser10,00 m');
+
+    // Messen: 10 m nach rechts, dann 5 m nach unten; nichts wird gezeichnet
+    await page.getByTestId('plan-tool-measure').click();
+    await clickAt(page, 350, 350);
+    await clickAt(page, 550, 350);
+    await clickAt(page, 550, 450);
+    const measure = page.getByTestId('plan-measure');
+    await expect(page.getByTestId('plan-measure-total')).toHaveText('15,00 m');
+    await expect(measure).toContainText('Letzte Strecke 5,00 m, Richtung 90°');
+    await expect(page.locator('[data-testid="plan-object"]')).toHaveCount(1);
+    await page.getByTestId('plan-tool-measure').click(); // aus
+
+    // Drehen: Leitung um 90° – Länge bleibt, die Leitung steht senkrecht
+    await page.getByTestId('plan-tool-select').click();
+    const pipe = page.locator('[data-testid="plan-object"][data-type="rainwater"]');
+    await pipe.click();
+    await page.getByTestId('plan-rotate-right').click();
+    const box = (await pipe.boundingBox())!;
+    expect(box.height).toBeGreaterThan(box.width * 3);
+    await expect(quantities).toContainText('Regenwasser10,00 m');
+
+    // Pfeiltaste mit Umschalt: 1 m nach rechts
+    await page.keyboard.press('Shift+ArrowRight');
+    const moved = (await pipe.boundingBox())!;
+    expect(moved.x).toBeGreaterThan(box.x + 5);
+
+    // Strg+D: Kopie, zusammen 20 m
+    await page.keyboard.press('Control+d');
+    await expect(pipe).toHaveCount(2);
+    await expect(quantities).toContainText('Regenwasser20,00 m');
+  });
 });

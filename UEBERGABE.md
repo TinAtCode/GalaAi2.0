@@ -189,8 +189,8 @@ Sicherungen aufbewahren.**
 |---|---|
 | Backend Unit-Tests | 322 (davon 6 halten `DATENMODELL.md` und `API.md` aktuell) |
 | Backend Integrationstests (echte PostgreSQL, HTTP) | 278 (2 bewusst übersprungen) |
-| Frontend Unit-Tests | 25 |
-| Browser-Tests (Playwright) | 77 (3 übersprungen): Durchstiche Verkauf und Einkauf bei 1280 und 390 px, Rollen, alle Module |
+| Frontend Unit-Tests | 28 |
+| Browser-Tests (Playwright) | 78 (3 übersprungen): Durchstiche Verkauf und Einkauf bei 1280 und 390 px, Rollen, alle Module |
 | Einzelplatz im Browser | 7 Tests: Ersteinrichtung, Rollen, alle 18 Bereiche, Handy offline |
 
 **CI-Jobs** (`.github/workflows`), alle laufen bei jedem Push und PR:
