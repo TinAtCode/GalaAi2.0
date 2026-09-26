@@ -146,7 +146,7 @@ kostenloser Ersatz wird gerade erprobt (PR #54).
 
 - **Backend:**
   - NestJS 11 (Express 5), Prisma 5, PostgreSQL 16, TypeScript
-  - 66 Datenmodelle, 45 Migrationen
+  - 66 Datenmodelle, 45 Migrationen, dokumentiert in `DATENMODELL.md`
   - Das Backend wendet die Migrationen beim Start selbst an.
 - **Frontend:**
   - React 18, React Router 7, Vite 8, eigenes CSS mit Design-Tokens (kein UI-Framework)
@@ -280,7 +280,8 @@ Sicherungen aufbewahren.**
 | Datei | Inhalt | Zustand |
 |---|---|---|
 | `UEBERGABE.md` | dieses Dokument: Gesamtstand und Übergabe | aktuell |
-| `README.md` | Einstieg mit Verweisen | aktuell |
+| `README.md` | Einstieg: Funktionsumfang, Architektur, Betriebsarten, Repository | aktuell |
+| `DATENMODELL.md` | alle Tabellen mit Feldern, Beziehungen, Löschregeln, Mandanten-Schutz, ER-Diagrammen | aus dem Schema erzeugt, von einem Test aktuell gehalten |
 | `BUERO.md` | Einzelplatz einrichten, sichern, unterwegs, Mails, Google, Update, Umzug | aktuell |
 | `BUERO-TEST.md` | Checkliste Einzelplatz (Handtest), mit Hinweis auf die automatischen Punkte | aktuell |
 | `BETRIEB.md` | Server: Start, HTTPS, Google, Push, Sicherung, S3, Ausrollen, OCR, Überwachung | aktuell |

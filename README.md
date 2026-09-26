@@ -11,6 +11,7 @@ auch ohne Netz.
 - **Demo für Vorführungen (ein Laptop, Handys im WLAN):** [`DEMO.md`](DEMO.md)
 - **Im Büro auf einem Rechner (echte Daten, ohne Server):** [`BUERO.md`](BUERO.md), Checkliste [`BUERO-TEST.md`](BUERO-TEST.md)
 - **KI anbinden (eigene APIs, eigene Agenten, selbst gehostet):** [`KI-ANBINDUNG.md`](KI-ANBINDUNG.md)
+- **Datenbank (Tabellen, Felder, Querverbindungen):** [`DATENMODELL.md`](DATENMODELL.md)
 - **Technischer Stand:** [`STATUS.md`](STATUS.md), Bewertung und Fahrplan: [`BEWERTUNG.md`](BEWERTUNG.md)
 - **Ursprüngliches Konzept:** [`GartenAI-Architektur-v1.md`](GartenAI-Architektur-v1.md), Marke: [`brand/README.md`](brand/README.md)
 
@@ -131,7 +132,7 @@ mit Firmenprüfung → Prisma.
   - Ausrollen mit automatischem Rückfall (`ops/deploy.sh`)
 
 Ausführliche Begründungen stehen in [`STATUS.md`](STATUS.md), Abschnitt 3, und in den Nachträgen je
-Ausbauschritt.
+Ausbauschritt. Alle Tabellen mit Feldern und Beziehungen: [`DATENMODELL.md`](DATENMODELL.md) (aus dem Schema erzeugt).
 
 ---
 
