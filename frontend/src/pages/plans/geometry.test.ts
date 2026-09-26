@@ -107,7 +107,13 @@ describe('Drehen und Richtung', () => {
   });
 
   it('Kreis dreht um den Mittelpunkt, der Radius bleibt', () => {
-    const circle = { points: [[10, 10], [20, 10]] as Point[], props: { shape: 'circle' as const } };
+    const circle = {
+      points: [
+        [10, 10],
+        [20, 10],
+      ] as Point[],
+      props: { shape: 'circle' as const },
+    };
     const [center, edge] = rotateObject(circle, 90);
     expect(center).toEqual([10, 10]);
     expect(edge[0]).toBeCloseTo(10);
