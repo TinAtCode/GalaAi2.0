@@ -24,6 +24,8 @@ fail() {
   echo "✗ $*" >&2
   exit 1
 }
+# Keine Anfrage darf ewig hängen (sonst läuft der CI-Job bis zum Zeitlimit ohne Hinweis)
+curl() { command curl --connect-timeout 5 --max-time 120 "$@"; }
 json() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const v=JSON.parse(s);console.log($1)})"; }
 
 ops/buero/start.sh
