@@ -831,19 +831,25 @@ export function PayablesTab() {
                     Stornieren
                   </button>
                 )}
-                <button
-                  className="btn"
-                  disabled={busy}
-                  onClick={() => {
-                    if (window.confirm(`Rechnung von ${p.supplierName} samt Beleg löschen?`))
-                      run(async () => {
-                        await api.delete(`/finance/payables/${p.id}`);
-                      });
-                  }}
-                  data-testid="payable-delete"
-                >
-                  Löschen
-                </button>
+                {p.status === 'open' && (
+                  <button
+                    className="btn"
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Rechnung von ${p.supplierName} samt Beleg löschen (nur bei Fehlerfassung)?`,
+                        )
+                      )
+                        run(async () => {
+                          await api.delete(`/finance/payables/${p.id}`);
+                        });
+                    }}
+                    data-testid="payable-delete"
+                  >
+                    Löschen
+                  </button>
+                )}
               </>
             )}
           </div>

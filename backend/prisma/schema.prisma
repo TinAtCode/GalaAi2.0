@@ -142,18 +142,20 @@ model Company {
 // Benutzer / Rollen / Rechte
 // ─────────────────────────────────────────────
 model User {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   companyId    String
-  company      Company  @relation(fields: [companyId], references: [id])
-  email        String   @unique
+  company      Company   @relation(fields: [companyId], references: [id])
+  email        String    @unique
   passwordHash String
   firstName    String
   lastName     String
-  active       Boolean  @default(true)
+  active       Boolean   @default(true)
   // Wird bei Passwortänderung und Deaktivierung erhöht – alle vorher
   // ausgestellten Tokens werden damit sofort ungültig.
-  tokenVersion Int      @default(0)
-  createdAt    DateTime @default(now())
+  tokenVersion Int       @default(0)
+  createdAt    DateTime  @default(now())
+  // Datenschutz: auf Anfrage anonymisiert (E-Mail, Name entfernt, gesperrt)
+  anonymizedAt DateTime?
 
   roles               UserRole[]
   appointments        Appointment[]
@@ -213,9 +215,9 @@ model RolePermission {
 // Kunde → Objekt → Projekt
 // ─────────────────────────────────────────────
 model Customer {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   companyId      String
-  company        Company  @relation(fields: [companyId], references: [id])
+  company        Company   @relation(fields: [companyId], references: [id])
   name           String
   email          String?
   phone          String?
@@ -228,10 +230,13 @@ model Customer {
   // USt-IdNr. des Kunden – nötig für E-Rechnungen nach § 13b UStG
   vatId          String?
   // Unternehmer statt Verbraucher: höherer Verzugszins, Verzugspauschale
-  isBusiness     Boolean  @default(false)
+  isBusiness     Boolean   @default(false)
   // Debitorenkonto in der Buchhaltung (DATEV: 10000–69999), fortlaufend
   debtorNumber   Int?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
+  // Datenschutz: auf Anfrage anonymisiert (Name und Kontakt entfernt; Rechnungen
+  // behalten ihre Kopie der Anschrift wegen der Aufbewahrungspflicht)
+  anonymizedAt   DateTime?
 
   properties Property[]
 

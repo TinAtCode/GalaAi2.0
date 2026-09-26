@@ -72,9 +72,15 @@ test.describe('Eingangsrechnungen', () => {
       `bezahlt am ${german(today)}: 490,00 € (laut Kontoauszug)`,
     );
 
+    // bezahlte Rechnung ist Beleg: kein Löschen, erst wieder öffnen
+    await row.getByTestId('payable-more').click();
+    await expect(row.getByTestId('payable-delete')).toHaveCount(0);
     // aufräumen
     page.on('dialog', (dialog) => dialog.accept());
-    await row.getByTestId('payable-more').click();
+    await row.getByTestId('payable-reopen').click();
+    await expect(row).toHaveCount(0);
+    await page.getByTestId('payable-tab-open').click();
+    // das Menü „Mehr“ bleibt für diese Rechnung aufgeklappt
     await row.getByTestId('payable-delete').click();
     await expect(row).toHaveCount(0);
   });

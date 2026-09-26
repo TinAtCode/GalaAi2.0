@@ -90,6 +90,9 @@ die App das Gerät ab – auf einem geteilten Handy bekommt der Nächste keine f
 
 ## Daten und Sicherung
 
+Umzug von GartenAI im Büro (ein Rechner) auf diesen Server: `BUERO.md`, Abschnitt „Später auf einen
+Server umziehen“. Die Sicherungen haben dasselbe Format, `SECRET_KEY` aus `.env.buero` übernehmen.
+
 | Was | Wo |
 | --- | --- |
 | Datenbank | Volume `pg_data` |

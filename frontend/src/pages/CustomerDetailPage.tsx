@@ -32,6 +32,7 @@ interface Customer {
   vatId: string | null;
   debtorNumber: number | null;
   isBusiness: boolean;
+  anonymizedAt: string | null;
   properties: Property[];
 }
 
@@ -127,6 +128,79 @@ function CustomerOpenItems({ customerId }: { customerId: string }) {
           ))}
         </>
       )}
+    </section>
+  );
+}
+
+// Datenschutz: Auskunft als Datei und Anonymisieren auf Anfrage.
+// Ausgestellte Rechnungen bleiben unverändert (Aufbewahrungspflicht).
+function CustomerPrivacy({ customer, onChanged }: { customer: Customer; onChanged: () => void }) {
+  const { hasPermission } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const canExport = hasPermission('data.export');
+  const canAnonymize = hasPermission('customer.delete') && !customer.anonymizedAt;
+  if (!canExport && !canAnonymize && !customer.anonymizedAt) return null;
+
+  const exportData = async () => {
+    setError(null);
+    try {
+      await api.downloadFile(
+        `/customers/${customer.id}/export`,
+        `auskunft-kunde-${customer.id.slice(0, 8)}.json`,
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Auskunft konnte nicht erstellt werden.');
+    }
+  };
+
+  const anonymize = async () => {
+    if (
+      !window.confirm(
+        `„${customer.name}“ anonymisieren? Name, Kontakt und Anschriften werden unwiderruflich entfernt. ` +
+          'Ausgestellte Rechnungen bleiben unverändert erhalten (Aufbewahrungspflicht).',
+      )
+    )
+      return;
+    setError(null);
+    try {
+      await api.post(`/customers/${customer.id}/anonymize`);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Anonymisieren fehlgeschlagen.');
+    }
+  };
+
+  return (
+    <section className="settings-section" data-testid="customer-privacy">
+      <h3>Datenschutz</h3>
+      {customer.anonymizedAt ? (
+        <p className="list-item-meta" data-testid="customer-anonymized">
+          Anonymisiert am {formatDay(customer.anonymizedAt)}. Ausgestellte Rechnungen behalten ihre Anschrift.
+        </p>
+      ) : (
+        <p className="list-item-meta">
+          Auskunft: alle gespeicherten Daten als Datei. Anonymisieren entfernt Name, Kontakt und Anschriften –
+          nur ohne offene Rechnungen und laufenden Pflegevertrag.
+        </p>
+      )}
+      {error && <p className="field-error">{error}</p>}
+      <div className="btn-row">
+        {canExport && (
+          <button type="button" className="btn btn-sm" onClick={exportData} data-testid="customer-export">
+            Auskunft herunterladen
+          </button>
+        )}
+        {canAnonymize && (
+          <button
+            type="button"
+            className="btn btn-sm btn-danger"
+            onClick={anonymize}
+            data-testid="customer-anonymize"
+          >
+            Anonymisieren
+          </button>
+        )}
+      </div>
     </section>
   );
 }
@@ -288,6 +362,13 @@ export function CustomerDetailPage() {
 
       {hasPermission('invoice.create') && customerId && <CustomerOpenItems customerId={customerId} />}
       {customerId && <CustomerHistory customerId={customerId} />}
+      <CustomerPrivacy
+        customer={customer}
+        onChanged={() => {
+          edited.current = false;
+          load();
+        }}
+      />
 
       <h3 style={{ marginBottom: 8 }}>Objekte und Projekte</h3>
       {customer.properties.length === 0 && <p className="list-item-meta">Noch keine Objekte.</p>}

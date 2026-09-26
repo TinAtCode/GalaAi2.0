@@ -12,7 +12,9 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest -c jest.integration.config.js"
+    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest -c jest.integration.config.js",
+    "docs:datenmodell": "ts-node src/cli/datenmodell.ts",
+    "docs:api": "ts-node src/cli/api-doc.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1139.0",

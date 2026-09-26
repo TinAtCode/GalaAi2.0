@@ -503,9 +503,24 @@ ${debits
     await extract(xml, 'x.xml', 'application/xml', staff).expect(403);
     await api().get('/finance/forecast').set(staff).expect(403);
 
-    // Löschen: Rechnung und Beleg weg
+    // Beleg einer Eingangsrechnung lässt sich nicht einzeln löschen (GoBD)
+    await api().delete(`/documents/${res.body.documentId}`).set(auth).expect(409);
+    // bezahlte Rechnung ist Buchungsbeleg: nicht löschbar
+    await api()
+      .post(`/finance/payables/${created.body.id}/pay`)
+      .set(auth)
+      .send({ paidAt: today, amount: Number(created.body.amount) })
+      .expect(201);
+    await api().delete(`/finance/payables/${created.body.id}`).set(auth).expect(409);
+    await api().post(`/finance/payables/${created.body.id}/reopen`).set(auth).expect(201);
+
+    // Löschen (Fehlerfassung): Rechnung und Beleg weg, im Protokoll festgehalten
     await api().delete(`/finance/payables/${created.body.id}`).set(auth).expect(200);
     expect(await prisma.document.count({ where: { id: res.body.documentId } })).toBe(0);
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'payable_delete', entityId: created.body.id },
+    });
+    expect(audit.oldData).toMatchObject({ fileName: expect.any(String) });
   });
 
   it('Projekt zuordnen: Filter, Nachkalkulation, fremdes Projekt abgelehnt', async () => {
