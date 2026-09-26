@@ -4,7 +4,7 @@
 > Neu erzeugen: `cd backend && npm run docs:datenmodell`. Der Unit-Test `datenmodell.spec.ts`
 > schlägt fehl, wenn diese Datei nicht zum Schema passt.
 
-66 Tabellen, 32 Aufzählungen, PostgreSQL 16 über Prisma 5.
+67 Tabellen, 33 Aufzählungen, PostgreSQL 16 über Prisma 5.
 
 ## Lesehilfe
 
@@ -45,7 +45,7 @@
 - [Pflege- und Wartungsverträge](#pflege--und-wartungsverträge) – 3 Tabellen
 - [Planung, Team und Zeiten](#planung-team-und-zeiten) – 6 Tabellen
 - [Baustelle: Lagepläne, Bautagebuch, Checklisten](#baustelle-lagepläne-bautagebuch-checklisten) – 7 Tabellen
-- [Rechnungen, Zahlungen, Mahnungen](#rechnungen-zahlungen-mahnungen) – 6 Tabellen
+- [Rechnungen, Zahlungen, Mahnungen](#rechnungen-zahlungen-mahnungen) – 7 Tabellen
 - [Bank und Finanzen](#bank-und-finanzen) – 6 Tabellen
 - [Einkauf](#einkauf) – 2 Tabellen
 - [Dokumente und Texterkennung](#dokumente-und-texterkennung) – 3 Tabellen
@@ -110,7 +110,7 @@ Mandant / Unternehmen
 | `quantityDecimals` | Int | 2 | Rundung der Mengen auf Angeboten und Rechnungen (Standard; Einheit, Leistung/Artikel und Position können abweichen, siehe common/units.ts) |
 | `quantityRounding` | [QuantityRounding](#enum-quantityrounding) | half_up |  |
 
-**Verwendet von:** `User.companyId`, `Role.companyId`, `Customer.companyId`, `Property.companyId`, `Project.companyId`, `Quote.companyId`, `Order.companyId`, `Article.companyId`, `Service.companyId`, `Supplier.companyId`, `Machine.companyId`, `Appointment.companyId`, `MaintenanceContract.companyId`, `ContractTask.companyId`, `Employee.companyId`, `TimeEntry.companyId`, `Document.companyId`, `ProjectMaterialUsage.companyId`, `AuditLog.companyId`, `NumberSequence.companyId`, `ImportSession.companyId`, `Absence.companyId`, `PushSubscription.companyId`, `AiProviderConfig.companyId`, `AiTaskAssignment.companyId`, `ProjectMessage.companyId`, `ProjectMessageRead.companyId`, `OcrJob.companyId`, `Invoice.companyId`, `InvoicePayment.companyId`, `DunningNotice.companyId`, `InvoiceChargeWaiver.companyId`, `BankTransaction.companyId`, `UnitSetting.companyId`, `ExpenseCategory.companyId`, `CategoryRule.companyId`, `RecurringPayment.companyId`, `BankBalance.companyId`, `IncomingInvoice.companyId`, `SitePlan.companyId`, `PlanServiceMapping.companyId`, `SiteDiaryEntry.companyId`, `CalendarEvent.companyId`, `Equipment.companyId`, `EquipmentDamage.companyId`, `EquipmentMaintenance.companyId`, `EquipmentMaintenanceLog.companyId`, `InventoryCount.companyId`, `InventoryCountItem.companyId`, `ChecklistTemplate.companyId`, `Checklist.companyId`, `ChecklistItem.companyId`, `ChecklistComment.companyId`, `BusinessContract.companyId`, `DeliveryNote.companyId`
+**Verwendet von:** `User.companyId`, `Role.companyId`, `Customer.companyId`, `Property.companyId`, `Project.companyId`, `Quote.companyId`, `Order.companyId`, `Article.companyId`, `Service.companyId`, `Supplier.companyId`, `Machine.companyId`, `Appointment.companyId`, `MaintenanceContract.companyId`, `ContractTask.companyId`, `Employee.companyId`, `TimeEntry.companyId`, `Document.companyId`, `ProjectMaterialUsage.companyId`, `AuditLog.companyId`, `NumberSequence.companyId`, `ImportSession.companyId`, `Absence.companyId`, `PushSubscription.companyId`, `AiProviderConfig.companyId`, `AiTaskAssignment.companyId`, `ProjectMessage.companyId`, `ProjectMessageRead.companyId`, `OcrJob.companyId`, `Invoice.companyId`, `InvoicePayment.companyId`, `DunningNotice.companyId`, `InvoiceFile.companyId`, `InvoiceChargeWaiver.companyId`, `BankTransaction.companyId`, `UnitSetting.companyId`, `ExpenseCategory.companyId`, `CategoryRule.companyId`, `RecurringPayment.companyId`, `BankBalance.companyId`, `IncomingInvoice.companyId`, `SitePlan.companyId`, `PlanServiceMapping.companyId`, `SiteDiaryEntry.companyId`, `CalendarEvent.companyId`, `Equipment.companyId`, `EquipmentDamage.companyId`, `EquipmentMaintenance.companyId`, `EquipmentMaintenanceLog.companyId`, `InventoryCount.companyId`, `InventoryCountItem.companyId`, `ChecklistTemplate.companyId`, `Checklist.companyId`, `ChecklistItem.companyId`, `ChecklistComment.companyId`, `BusinessContract.companyId`, `DeliveryNote.companyId`
 
 ### User
 
@@ -1057,6 +1057,7 @@ erDiagram
   InvoicePayment }o--o| BankTransaction : "bankTransaction"
   DunningNotice }o--|| Invoice : "invoice"
   InvoiceChargeWaiver }o--|| Invoice : "invoice"
+  InvoiceFile }o--|| Invoice : "invoice"
 ```
 
 ### Invoice
@@ -1092,7 +1093,7 @@ erDiagram
 - `contractId` → [MaintenanceContract](#maintenancecontract) (n:1, optional, beim Löschen: Restrict)
 - `cancelsInvoiceId` → [Invoice](#invoice) (1:1, optional)
 
-**Verwendet von:** `Invoice.cancelsInvoiceId`, `InvoiceLineItem.invoiceId`, `InvoicePayment.invoiceId`, `DunningNotice.invoiceId`, `InvoiceChargeWaiver.invoiceId`
+**Verwendet von:** `Invoice.cancelsInvoiceId`, `InvoiceLineItem.invoiceId`, `InvoicePayment.invoiceId`, `DunningNotice.invoiceId`, `InvoiceFile.invoiceId`, `InvoiceChargeWaiver.invoiceId`
 
 **Eindeutig:** (companyId, number)
 
@@ -1192,6 +1193,31 @@ Erlassene Mahnkosten und Zinsen (die Rechnung selbst bleibt unverändert)
 
 - `companyId` → [Company](#company) (n:1, Pflicht)
 - `invoiceId` → [Invoice](#invoice) (n:1, Pflicht)
+
+**Mandanten-Schutz (Trigger):** `invoiceId` → Invoice gehören zur selben Firma
+
+### InvoiceFile
+
+Archiv der ausgestellten Rechnung (GoBD): PDF und E-Rechnung werden einmal beim Ausstellen erzeugt und danach unverändert ausgeliefert und versendet. Datenbank-Trigger: weder änderbar noch löschbar.
+
+| Feld | Typ | Standard | Bedeutung |
+|---|---|---|---|
+| `id` | String | UUID | Schlüssel |
+| `companyId` | String |  |  |
+| `invoiceId` | String |  |  |
+| `kind` | [InvoiceFileKind](#enum-invoicefilekind) |  |  |
+| `fileName` | String |  |  |
+| `storagePath` | String |  |  |
+| `sha256` | String |  | Prüfsumme des Inhalts, zum Nachweis der Unverändertheit |
+| `size` | Int |  |  |
+| `createdAt` | DateTime | jetzt |  |
+
+**Verweist auf**
+
+- `companyId` → [Company](#company) (n:1, Pflicht)
+- `invoiceId` → [Invoice](#invoice) (n:1, Pflicht)
+
+**Eindeutig:** (invoiceId, kind)
 
 **Mandanten-Schutz (Trigger):** `invoiceId` → Invoice gehören zur selben Firma
 
@@ -1898,6 +1924,10 @@ Kontenrahmen für den DATEV-Export
 ### Enum EquipmentStatus
 
 `ready` · `limited` · `broken`
+
+### Enum InvoiceFileKind
+
+`pdf` · `xml`
 
 ### Enum InvoiceKind
 

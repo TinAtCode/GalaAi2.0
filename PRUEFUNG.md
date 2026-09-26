@@ -90,7 +90,7 @@ Tests: Unit-Tests in `backend/test/` und neben dem Code (`*.spec.ts`), Integrati
 | Ersteinrichtung | nur mit `SETUP_CODE`, nur solange es keinen Nutzer gibt, gesperrt per Datenbank-Lock | `backend/src/setup/` | `first-setup.int-spec.ts`, Rauchtest Büro |
 | Protokoll | Audit-Log für Status-, Rechte- und Datenänderungen mit Nutzer und Zeitpunkt | `backend/src/common/audit.ts` | `audit.int-spec.ts`, `audit-log.int-spec.ts` |
 | Logs | je Anfrage eine Zeile, ohne Bodies, Cookies oder Tokens | `backend/src/logging/` | `logging.spec.ts` |
-| Belege (GoBD) | Rechnungen ab Ausstellung unveränderlich, Nummern lückenlos je Jahr, Datum in Nummernreihenfolge; Eingangsrechnungen nur offen löschbar (protokolliert), ihre Belegdatei nie einzeln | `backend/src/invoices/`, `common/numbering.ts`, `finance/payables/`, `documents/` | `invoices.int-spec.ts`, `concurrency.int-spec.ts`, `payables.int-spec.ts` |
+| Belege (GoBD) | Rechnungen ab Ausstellung unveränderlich, Nummern lückenlos je Jahr, Datum in Nummernreihenfolge; PDF und E-Rechnung archiviert mit SHA-256, Archiv per Trigger unveränderlich; Eingangsrechnungen nur offen löschbar (protokolliert), ihre Belegdatei nie einzeln | `backend/src/invoices/`, `common/numbering.ts`, `finance/payables/`, `documents/` | `invoices.int-spec.ts`, `concurrency.int-spec.ts`, `payables.int-spec.ts` |
 
 **Ohne Anmeldung erreichbar** sind nur (Liste in [`API.md`](API.md)):
 - `/health`: nur Lebenszeichen und Version.

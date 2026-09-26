@@ -188,7 +188,7 @@ Sicherungen aufbewahren.**
 | Prüfung | Umfang (Stand 26.09.2026) |
 |---|---|
 | Backend Unit-Tests | 322 (davon 6 halten `DATENMODELL.md` und `API.md` aktuell) |
-| Backend Integrationstests (echte PostgreSQL, HTTP) | 277 (2 bewusst übersprungen) |
+| Backend Integrationstests (echte PostgreSQL, HTTP) | 278 (2 bewusst übersprungen) |
 | Frontend Unit-Tests | 25 |
 | Browser-Tests (Playwright) | 77 (3 übersprungen): Durchstiche Verkauf und Einkauf bei 1280 und 390 px, Rollen, alle Module |
 | Einzelplatz im Browser | 7 Tests: Ersteinrichtung, Rollen, alle 18 Bereiche, Handy offline |
@@ -260,7 +260,7 @@ Sicherungen aufbewahren.**
 - Alarmschwellen nach einigen Wochen echtem Betrieb anpassen (`BETRIEB.md`, „Überwachung“).
 
 - Datenschutz: Auskunft und Anonymisieren für Kunden und Nutzer sind da; freie Texte, Sicherungen und Löschfristen bleiben Handarbeit (`PRUEFUNG.md`, Abschnitt 5).
-- GoBD: Verfahrensdokumentation als Entwurf, mit dem Steuerberater abzustimmen. Offen sind dort u.a. die Ablage der versandten Rechnungs-PDFs als Datei, ein Jahresarchiv über 10 Jahre und das Protokoll für Eingangsrechnungen (`VERFAHRENSDOKUMENTATION.md`, Abschnitt 6).
+- GoBD: Verfahrensdokumentation als Entwurf, mit dem Steuerberater abzustimmen. Rechnungen werden inzwischen als Datei mit Prüfsumme archiviert. Offen sind dort u.a. ein Jahresarchiv über 10 Jahre und das Protokoll für Eingangsrechnungen (`VERFAHRENSDOKUMENTATION.md`, Abschnitt 6).
 
 **Bewusst nicht geplant:** automatischer Kontoabruf (EBICS/FinTS), E-Rechnungs-Versand über Peppol.
 **Noch nicht umgesetzt:** DATANORM, Vergleich mit Hero.

@@ -104,6 +104,7 @@ model Company {
   invoicePayments      InvoicePayment[]
   dunningNotices       DunningNotice[]
   chargeWaivers        InvoiceChargeWaiver[]
+  invoiceFiles         InvoiceFile[]
   bankTransactions     BankTransaction[]
   bankBalances         BankBalance[]
   unitSettings         UnitSetting[]
@@ -1064,6 +1065,7 @@ model Invoice {
   payments       InvoicePayment[]
   dunningNotices DunningNotice[]
   chargeWaivers  InvoiceChargeWaiver[]
+  files          InvoiceFile[]
 
   @@unique([companyId, number])
   @@index([companyId])
@@ -1139,6 +1141,31 @@ model DunningNotice {
   createdAt       DateTime  @default(now())
 
   @@unique([invoiceId, level])
+  @@index([companyId])
+}
+
+enum InvoiceFileKind {
+  pdf // lesbare Fassung (ZUGFeRD mit eingebetteter E-Rechnung, wenn möglich)
+  xml // E-Rechnung (XRechnung, CII)
+}
+
+// Archiv der ausgestellten Rechnung (GoBD): PDF und E-Rechnung werden einmal
+// beim Ausstellen erzeugt und danach unverändert ausgeliefert und versendet.
+// Datenbank-Trigger: weder änderbar noch löschbar.
+model InvoiceFile {
+  id          String          @id @default(uuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id])
+  invoiceId   String
+  invoice     Invoice         @relation(fields: [invoiceId], references: [id])
+  kind        InvoiceFileKind
+  fileName    String
+  storagePath String
+  sha256      String // Prüfsumme des Inhalts, zum Nachweis der Unverändertheit
+  size        Int
+  createdAt   DateTime        @default(now())
+
+  @@unique([invoiceId, kind])
   @@index([companyId])
 }
 

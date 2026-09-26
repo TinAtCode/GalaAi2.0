@@ -35,7 +35,7 @@ export class InvoicesController {
 
   @Get(':id/pdf')
   async pdf(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    const { buffer, fileName } = await this.invoicesService.renderPdf(user.companyId, id);
+    const { buffer, fileName } = await this.invoicesService.pdf(user.companyId, id);
     return new StreamableFile(buffer, {
       type: 'application/pdf',
       disposition: `inline; filename="${fileName}"`,
@@ -44,11 +44,17 @@ export class InvoicesController {
 
   @Get(':id/xrechnung')
   async xrechnung(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    const { buffer, fileName } = await this.invoicesService.renderXRechnung(user.companyId, id);
+    const { buffer, fileName } = await this.invoicesService.xrechnung(user.companyId, id);
     return new StreamableFile(buffer, {
       type: 'application/xml',
       disposition: `attachment; filename="${fileName}"`,
     });
+  }
+
+  // Archivierte Fassung (PDF, E-Rechnung) mit Prüfsumme, GoBD
+  @Get(':id/files')
+  files(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.invoicesService.files(user.companyId, id);
   }
 
   @Get(':id')

@@ -71,6 +71,7 @@ export const AREAS: { title: string; intro: string; models: string[] }[] = [
       'InvoicePayment',
       'DunningNotice',
       'InvoiceChargeWaiver',
+      'InvoiceFile',
       'NumberSequence',
     ],
   },
