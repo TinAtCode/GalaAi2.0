@@ -35,12 +35,12 @@ function Test-Installation {
     else { Bad "Dienst ${svc}: $state - Logs: docker compose -f docker-compose.buero.yml logs $svc" }
   }
 
-  # HTTPS mit der eigenen Zertifizierungsstelle (curl.exe ist Teil von Windows 10/11)
-  $health = curl.exe -fsS --connect-timeout 5 --max-time 15 --cacert 'ops\buero\certs\ca.crt' "https://localhost:$port/api/health" 2>$null
-  if ($LASTEXITCODE -eq 0 -and $health) {
-    $version = if ("$health" -match '"version":"([^"]*)"') { " (Version $($Matches[1]))" } else { '' }
+  # HTTPS wie im Browser: Windows vertraut der eigenen Zertifizierungsstelle (start.cmd trägt sie ein)
+  try {
+    $health = Invoke-RestMethod "https://localhost:$port/api/health" -TimeoutSec 15
+    $version = if ($health.version) { " (Version $($health.version))" } else { '' }
     Ok "GartenAI antwortet unter https://localhost:$port$version"
-  } else { Bad "GartenAI antwortet nicht unter https://localhost:$port" }
+  } catch { Bad "GartenAI antwortet nicht unter https://localhost:$port ($($_.Exception.Message))" }
 
   # Zertifikat: Alter der Datei (gilt 825 Tage, start.cmd erneuert nach 760)
   if (Test-Path 'ops\buero\certs\server.crt') {
