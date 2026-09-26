@@ -11,7 +11,8 @@ auch ohne Netz.
 - **Demo für Vorführungen (ein Laptop, Handys im WLAN):** [`DEMO.md`](DEMO.md)
 - **Im Büro auf einem Rechner (echte Daten, ohne Server):** [`BUERO.md`](BUERO.md), Checkliste [`BUERO-TEST.md`](BUERO-TEST.md)
 - **KI anbinden (eigene APIs, eigene Agenten, selbst gehostet):** [`KI-ANBINDUNG.md`](KI-ANBINDUNG.md)
-- **Datenbank (Tabellen, Felder, Querverbindungen):** [`DATENMODELL.md`](DATENMODELL.md)
+- **Datenbank (Tabellen, Felder, Querverbindungen):** [`DATENMODELL.md`](DATENMODELL.md), **Schnittstellen und Rechte:** [`API.md`](API.md)
+- **Prüfleitfaden für eine IT-Prüfung (Sicherheit, Datenschutz, Tests):** [`PRUEFUNG.md`](PRUEFUNG.md)
 - **Technischer Stand:** [`STATUS.md`](STATUS.md), Bewertung und Fahrplan: [`BEWERTUNG.md`](BEWERTUNG.md)
 - **Ursprüngliches Konzept:** [`GartenAI-Architektur-v1.md`](GartenAI-Architektur-v1.md), Marke: [`brand/README.md`](brand/README.md)
 

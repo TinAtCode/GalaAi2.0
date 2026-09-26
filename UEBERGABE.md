@@ -132,11 +132,11 @@ blendet sie nicht nur aus. Rechte sind frei kombinierbar (25 Einzelrechte,
 
 **Voraussetzung** ist Docker bzw. Docker Desktop. Docker Desktop ist für kleine Firmen kostenlos (unter
 250 Mitarbeitern und 10 Mio. US-Dollar Umsatz; aktuelle Bedingungen bei Docker prüfen). Podman als
-kostenloser Ersatz wird gerade erprobt (PR #54).
+kostenloser Ersatz wird gerade in der CI erprobt (PR #54).
 
 **Einzelplatz → Server:** Im Büro sichern, den Server einrichten und dabei **`SECRET_KEY` aus
 `.env.buero` übernehmen**, dann die Sicherung mit `ops/restore.sh` einspielen. Die Schritte stehen in
-`BUERO.md`, Abschnitt „Später auf einen Server umziehen“. Die CI spielt diesen Umzug durch (PR #53).
+`BUERO.md`, Abschnitt „Später auf einen Server umziehen“. Die CI spielt diesen Umzug bei jedem Push durch.
 
 **Unterwegs auf den Einzelplatz zugreifen:** Tailscale (privat) oder Cloudflare-Tunnel, siehe `BUERO.md`.
 
@@ -187,7 +187,7 @@ Sicherungen aufbewahren.**
 
 | Prüfung | Umfang (Stand 26.09.2026) |
 |---|---|
-| Backend Unit-Tests | 316 |
+| Backend Unit-Tests | 322 (davon 6 halten `DATENMODELL.md` und `API.md` aktuell) |
 | Backend Integrationstests (echte PostgreSQL, HTTP) | 273 (2 bewusst übersprungen) |
 | Frontend Unit-Tests | 25 |
 | Browser-Tests (Playwright) | 76 (3 übersprungen): Durchstiche Verkauf und Einkauf bei 1280 und 390 px, Rollen, alle Module |
@@ -237,8 +237,9 @@ Sicherungen aufbewahren.**
   Eingangsrechnungen mit zugeordneten Lieferscheinen ersetzen den gebuchten Materialverbrauch.
 
 **Laufende PRs** (Stand dieses Dokuments)
-- **#53:** `SECRET_KEY`-Fehler und Umzug Einzelplatz → Server in der CI.
-- **#54 (Entwurf):** Einzelplatz mit Podman statt Docker.
+- **#54 (Entwurf):** Einzelplatz mit Podman statt Docker. Dabei gefunden und behoben: Die
+  Gesundheitsprüfung des Backends stand nur im Dockerfile, Podman übernimmt sie nicht. Jetzt steht sie
+  zusätzlich in den Compose-Dateien.
 
 **Handtests, die keine CI ersetzen kann** (Checklisten `BUERO-TEST.md`, `SERVER-TEST.md`)
 - Einzelplatz auf einem echten Windows-PC mit Docker Desktop.
@@ -258,6 +259,8 @@ Sicherungen aufbewahren.**
 - NestJS 12 ist noch nicht eingebaut (reines ESM, eigener Umbau).
 - Alarmschwellen nach einigen Wochen echtem Betrieb anpassen (`BETRIEB.md`, „Überwachung“).
 
+- Datenschutz: kein Löschen/Anonymisieren von Kunden und Mitarbeitern, keine Auskunft auf Knopfdruck (`PRUEFUNG.md`, Abschnitt 5).
+
 **Bewusst nicht geplant:** automatischer Kontoabruf (EBICS/FinTS), E-Rechnungs-Versand über Peppol.
 **Noch nicht umgesetzt:** DATANORM, Vergleich mit Hero.
 
@@ -266,7 +269,7 @@ Sicherungen aufbewahren.**
 ## 9. Nächste Schritte
 
 1. Die Entscheidung zum Deckungsbeitrag treffen (Abschnitt 8).
-2. PR #53 und #54 abschließen.
+2. PR #54 (Podman) abschließen.
 3. Echten Test mit einem Projekt fahren: Einzelplatz nach `BUERO-TEST.md` auf dem Büro-PC, Handy im
    WLAN, danach die Rückmeldungen einarbeiten.
 4. KI mit einem echten Anbieter erproben.
@@ -281,6 +284,8 @@ Sicherungen aufbewahren.**
 |---|---|---|
 | `UEBERGABE.md` | dieses Dokument: Gesamtstand und Übergabe | aktuell |
 | `README.md` | Einstieg: Funktionsumfang, Architektur, Betriebsarten, Repository | aktuell |
+| `API.md` | alle Schnittstellen mit Anmeldung, Recht und Limit | aus dem Code erzeugt, von einem Test aktuell gehalten |
+| `PRUEFUNG.md` | Prüfleitfaden: Prüfumgebung, alle Prüfungen, Sicherheit mit Fundstellen, Datenschutz, Checkliste | aktuell |
 | `DATENMODELL.md` | alle Tabellen mit Feldern, Beziehungen, Löschregeln, Mandanten-Schutz, ER-Diagrammen | aus dem Schema erzeugt, von einem Test aktuell gehalten |
 | `BUERO.md` | Einzelplatz einrichten, sichern, unterwegs, Mails, Google, Update, Umzug | aktuell |
 | `BUERO-TEST.md` | Checkliste Einzelplatz (Handtest), mit Hinweis auf die automatischen Punkte | aktuell |
