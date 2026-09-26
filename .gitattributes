@@ -1,0 +1,7 @@
+# Skripte, die in Linux-Containern oder unter bash laufen, immer mit LF – auch
+# bei git clone unter Windows (core.autocrlf): mit CRLF bricht sh schon bei
+# „set -eu“ ab („set: Illegal option -“), z.B. make-certs.sh und auto-backup.sh
+*.sh text eol=lf
+Caddyfile text eol=lf
+# Windows-Batchdateien bleiben wie abgelegt (CRLF)
+*.cmd -text

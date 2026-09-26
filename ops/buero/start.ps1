@@ -70,15 +70,20 @@ docker @compose up -d --build
 if ($LASTEXITCODE -ne 0) { Fail 'Start fehlgeschlagen (siehe oben).' }
 
 $main = "https://localhost:$port"
-# Stammzertifikat dieses Rechners für Windows vertrauen (Browser ohne Warnung)
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+# Stammzertifikat dieses Rechners für Windows vertrauen (Browser ohne Warnung):
+# als Administrator für den ganzen Rechner (ohne Rückfrage, gilt für alle
+# Benutzer), sonst für den eigenen Benutzer (Windows fragt einmal nach)
 $ca = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 (Resolve-Path 'ops\buero\certs\ca.crt').Path
-$store = New-Object System.Security.Cryptography.X509Certificates.X509Store 'Root', 'CurrentUser'
-$store.Open('ReadWrite')
-if (-not ($store.Certificates | Where-Object { $_.Thumbprint -eq $ca.Thumbprint })) {
-  Write-Host 'Windows fragt jetzt, ob es dem Stammzertifikat von GartenAI vertrauen soll - mit Ja bestätigen.'
+$trusted = @(Get-ChildItem Cert:\LocalMachine\Root, Cert:\CurrentUser\Root | Where-Object { $_.Thumbprint -eq $ca.Thumbprint })
+if (-not $trusted) {
+  $scope = if ($isAdmin) { 'LocalMachine' } else { 'CurrentUser' }
+  $store = New-Object System.Security.Cryptography.X509Certificates.X509Store 'Root', $scope
+  $store.Open('ReadWrite')
+  if (-not $isAdmin) { Write-Host 'Windows fragt jetzt, ob es dem Stammzertifikat von GartenAI vertrauen soll - mit Ja bestätigen.' }
   $store.Add($ca)
+  $store.Close()
 }
-$store.Close()
 
 $status = $null
 for ($i = 0; $i -lt 120; $i++) {
@@ -98,7 +103,6 @@ if ($DemoDaten) {
 }
 
 # Windows-Firewall: eingehende Verbindungen aus dem Netz erlauben (nur mit Adminrechten)
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if ($isAdmin -and -not (Get-NetFirewallRule -DisplayName "GartenAI Buero $port" -ErrorAction SilentlyContinue)) {
   New-NetFirewallRule -DisplayName "GartenAI Buero $port" -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow -Profile Private | Out-Null
 }
