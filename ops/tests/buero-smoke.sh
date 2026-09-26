@@ -162,7 +162,7 @@ fi
 AUTH="Authorization: Bearer $TOKEN"
 status=$(curl -sS --cacert "$CA" -o /dev/null -w '%{http_code}' -X POST "$BASE/ai/providers" -H "$AUTH" \
   -H 'Content-Type: application/json' \
-  -d '{"name":"KI im Büro","kind":"openai_compatible","baseUrl":"http://ollama:11434/v1","model":"llama3","apiKey":"sk-buero-123"}')
+  -d '{"name":"KI im Büro","kind":"openai_compatible","baseUrl":"http://host.docker.internal:11434/v1","model":"llama3","apiKey":"sk-buero-123"}')
 [ "$status" = 201 ] || fail "KI-Anbieter mit API-Schlüssel speichern: HTTP $status"
 PUSH_KEY=$(curl -fsS --cacert "$CA" -H "$AUTH" "$BASE/push/public-key" | json 'v.publicKey') || fail "Push-Schlüssel"
 DOC=$(curl -fsS --cacert "$CA" -X POST "$BASE/documents/upload?documentType=delivery_note" -H "$AUTH" \
