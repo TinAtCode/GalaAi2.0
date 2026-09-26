@@ -29,7 +29,8 @@ cleanup() {
       "${COMPOSE[@]}" logs --no-color --tail=40 "$svc" >&2 || true
     done
     echo "── Erreichbarkeit" >&2
-    for url in https://localhost:8443/ https://127.0.0.1:8443/; do
+    lan=$(hostname -I 2>/dev/null | awk '{print $1}')
+    for url in https://localhost:8443/ https://127.0.0.1:8443/ ${lan:+https://$lan:8443/}; do
       command curl -sk --connect-timeout 5 --max-time 10 -o /dev/null -w "$url → %{http_code}\n" "$url" >&2 || echo "$url → keine Verbindung" >&2
     done
   fi
