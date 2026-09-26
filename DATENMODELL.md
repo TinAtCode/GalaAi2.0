@@ -127,6 +127,7 @@ Benutzer / Rollen / Rechte
 | `active` | Boolean | true |  |
 | `tokenVersion` | Int | 0 | Wird bei Passwortänderung und Deaktivierung erhöht – alle vorher ausgestellten Tokens werden damit sofort ungültig. |
 | `createdAt` | DateTime | jetzt |  |
+| `anonymizedAt` | DateTime? |  | Datenschutz: auf Anfrage anonymisiert (E-Mail, Name entfernt, gesperrt) |
 
 **Verweist auf**
 
@@ -246,6 +247,7 @@ Kunde → Objekt → Projekt
 | `isBusiness` | Boolean | false | Unternehmer statt Verbraucher: höherer Verzugszins, Verzugspauschale |
 | `debtorNumber` | Int? |  | Debitorenkonto in der Buchhaltung (DATEV: 10000–69999), fortlaufend |
 | `createdAt` | DateTime | jetzt |  |
+| `anonymizedAt` | DateTime? |  | Datenschutz: auf Anfrage anonymisiert (Name und Kontakt entfernt; Rechnungen behalten ihre Kopie der Anschrift wegen der Aufbewahrungspflicht) |
 
 **Verweist auf**
 

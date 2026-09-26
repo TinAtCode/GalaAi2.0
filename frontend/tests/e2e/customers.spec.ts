@@ -32,4 +32,25 @@ test.describe('Kunden, Objekte, Projekte', () => {
     await page.getByText(name).click();
     await expect(page.getByTestId('customer-street')).toHaveValue('Birkenallee 7');
   });
+
+  test('Datenschutz: Auskunft herunterladen und Kunden anonymisieren', async ({ page }) => {
+    const name = `Familie Weg ${Date.now()}`;
+    await loginViaUi(page);
+    await page.getByTestId('nav-customers').click();
+    await page.getByTestId('customer-new-name').fill(name);
+    await page.getByTestId('customer-new-submit').click();
+    await page.getByTestId('customer-email').fill('weg@example.org');
+    await page.getByTestId('customer-save').click();
+    await expect(page.getByTestId('customer-saved')).toBeVisible();
+
+    const download = page.waitForEvent('download');
+    await page.getByTestId('customer-export').click();
+    expect((await download).suggestedFilename()).toMatch(/^auskunft-kunde-.*\.json$/);
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByTestId('customer-anonymize').click();
+    await expect(page.getByTestId('customer-anonymized')).toBeVisible();
+    await expect(page.getByTestId('customer-heading')).toHaveText(/^Anonymisiert /);
+    await expect(page.getByTestId('customer-email')).toHaveValue('');
+  });
 });

@@ -4,7 +4,7 @@
 > Neu erzeugen: `cd backend && npm run docs:api`. Der Unit-Test `api-doc.spec.ts` schlägt fehl, wenn
 > diese Datei nicht zum Code passt.
 
-263 Schnittstellen in 50 Controllern. Im Betrieb liegen sie unter `/api`
+267 Schnittstellen in 51 Controllern. Im Betrieb liegen sie unter `/api`
 (nginx leitet `/api/…` an das Backend weiter), z.B. `GET /api/customers`.
 
 ## So wird der Zugriff geprüft
@@ -128,6 +128,19 @@ Lagepläne: ansehen mit plan.read (auch Mitarbeiter), zeichnen mit plan.write
 | GET | `/plans/:id/background` | ja | `plan.read` |  |  |
 | GET | `/plans/:id/quote-draft` | ja | `plan.read`, `quote.create` |  | Mengen fürs Angebot mit passenden Leistungen |
 | PUT | `/plan-mappings/:key` | ja | `quote.create` |  |  |
+
+### `/`
+
+Datei: `src/privacy/privacy.controller.ts`
+
+Datenschutz: Auskunft (JSON) und Anonymisieren für Kunden und Nutzer
+
+| Methode | Pfad | Anmeldung | Recht | Limit | Hinweis |
+|---|---|---|---|---|---|
+| GET | `/customers/:id/export` | ja | `customer.read`, `data.export` |  | Auskunft nach Art. 15 DSGVO: alle Daten eines Kunden als JSON |
+| POST | `/customers/:id/anonymize` | ja | `customer.delete` |  | Anonymisieren auf Anfrage (Art. 17 DSGVO); nicht mit offenen Rechnungen oder laufendem Vertrag |
+| GET | `/users/:id/export` | ja | `system.settings.write` |  | Auskunft für Nutzer/Mitarbeiter: Profil, Rollen, Zeiten, Abwesenheiten, Termine, Nachrichten, Aktionen |
+| POST | `/users/:id/anonymize` | ja | `system.settings.write` |  | Nutzer anonymisieren: gesperrt, Name und E-Mail entfernt; Zeiten bleiben (Aufbewahrung) |
 
 ### `/absences`
 

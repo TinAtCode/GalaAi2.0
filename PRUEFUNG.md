@@ -107,7 +107,7 @@ Tests: Unit-Tests in `backend/test/` und neben dem Code (`*.spec.ts`), Integrati
 | Daten | Tabellen | Hinweis |
 |---|---|---|
 | Kunden: Name, Anschrift, E-Mail, Telefon, USt-IdNr. | `Customer`, `Property` | für Angebote, Rechnungen, E-Rechnung |
-| Nutzer: Name, E-Mail, Passwort-Hash | `User` | Deaktivieren statt Löschen |
+| Nutzer: Name, E-Mail, Passwort-Hash | `User` | Deaktivieren oder Anonymisieren statt Löschen |
 | Mitarbeiter, Arbeitszeiten, Überstunden | `Employee`, `TimeEntry` | nur mit Recht `employee.data.read`; jeder sieht seine eigenen Zeiten |
 | Abwesenheiten (auch Krankheit) | `Absence` | ohne `employee.data.read` nur „abwesend“, **ohne Art und Notiz** |
 | Baustellen-Nachrichten und Fotos, Bautagebuch | `ProjectMessage`, `Document`, `SiteDiaryEntry` | am Projekt; Dateien im Volume bzw. S3 |
@@ -124,13 +124,34 @@ Tests: Unit-Tests in `backend/test/` und neben dem Code (`*.spec.ts`), Integrati
 - **Cloud-Speicher für Sicherungen:** Die Daten werden vor dem Hochladen auf dem Rechner verschlüsselt.
 - **S3-Objektspeicher:** für Dokumente.
 
+**Auskunft und Anonymisieren** (`backend/src/privacy/`, Test `privacy.int-spec.ts`, Browser-Test in
+`customers.spec.ts`). Gelöscht wird nicht: Rechnungen, Zahlungen, Zeiten und Protokoll müssen
+aufbewahrt werden und hängen an diesen Datensätzen.
+
+| Aktion | Schnittstelle, Recht | Was passiert |
+|---|---|---|
+| Auskunft Kunde (Art. 15) | `GET /customers/:id/export`, `customer.read` + `data.export` | JSON mit Kunde, Objekten, Projekten, Verträgen, Angeboten, Rechnungen (mit Zahlungen, Mahnungen), Dokumentliste, Nachrichten |
+| Kunde anonymisieren (Art. 17) | `POST /customers/:id/anonymize`, `customer.delete` | Name → „Anonymisiert …“, Kontakt, Anschrift, USt-IdNr., Leitweg-ID und Anschriften der Objekte leer. Nicht bei offenen Rechnungen oder laufendem Pflegevertrag. Ausgestellte Rechnungen behalten ihre Anschrift (`buyerSnapshot`, Beleg). |
+| Auskunft Nutzer/Mitarbeiter | `GET /users/:id/export`, `system.settings.write` | JSON mit Profil (ohne Passwort-Hash), Rollen, Zeiten, Abwesenheiten, Terminen, Kalender, Nachrichten, Geräten, eigenen Aktionen im Protokoll |
+| Nutzer anonymisieren | `POST /users/:id/anonymize`, `system.settings.write`, nicht sich selbst | Name und E-Mail ersetzt, zufälliges Passwort, deaktiviert, alle Sitzungen ungültig, Mitarbeiterprofil umbenannt, Push-Geräte gelöscht, Notizen an Abwesenheiten leer. Danach nicht wieder aktivierbar. Zeiten bleiben (Lohnunterlagen). |
+
+Bei beiden Anonymisierungen werden in älteren Protokolleinträgen des Datensatzes die Werte
+personenbezogener Felder durch `[anonymisiert]` ersetzt; wer wann was geändert hat, bleibt. Die
+Anonymisierung selbst wird protokolliert (`customer_anonymize`, `user_anonymize`). Zeitpunkt in
+`anonymizedAt`.
+
 **Bekannte Lücken:**
-- Es gibt keine Funktion, um Kunden, Mitarbeiter oder Nutzer auf Anfrage zu **löschen oder zu
-  anonymisieren**. Nutzer lassen sich nur deaktivieren.
-- Es gibt keine **Auskunft** auf Knopfdruck (Export aller Daten einer Person).
-- Die Aufbewahrungspflichten für Rechnungen (GoBD, 10 Jahre) sprechen gegen ein Löschen. Eine
-  Anonymisierung außerhalb der Belege wäre die übliche Lösung.
-- Löschfristen sind nicht automatisiert.
+- **Freie Texte** (Projekttitel, Notizen, Baustellen-Nachrichten, Bautagebuch, Fotos und Dokumente)
+  werden nicht automatisch durchsucht. Die Auskunft listet sie; Angaben zu Personen darin sind von
+  Hand zu prüfen.
+- **Sicherungen** enthalten die Daten bis zum Ablauf ihrer Aufbewahrung weiter (Server: die letzten 14 Sicherungen,
+  siehe `BETRIEB.md`). Nach dem Zurückspielen einer älteren Sicherung ist die Anonymisierung zu wiederholen.
+- **Löschfristen** sind nicht automatisiert; nach Ablauf der Aufbewahrung (Rechnungen 10 Jahre)
+  anonymisieren oder löschen von Hand.
+- Kunden aus Bankumsätzen (Name, IBAN der Gegenseite in `BankTransaction`) werden nicht mit anonymisiert
+  (Buchungsbeleg).
+- Ein **Verzeichnis der Verarbeitungstätigkeiten** und Verträge zur Auftragsverarbeitung (KI, Mail,
+  Cloud) sind Aufgabe des Betriebs, nicht der Software.
 
 ---
 
@@ -166,7 +187,7 @@ Tests: Unit-Tests in `backend/test/` und neben dem Code (`*.spec.ts`), Integrati
 ## 8. Bekannte Grenzen und offene Punkte
 
 Vollständig in [`UEBERGABE.md`](UEBERGABE.md), Abschnitt 8. Prüfrelevant sind vor allem:
-- **Datenschutz:** Löschen/Anonymisieren und Auskunft fehlen (Abschnitt 5).
+- **Datenschutz:** Auskunft und Anonymisieren gibt es; freie Texte, Sicherungen und Löschfristen bleiben Handarbeit (Abschnitt 5).
 - **Handtests:** Noch nicht mit echten Nutzern, echtem Büro-PC, Handy, Mail, Cloud und Google geprüft.
 - **Datenmenge:** Keine Last- und Penetrationstests über die automatischen Prüfungen hinaus.
 - **Server:** Bisher nur auf einer Test-VM betrieben, nicht bei einem Anbieter.

@@ -10,6 +10,7 @@ interface UserRow {
   active: boolean;
   roles: { role: { id: string; name: string } }[];
   employee: { id: string } | null;
+  anonymizedAt: string | null;
 }
 
 interface Role {
@@ -81,6 +82,22 @@ export function UsersSection() {
     if (password) run(() => api.post(`/users/${target.id}/password`, { password }));
   };
 
+  // Datenschutz: Auskunft als Datei, Anonymisieren (Zeiten bleiben wegen Aufbewahrung)
+  const exportData = (target: UserRow) =>
+    run(() =>
+      api.downloadFile(`/users/${target.id}/export`, `auskunft-nutzer-${target.id.slice(0, 8)}.json`),
+    );
+
+  const anonymize = (target: UserRow) => {
+    if (
+      window.confirm(
+        `${target.firstName} ${target.lastName} anonymisieren? Name und E-Mail werden unwiderruflich entfernt, ` +
+          'die Anmeldung ist danach nicht mehr möglich. Zeiten und Protokoll bleiben erhalten (Aufbewahrungspflicht).',
+      )
+    )
+      run(() => api.post(`/users/${target.id}/anonymize`));
+  };
+
   return (
     <section className="settings-section">
       <h3>Benutzer</h3>
@@ -103,9 +120,14 @@ export function UsersSection() {
               className={`status-badge ${u.active ? 'status-done' : 'status-cancelled'}`}
               data-testid="user-status"
             >
-              {u.active ? 'Aktiv' : 'Deaktiviert'}
+              {u.anonymizedAt ? 'Anonymisiert' : u.active ? 'Aktiv' : 'Deaktiviert'}
             </span>
-            {u.id !== me?.id && (
+            {!u.anonymizedAt && (
+              <button className="btn" disabled={busy} onClick={() => exportData(u)} data-testid="user-export">
+                Auskunft
+              </button>
+            )}
+            {u.id !== me?.id && !u.anonymizedAt && (
               <>
                 <button className="btn" disabled={busy} onClick={() => resetPassword(u)}>
                   Passwort setzen
@@ -117,6 +139,14 @@ export function UsersSection() {
                   data-testid="user-toggle-active"
                 >
                   {u.active ? 'Deaktivieren' : 'Aktivieren'}
+                </button>
+                <button
+                  className="btn btn-danger"
+                  disabled={busy}
+                  onClick={() => anonymize(u)}
+                  data-testid="user-anonymize"
+                >
+                  Anonymisieren
                 </button>
               </>
             )}
