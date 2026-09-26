@@ -61,3 +61,54 @@ jobs:
           name: buero-playwright
           path: frontend/test-results/
           if-no-files-found: ignore
+
+  # Dieselbe Büro-Installation mit Podman statt Docker (kostenlos, auch für
+  # größere Firmen; Podman Desktop unter Windows/macOS arbeitet genauso): die
+  # docker-CLI und docker compose sprechen mit Podmans Docker-kompatibler
+  # Schnittstelle, die Startskripte bleiben unverändert.
+  podman:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Podman statt Docker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman
+          sudo systemctl stop docker.socket docker.service
+          # Docker hinterlässt seine Firewall-Regeln (FORWARD-Policy DROP): sie
+          # blockieren Podmans Portweiterleitung – die Verbindung zu :8443 kommt
+          # zustande, aber keine Daten. Auf einem Rechner ohne Docker gibt es das nicht.
+          sudo iptables -P FORWARD ACCEPT
+          sudo iptables -F DOCKER-USER 2>/dev/null || true
+          sudo iptables -F FORWARD
+          # Podman (netavark) leitet Aufrufe an localhost nur mit route_localnet weiter
+          sudo sysctl -w net.ipv4.conf.all.route_localnet=1
+          sudo systemctl start podman.socket
+          # Socket-Ordner gehört root: für den CI-Nutzer öffnen (nur auf dem Runner)
+          sudo chmod 711 /run/podman
+          sudo chmod 666 /run/podman/podman.sock
+          echo "DOCKER_HOST=unix:///run/podman/podman.sock" >> "$GITHUB_ENV"
+      - name: Podman antwortet als docker
+        run: |
+          podman --version
+          docker version --format '{{.Server.Version}} {{range .Server.Components}}{{.Name}} {{end}}'
+          docker compose version
+      - name: Rauchtest Büro mit Podman
+        run: bash ops/tests/buero-smoke.sh
+        timeout-minutes: 25
+      - name: Diagnose bei Fehler
+        if: failure()
+        run: |
+          set +e
+          docker ps -a
+          sudo ss -ltnp | grep -E ':8443|:3000' || true
+          for url in https://localhost:8443/ https://127.0.0.1:8443/ 'https://[::1]:8443/'; do
+            echo "== $url"; curl -skv --connect-timeout 5 --max-time 10 -o /dev/null "$url" 2>&1 | tail -5
+          done
+          sudo nft list ruleset 2>/dev/null | grep -n 8443 || true
+          sysctl net.ipv4.conf.all.route_localnet
+

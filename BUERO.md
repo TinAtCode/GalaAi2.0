@@ -16,6 +16,10 @@ Zum ausführlichen Durchtesten gibt es eine Checkliste: `BUERO-TEST.md`.
 ## Einmalig vorbereiten
 
 1. **Docker Desktop** installieren und starten (unter Linux Docker Engine mit Compose).
+   Docker Desktop ist für Firmen ab 250 Mitarbeitern oder 10 Mio. US-Dollar Umsatz kostenpflichtig.
+   Kostenlos geht es mit **Podman Desktop** und eingeschalteter Docker-Kompatibilität; die
+   Startskripte bleiben gleich (von der CI im Job `podman` geprüft). Docker und Podman nicht
+   gleichzeitig betreiben: Die Firewall-Regeln von Docker können Podmans Ports blockieren.
 2. Dieses Repository herunterladen (ZIP von GitHub oder `git clone`) und in einen festen Ordner legen,
    z.B. `Dokumente\GartenAI`.
 3. Der erste Start baut die Images und braucht dafür **Internet** (etwa 5–10 Minuten).

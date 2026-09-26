@@ -80,10 +80,10 @@ echo "Starte GartenAI (beim ersten Mal werden die Images gebaut, das dauert eini
 MAIN="https://localhost:$PORT"
 CA=ops/buero/certs/ca.crt
 for _ in $(seq 1 120); do
-  curl -fsS --cacert "$CA" -o /dev/null "$MAIN/api/health" 2>/dev/null && break
+  curl -fsS --connect-timeout 5 --max-time 20 --cacert "$CA" -o /dev/null "$MAIN/api/health" 2>/dev/null && break
   sleep 2
 done
-curl -fsS --cacert "$CA" -o /dev/null "$MAIN/api/health" || fail "GartenAI antwortet nicht. Logs: docker compose -f docker-compose.buero.yml logs backend"
+curl -fsS --connect-timeout 5 --max-time 20 --cacert "$CA" -o /dev/null "$MAIN/api/health" || fail "GartenAI antwortet nicht. Logs: docker compose -f docker-compose.buero.yml logs backend"
 
 if [ "$DEMO" = 1 ]; then
   echo "Lade die Demo-Daten …"
@@ -101,7 +101,7 @@ echo
 echo "✓ GartenAI läuft"
 echo "  Auf diesem Rechner: $MAIN"
 for ip in ${IPS[@]+"${IPS[@]}"}; do echo "  Im Netz (Handy):    https://$ip:$PORT"; done
-status=$(curl -fsS --cacert "$CA" "$MAIN/api/setup/status" || true)
+status=$(curl -fsS --connect-timeout 5 --max-time 20 --cacert "$CA" "$MAIN/api/setup/status" || true)
 if [[ "$status" == *'"needed":true'* ]]; then
   echo
   echo "  Ersteinrichtung: im Browser öffnen und Firma und Zugang anlegen."

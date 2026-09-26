@@ -15,23 +15,41 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 [ ! -f .env.buero ] || { echo "✗ .env.buero existiert schon – der Test würde sie löschen." >&2; exit 1; }
 COMPOSE=(docker compose -f docker-compose.buero.yml --env-file .env.buero --profile demo)
+LAST_ERROR=""
 SERVER=(docker compose -p gartenai-umzug-test -f docker-compose.prod.yml)
 # fürs Aufräumen reichen Platzhalter (die Datei verlangt die Variablen)
 SERVER_CLEAN=(env POSTGRES_PASSWORD=x JWT_SECRET=x "${SERVER[@]}")
 cleanup() {
-  if [ "${1:-0}" != 0 ]; then "${COMPOSE[@]}" logs --no-color --tail=150 || true; fi
+  if [ "${1:-0}" != 0 ]; then
+    # Zustand vor dem Aufräumen festhalten; die Fehlermeldung am Ende wiederholen
+    echo "── Container" >&2
+    "${COMPOSE[@]}" ps -a >&2 || true
+    for svc in https frontend backup postgres backend; do
+      echo "── Logs $svc" >&2
+      "${COMPOSE[@]}" logs --no-color --tail=40 "$svc" >&2 || true
+    done
+    echo "── Erreichbarkeit" >&2
+    lan=$(hostname -I 2>/dev/null | awk '{print $1}')
+    for url in https://localhost:8443/ https://127.0.0.1:8443/ ${lan:+https://$lan:8443/}; do
+      command curl -sk --connect-timeout 5 --max-time 10 -o /dev/null -w "$url → %{http_code}\n" "$url" >&2 || echo "$url → keine Verbindung" >&2
+    done
+  fi
   "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
-  if [ "${1:-0}" != 0 ]; then "${SERVER_CLEAN[@]}" logs --no-color --tail=100 2>/dev/null || true; fi
+  if [ "${1:-0}" != 0 ]; then "${SERVER_CLEAN[@]}" logs --no-color --tail=40 2>/dev/null || true; fi
   "${SERVER_CLEAN[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
   # Sicherungen gehören root (Container) – im Container löschen
   docker run --rm -v "$PWD/backups:/b" alpine:3.20 rm -rf /b/buero >/dev/null 2>&1 || true
   rm -rf ops/buero/certs .env.buero
+  if [ "${1:-0}" != 0 ]; then echo "✗ Abbruch (Exit $1): ${LAST_ERROR:-siehe oben}" >&2; fi
 }
 trap 'cleanup $?' EXIT
 fail() {
+  LAST_ERROR="$*"
   echo "✗ $*" >&2
   exit 1
 }
+# Keine Anfrage darf ewig hängen (sonst läuft der CI-Job bis zum Zeitlimit ohne Hinweis)
+curl() { command curl --connect-timeout 5 --max-time 120 "$@"; }
 json() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const v=JSON.parse(s);console.log($1)})"; }
 
 ops/buero/start.sh
@@ -118,7 +136,10 @@ still_there "Beenden und Starten"
 echo "✓ Beenden und Starten, Daten unverändert"
 
 # E4: Rechner neu gestartet – Docker startet neu, GartenAI kommt ohne Zutun wieder
-if [ -n "${CI:-}" ] && command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+# (mit Podman übernimmt das Podman Desktop bzw. podman-restart.service, nicht geprüft)
+if [[ "${DOCKER_HOST:-}" == *podman* ]]; then
+  echo "(Neustart der Container-Umgebung mit Podman nicht geprüft)"
+elif [ -n "${CI:-}" ] && command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
   sudo systemctl restart docker
   still_there "Neustart von Docker"
   echo "✓ nach dem Neustart von Docker ohne Zutun erreichbar"
