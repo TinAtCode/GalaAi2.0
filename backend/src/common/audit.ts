@@ -6,15 +6,17 @@ export function writeAudit(
   db: Prisma.TransactionClient,
   entry: {
     companyId: string;
-    userId: string;
+    // null: vom System ausgelöst (z.B. automatischer Abgleich mit dem Kontoauszug)
+    userId: string | null;
     action: string;
     entity: string;
     entityId: string;
     oldData?: Prisma.InputJsonValue;
     newData?: Prisma.InputJsonValue;
+    source?: 'manual' | 'import' | 'ai' | 'system';
   },
 ) {
-  return db.auditLog.create({ data: { ...entry, source: 'manual' } });
+  return db.auditLog.create({ data: { source: 'manual', ...entry } });
 }
 
 // Nur die Felder, die sich wirklich ändern – für ein lesbares Audit-Log.

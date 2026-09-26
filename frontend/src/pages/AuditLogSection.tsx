@@ -40,6 +40,14 @@ const ACTION_LABELS: Record<string, string> = {
   invoice_payment_delete: 'Zahlung gelöscht',
   dunning_create: 'Mahnung erstellt',
   dunning_send: 'Mahnung per E-Mail versendet',
+  payable_create: 'Eingangsrechnung erfasst',
+  payable_update: 'Eingangsrechnung geändert',
+  payable_pay: 'Eingangsrechnung bezahlt',
+  payable_reopen: 'Eingangsrechnung wieder geöffnet',
+  payable_cancel: 'Eingangsrechnung storniert',
+  payable_delete: 'Eingangsrechnung gelöscht',
+  customer_anonymize: 'Kunde anonymisiert',
+  user_anonymize: 'Nutzer anonymisiert',
 };
 
 const FILTERS: { value: string; label: string }[] = [
@@ -47,6 +55,7 @@ const FILTERS: { value: string; label: string }[] = [
   { value: 'Quote', label: 'Angebote' },
   { value: 'Order', label: 'Aufträge' },
   { value: 'Invoice', label: 'Rechnungen' },
+  { value: 'IncomingInvoice', label: 'Eingangsrechnungen' },
   { value: 'Project', label: 'Projekte' },
   { value: 'Article', label: 'Artikel' },
   { value: 'Machine', label: 'Maschinen' },
@@ -86,6 +95,13 @@ const FIELD_LABELS: Record<string, string> = {
   openAmount: 'Offener Betrag',
   title: 'Schreiben',
   method: 'Art',
+  supplierName: 'Lieferant',
+  invoiceNumber: 'Rechnungsnummer',
+  invoiceDate: 'Rechnungsdatum',
+  dueDate: 'Fällig am',
+  paidAt: 'Bezahlt am',
+  paidAmount: 'Bezahlter Betrag',
+  fileName: 'Datei',
 };
 
 const VALUE_LABELS: Record<string, string> = {
@@ -99,6 +115,7 @@ const VALUE_LABELS: Record<string, string> = {
   in_progress: 'In Arbeit',
   done: 'Fertig',
   cancelled: 'Storniert',
+  paid: 'Bezahlt',
   completed: 'Abgeschlossen',
   bank: 'Überweisung',
   cash: 'bar',
