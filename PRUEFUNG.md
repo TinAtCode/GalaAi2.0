@@ -17,6 +17,7 @@ Ergebnisse aller Prüfungen dazu stehen in GitHub unter „Actions“ bzw. am Pu
 | [`UEBERGABE.md`](UEBERGABE.md) | aktueller Stand, Qualitätssicherung, offene Punkte, nächste Schritte |
 | [`DATENMODELL.md`](DATENMODELL.md) | alle Tabellen mit Feldern, Beziehungen, Löschregeln und Mandanten-Schutz (**erzeugt**, per Test aktuell gehalten) |
 | [`API.md`](API.md) | alle Schnittstellen mit Anmeldung, nötigem Recht und Limit (**erzeugt**, per Test aktuell gehalten) |
+| [`VERFAHRENSDOKUMENTATION.md`](VERFAHRENSDOKUMENTATION.md) | GoBD: Abläufe, Aufbewahrung, internes Kontrollsystem (**Entwurf**) |
 | [`STATUS.md`](STATUS.md) | technisches Logbuch: Architektur-Entscheidungen mit Begründung, Nachtrag je Ausbauschritt |
 | [`BETRIEB.md`](BETRIEB.md), [`BUERO.md`](BUERO.md), [`DEMO.md`](DEMO.md) | Betrieb auf Server, Einzelplatz, Demo |
 | [`KI-ANBINDUNG.md`](KI-ANBINDUNG.md) | KI-Anbieter, Datenfluss, Vertrag für eigene Agenten, Sicherheit |
@@ -89,7 +90,7 @@ Tests: Unit-Tests in `backend/test/` und neben dem Code (`*.spec.ts`), Integrati
 | Ersteinrichtung | nur mit `SETUP_CODE`, nur solange es keinen Nutzer gibt, gesperrt per Datenbank-Lock | `backend/src/setup/` | `first-setup.int-spec.ts`, Rauchtest Büro |
 | Protokoll | Audit-Log für Status-, Rechte- und Datenänderungen mit Nutzer und Zeitpunkt | `backend/src/common/audit.ts` | `audit.int-spec.ts`, `audit-log.int-spec.ts` |
 | Logs | je Anfrage eine Zeile, ohne Bodies, Cookies oder Tokens | `backend/src/logging/` | `logging.spec.ts` |
-| Belege (GoBD) | Rechnungen ab Ausstellung unveränderlich, Nummern lückenlos je Jahr, Datum in Nummernreihenfolge | `backend/src/invoices/`, `common/numbering.ts` | `invoices.int-spec.ts`, `concurrency.int-spec.ts` |
+| Belege (GoBD) | Rechnungen ab Ausstellung unveränderlich, Nummern lückenlos je Jahr, Datum in Nummernreihenfolge; Eingangsrechnungen nur offen löschbar (protokolliert), ihre Belegdatei nie einzeln | `backend/src/invoices/`, `common/numbering.ts`, `finance/payables/`, `documents/` | `invoices.int-spec.ts`, `concurrency.int-spec.ts`, `payables.int-spec.ts` |
 
 **Ohne Anmeldung erreichbar** sind nur (Liste in [`API.md`](API.md)):
 - `/health`: nur Lebenszeichen und Version.

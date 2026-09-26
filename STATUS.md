@@ -830,6 +830,13 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
     kann sich danach nicht mehr anmelden; Zeiten bleiben für die Lohnunterlagen.
   - Alte Protokolleinträge des Datensatzes werden geschwärzt, die Anonymisierung selbst protokolliert.
   - Einzelheiten und verbleibende Lücken: `PRUEFUNG.md`, Abschnitt 5.
+- **Nachtrag – Verfahrensdokumentation (GoBD) und Belege aufbewahren:**
+  - `VERFAHRENSDOKUMENTATION.md` als Entwurf für den Steuerberater (Abläufe, Unveränderlichkeit,
+    Aufbewahrung, Kontrollen, offene Punkte).
+  - Beim Zusammenstellen gefunden und behoben: Eingangsrechnungen ließen sich samt Beleg in jedem
+    Zustand und ohne Protokoll löschen, die Belegdatei auch einzeln über die Dokumente. Jetzt nur
+    offene Eingangsrechnungen (Fehlerfassung), mit Protokolleintrag `payable_delete`; die Belegdatei
+    einer Eingangsrechnung lässt sich nicht einzeln löschen.
 
 ---
 

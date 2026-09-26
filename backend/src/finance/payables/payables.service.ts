@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { IncomingInvoice, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { writeAudit } from '../../common/audit';
 import { isValidDay, localDayString } from '../../common/time-zone';
 import { FILE_STORAGE, FileStorage } from '../../documents/storage/file-storage.interface';
 import { OcrService } from '../../ocr/ocr.service';
@@ -539,9 +540,15 @@ export class PayablesService {
     return this.deliveryNotes(companyId, id);
   }
 
-  // Löschen samt Beleg; die Abbuchung bleibt unverändert im Kontoauszug
-  async remove(companyId: string, id: string) {
+  // Löschen samt Beleg, nur für offene (Fehlerfassung, Doppel); bezahlte und
+  // stornierte sind Buchungsbelege und bleiben (GoBD). Protokolliert.
+  // Die Abbuchung bleibt unverändert im Kontoauszug
+  async remove(companyId: string, userId: string, id: string) {
     const row = await this.findRow(companyId, id);
+    if (row.status !== 'open')
+      throw new ConflictException(
+        'Bezahlte und stornierte Eingangsrechnungen bleiben als Beleg erhalten (GoBD); nur offene lassen sich löschen.',
+      );
     const document = row.documentId
       ? await this.prisma.document.findFirst({
           where: { id: row.documentId, companyId, documentType: PAYABLE_DOCUMENT_TYPE },
@@ -549,6 +556,20 @@ export class PayablesService {
       : null;
     await this.prisma.$transaction(async (tx) => {
       await tx.incomingInvoice.deleteMany({ where: { id, companyId } });
+      await writeAudit(tx, {
+        companyId,
+        userId,
+        action: 'payable_delete',
+        entity: 'IncomingInvoice',
+        entityId: id,
+        oldData: {
+          supplierName: row.supplierName,
+          invoiceNumber: row.invoiceNumber,
+          invoiceDate: row.invoiceDate?.toISOString().slice(0, 10) ?? null,
+          amount: row.amount.toString(),
+          fileName: document?.fileName ?? null,
+        },
+      });
       if (document) {
         await tx.ocrJob.deleteMany({ where: { companyId, documentId: document.id } });
         await tx.document.deleteMany({ where: { id: document.id, companyId } });

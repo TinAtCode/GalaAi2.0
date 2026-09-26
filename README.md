@@ -13,6 +13,7 @@ auch ohne Netz.
 - **KI anbinden (eigene APIs, eigene Agenten, selbst gehostet):** [`KI-ANBINDUNG.md`](KI-ANBINDUNG.md)
 - **Datenbank (Tabellen, Felder, Querverbindungen):** [`DATENMODELL.md`](DATENMODELL.md), **Schnittstellen und Rechte:** [`API.md`](API.md)
 - **Prüfleitfaden für eine IT-Prüfung (Sicherheit, Datenschutz, Tests):** [`PRUEFUNG.md`](PRUEFUNG.md)
+- **Verfahrensdokumentation nach GoBD (Entwurf für den Steuerberater):** [`VERFAHRENSDOKUMENTATION.md`](VERFAHRENSDOKUMENTATION.md)
 - **Technischer Stand:** [`STATUS.md`](STATUS.md), Bewertung und Fahrplan: [`BEWERTUNG.md`](BEWERTUNG.md)
 - **Ursprüngliches Konzept:** [`GartenAI-Architektur-v1.md`](GartenAI-Architektur-v1.md), Marke: [`brand/README.md`](brand/README.md)
 

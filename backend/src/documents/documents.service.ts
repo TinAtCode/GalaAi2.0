@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { writeAudit } from '../common/audit';
@@ -163,6 +163,17 @@ export class DocumentsService {
   // POST /documents frei eintragen).
   async remove(companyId: string, userId: string, id: string) {
     const document = await this.findOne(companyId, id);
+    // Belegbild bzw. E-Rechnung einer Eingangsrechnung ist Buchungsbeleg und
+    // muss aufbewahrt werden (GoBD, 10 Jahre) – auch nach Storno
+    const payable = await this.prisma.incomingInvoice.findFirst({
+      where: { companyId, documentId: document.id },
+      select: { id: true },
+    });
+    if (payable) {
+      throw new ConflictException(
+        'Das Dokument ist Beleg einer Eingangsrechnung und muss aufbewahrt werden (GoBD).',
+      );
+    }
     await this.prisma.$transaction(async (tx) => {
       // Die OCR-Aufträge enthalten den erkannten Text – mitlöschen
       await tx.ocrJob.deleteMany({ where: { companyId, documentId: document.id } });

@@ -260,6 +260,7 @@ Sicherungen aufbewahren.**
 - Alarmschwellen nach einigen Wochen echtem Betrieb anpassen (`BETRIEB.md`, „Überwachung“).
 
 - Datenschutz: Auskunft und Anonymisieren für Kunden und Nutzer sind da; freie Texte, Sicherungen und Löschfristen bleiben Handarbeit (`PRUEFUNG.md`, Abschnitt 5).
+- GoBD: Verfahrensdokumentation als Entwurf, mit dem Steuerberater abzustimmen. Offen sind dort u.a. die Ablage der versandten Rechnungs-PDFs als Datei, ein Jahresarchiv über 10 Jahre und das Protokoll für Eingangsrechnungen (`VERFAHRENSDOKUMENTATION.md`, Abschnitt 6).
 
 **Bewusst nicht geplant:** automatischer Kontoabruf (EBICS/FinTS), E-Rechnungs-Versand über Peppol.
 **Noch nicht umgesetzt:** DATANORM, Vergleich mit Hero.
@@ -286,6 +287,7 @@ Sicherungen aufbewahren.**
 | `README.md` | Einstieg: Funktionsumfang, Architektur, Betriebsarten, Repository | aktuell |
 | `API.md` | alle Schnittstellen mit Anmeldung, Recht und Limit | aus dem Code erzeugt, von einem Test aktuell gehalten |
 | `PRUEFUNG.md` | Prüfleitfaden: Prüfumgebung, alle Prüfungen, Sicherheit mit Fundstellen, Datenschutz, Checkliste | aktuell |
+| `VERFAHRENSDOKUMENTATION.md` | GoBD: Abläufe, Unveränderlichkeit, Aufbewahrung, internes Kontrollsystem | Entwurf, mit Steuerberater abstimmen |
 | `DATENMODELL.md` | alle Tabellen mit Feldern, Beziehungen, Löschregeln, Mandanten-Schutz, ER-Diagrammen | aus dem Schema erzeugt, von einem Test aktuell gehalten |
 | `BUERO.md` | Einzelplatz einrichten, sichern, unterwegs, Mails, Google, Update, Umzug | aktuell |
 | `BUERO-TEST.md` | Checkliste Einzelplatz (Handtest), mit Hinweis auf die automatischen Punkte | aktuell |
