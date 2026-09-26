@@ -110,7 +110,10 @@ still_there "Beenden und Starten"
 echo "✓ Beenden und Starten, Daten unverändert"
 
 # E4: Rechner neu gestartet – Docker startet neu, GartenAI kommt ohne Zutun wieder
-if [ -n "${CI:-}" ] && command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+# (mit Podman übernimmt das Podman Desktop bzw. podman-restart.service, nicht geprüft)
+if [[ "${DOCKER_HOST:-}" == *podman* ]]; then
+  echo "(Neustart der Container-Umgebung mit Podman nicht geprüft)"
+elif [ -n "${CI:-}" ] && command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
   sudo systemctl restart docker
   still_there "Neustart von Docker"
   echo "✓ nach dem Neustart von Docker ohne Zutun erreichbar"

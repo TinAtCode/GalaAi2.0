@@ -61,3 +61,32 @@ jobs:
           name: buero-playwright
           path: frontend/test-results/
           if-no-files-found: ignore
+
+  # Dieselbe Büro-Installation mit Podman statt Docker (kostenlos, auch für
+  # größere Firmen; Podman Desktop unter Windows/macOS arbeitet genauso): die
+  # docker-CLI und docker compose sprechen mit Podmans Docker-kompatibler
+  # Schnittstelle, die Startskripte bleiben unverändert.
+  podman:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Podman statt Docker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends podman
+          sudo systemctl stop docker.socket docker.service
+          sudo systemctl start podman.socket
+          sudo chmod 666 /run/podman/podman.sock
+          echo "DOCKER_HOST=unix:///run/podman/podman.sock" >> "$GITHUB_ENV"
+      - name: Podman antwortet als docker
+        run: |
+          podman --version
+          docker version --format '{{.Server.Version}} {{range .Server.Components}}{{.Name}} {{end}}'
+          docker compose version
+      - name: Rauchtest Büro mit Podman
+        run: bash ops/tests/buero-smoke.sh
+
