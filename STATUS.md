@@ -1,7 +1,7 @@
 # GartenAI – Projektstatus
 
-> Zentrale Anlaufstelle: Stand, Entscheidungen, offene Punkte, nächste Schritte.
-> Wird knapp gehalten – Details stehen im Code/in den Tests, nicht hier.
+> Technisches Logbuch: Architektur-Entscheidungen und Nachträge je Ausbauschritt.
+> Den aktuellen Gesamtstand, offene Punkte und nächste Schritte fasst `UEBERGABE.md` zusammen.
 
 Letzte Aktualisierung: 25.09.2026 (Nachträge #35–#48) – Server-Probe in der CI, Aufgaben-Übersicht und Querverbindungen, Korrekturen aus dem Code-Review, Eingangsrechnungen am Projekt und mit Lieferscheinen abgeglichen, Deckungsbeitrag, Kundenverlauf, Sammelaktionen, Angebot kopieren, Prüfung des Rechnungsdatums, E2E-Durchstiche und Rollentests; davor GAEB-Leistungsverzeichnisse (X83 einlesen, X84 abgeben); davor DATEV-Debitoren-Stammdaten; davor Neudesign: gAla-Erscheinungsbild als Standard (GartenAI wählbar); davor Anmelden mit Google (OIDC); davor Mini-Vollversion unterwegs erreichbar (Tailscale, Cloudflare-Tunnel) und verschlüsselte Cloud-Sicherung; davor Plantafel-Entwurf („was wäre wenn“) und Sprachbefehle ohne KI; davor Projektnummer, Lieferscheine erkennen und zuordnen, Mail an Lieferanten; davor Versicherungen und Verträge mit Kündigungsfristen, Ringdiagramme in den Finanzen; davor Checklisten mit Vorlagen und Rolle Einsatzplaner; davor Geräte und Fahrzeuge (Schäden, Wartung, Inventur); davor Kalender; davor Bautagebuch mit Verzögerungen; davor Lageplan für die Entwässerung (Formstücke, Höhen, Leerrohre, Gebäude, Einkaufsliste); davor GartenAI im Büro (Mini-Vollversion auf einem Rechner, Ersteinrichtung im Browser, automatische Sicherung); davor Demo-Agent (KI-Funktionen ohne echte KI vorführen); davor Zeichnungs-KI für den Lageplan; davor KI mit Bildern (Beleg lesen, Baustellenfoto beschreiben); davor KI-Aufgaben (Anbieter und Modell je Aufgabe, Angebotstext, Zusammenfassung der Baustelle); davor Push-Nachrichten für die Baustelle; davor Abwesenheiten in der Plantafel, Sicherung mit Zurückspiel-Test in der CI; davor offenes KI-Gateway (eigene APIs, eigene Agenten, selbst gehostet) und Demo-Paket für Vorführungen (ein Laptop, Handys im WLAN); davor Prüfung aller neuen Module (Ladezeit, Offline-Start, Sicherheit, Verträge, Tests; siehe Nachtrag „Prüfung nach dem Ausbau“); davor Baustelle auf dem Handy, automatisches Ausrollen, Stammdaten-Import, S3-Objektspeicher, Pflegeverträge, Plantafel; am 25.09.2026 Code-Review mit Korrekturen, modernisierte Oberfläche (Dunkelmodus, Schnellsuche), Zahlungen auf Mahnkosten, MT940/CSV, DXF-Import, Aufmaß offline, OCR über mehrere Server; davor Lagepläne mit Rundungen, Kreisen und Schächten; Mahngebühren, Verzugszinsen und Verzugspauschale (optional); Lagepläne mit Übernahme der Mengen ins Angebot. Die Nachträge in Abschnitt 5 beschreiben jeden Ausbauschritt im Detail.
 
@@ -27,10 +27,10 @@ Letzte Aktualisierung: 25.09.2026 (Nachträge #35–#48) – Server-Probe in der
 | — | E2E-Tests (Playwright), Lint/Format (ESLint+Prettier), CI (GitHub Actions), Container-Rauchtest | ✅ laufen bei jedem Push |
 | — | Rechnungen, E-Rechnung, ZUGFeRD, Zahlungen, Mahnwesen, Bankabgleich, DATEV, Dokumente, Finanzen, Betrieb | ✅ siehe Nachträge in Abschnitt 5 |
 | 16 | Mobile App | ✅ als installierbare Web-App (PWA): Aufmaß offline, Baustelle mit Tagesplan, Zeiten, Fotos und Nachrichten |
-| 17–18 | weitere Schnittstellen (GAEB, DATANORM), Admin-Auslagerung | ⬜ GAEB zurückgestellt |
+| 17–18 | weitere Schnittstellen (GAEB, DATANORM), Admin-Auslagerung | 🔶 GAEB (X83/X84) und DATEV-Debitoren umgesetzt, DATANORM offen |
 
 Backend: NestJS 11.2 (Express 5; bewusst noch nicht NestJS 12 – reines ESM, eigener Umbau) + Prisma 5 + PostgreSQL. Frontend: React 18 + React Router 7 + Vite 8 + TypeScript, kein UI-Framework (bewusst reines CSS mit Design-Tokens, siehe Abschnitt 4).
-Tests: `cd backend && npm test` (263 Unit-Tests), `npm run test:integration` (über 200 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`), `cd frontend && npm test` (12 Unit-Tests) und `npm run test:e2e` (48 Playwright-E2E-Tests, 1 davon bewusst übersprungen, 1 nur mit fertigem Build: `E2E_PWA=1`). Dazu `bash ops/smoke-test.sh` für die Produktions-Container. Lint und Formatierung in beiden Projekten ohne Befund.
+Tests (Stand 26.09.2026): `cd backend && npm test` (316 Unit-Tests), `npm run test:integration` (273 Integrationstests gegen eine echte PostgreSQL, siehe `TESTANLEITUNG.md`), `cd frontend && npm test` (25 Unit-Tests) und `npm run test:e2e` (76 Playwright-E2E-Tests, 3 übersprungen bzw. nur mit fertigem Build: `E2E_PWA=1`); dazu 7 Browser-Tests der Büro-Installation (`playwright.buero.config.ts`). Dazu `bash ops/smoke-test.sh` für die Produktions-Container. Lint und Formatierung in beiden Projekten ohne Befund.
 
 ---
 
@@ -834,7 +834,7 @@ Jeder Ausbauschritt läuft durch Code-Review (und bei Bedarf Sicherheits-Review)
 
 ## 7. Offene Punkte
 
-- **Zurückgestellt:** GAEB-Import (braucht echte Beispieldateien), DATEV-Export der Debitoren-Stammdaten (offizielle Formatbeschreibung), Ausrollen auf einen echten Server, Hero-Vergleich.
+- **Zurückgestellt:** Ausrollen auf einen echten Server (Zugang fehlt), Hero-Vergleich, DATANORM. GAEB (X83/X84) und DATEV-Debitoren sind inzwischen umgesetzt (Nachträge „DATEV-Debitoren“ und „GAEB DA XML“). Gesamtstand: `UEBERGABE.md`.
 - **Erledigt am 29.09.2026:** offenes KI-Gateway und Demo-Paket (siehe Nachträge, `KI-ANBINDUNG.md`, `DEMO.md`).
 - **Erledigt am 01.10.2026:** Push-Nachrichten für die Baustelle (siehe Nachtrag).
 - **Erledigt am 06.10.2026:** Lageplan für die Entwässerung. Aus der Skizze entstehen Einkaufsliste
