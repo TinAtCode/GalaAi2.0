@@ -111,11 +111,36 @@ still_there() {
   [ "$(curl -fsS --cacert "$CA" "$BASE/setup/status" | json 'v.needed')" = false ] || fail "$1: fragt wieder nach der Einrichtung"
 }
 
-# E5: beenden und wieder starten
+# Prüfen: status.sh meldet alles in Ordnung; Support-Paket ohne Geheimnisse
+status_out=$(ops/buero/status.sh --support) || fail "status.sh meldet Probleme: $status_out"
+grep -q 'Prüfsummen stimmen' <<<"$status_out" || fail "status.sh prüft die Sicherung nicht: $status_out"
+bundle=$(find backups -maxdepth 1 -name 'support-*.tar.gz' | head -n 1)
+[ -n "$bundle" ] || fail "Support-Paket fehlt"
+JWT=$(sed -n 's/^JWT_SECRET=//p' .env.buero)
+if tar xzOf "$bundle" | grep -qF "$JWT"; then fail "Support-Paket enthält Geheimnisse"; fi
+tar xzOf "$bundle" | grep -q 'JWT_SECRET gesetzt' || fail "Support-Paket ohne Einstellungsübersicht"
+rm -f "$bundle"
+# beschädigte (jüngste) Sicherung wird erkannt; die echten gehören root, daher
+# eine eigene, absichtlich falsche Sicherung daneben
+fake=backups/buero/20991231-235959
+mkdir -p "$fake"
+echo inhalt >"$fake/gartenai.dump"
+echo "0000000000000000000000000000000000000000000000000000000000000000  ./gartenai.dump" >"$fake/SHA256SUMS"
+if ops/buero/status.sh >/tmp/status.txt; then fail "status.sh übersieht eine beschädigte Sicherung"; fi
+grep -q 'beschädigt' /tmp/status.txt || fail "status.sh: $(cat /tmp/status.txt)"
+rm -rf "$fake"
+echo "✓ status.sh: Übersicht, Support-Paket ohne Geheimnisse, beschädigte Sicherung erkannt"
+
+# E5: beenden und wieder starten – dabei ist das Zertifikat kurz vor Ablauf
+# Zertifikate hat der Container als root angelegt
+touch -d '800 days ago' ops/buero/certs/server.crt 2>/dev/null || sudo touch -d '800 days ago' ops/buero/certs/server.crt
+old_cert=$(cat ops/buero/certs/server.crt)
 ops/buero/stop.sh
 ops/buero/start.sh
 still_there "Beenden und Starten"
-echo "✓ Beenden und Starten, Daten unverändert"
+[ "$(cat ops/buero/certs/server.crt)" != "$old_cert" ] || fail "altes Zertifikat nicht erneuert"
+curl -fsS --cacert "$CA" -o /dev/null https://localhost:8443/ || fail "HTTPS mit dem neuen Zertifikat"
+echo "✓ Beenden und Starten, Daten unverändert, Zertifikat rechtzeitig erneuert"
 
 # E4: Rechner neu gestartet – Docker startet neu, GartenAI kommt ohne Zutun wieder
 if [ -n "${CI:-}" ] && command -v systemctl >/dev/null 2>&1 && sudo -n true 2>/dev/null; then

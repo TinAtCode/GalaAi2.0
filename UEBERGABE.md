@@ -129,6 +129,7 @@ blendet sie nicht nur aus. Rechte sind frei kombinierbar (25 Einzelrechte,
 | Adresse | `http://<IP>:8080`, optional HTTPS `:8443` | `https://<IP>:8443` (eigene CA) | hinter eigenem HTTPS-Proxy, intern `:8080` |
 | Daten | Musterbetrieb, feste Passwörter | Ersteinrichtung im Browser mit Einrichtungscode | Ersteinrichtung per `setup-company.js` |
 | Sicherung | – | täglich automatisch, Sofort-Sicherung, Zurückspielen, optional verschlüsselt in die Cloud | `ops/backup.sh` / `ops/restore.sh`, vor jedem Ausrollen automatisch |
+| Prüfen | – | `ops/buero/status.*` (Dienste, HTTPS, Sicherung, Speicher, Zertifikat), `--support` für die IT | `/health`, `/metrics`, Alarmregeln (`BETRIEB.md`) |
 
 **Voraussetzung** ist Docker bzw. Docker Desktop. Docker Desktop ist für kleine Firmen kostenlos (unter
 250 Mitarbeitern und 10 Mio. US-Dollar Umsatz; aktuelle Bedingungen bei Docker prüfen). Podman als
@@ -220,6 +221,8 @@ Sicherungen aufbewahren.**
   - Bei `git clone` unter Windows bekamen die Shell-Skripte CRLF-Zeilenenden und brachen in den
     Containern ab (`.gitattributes`).
   - Als Administrator gestartet, trägt `start.ps1` das Stammzertifikat jetzt ohne Rückfrage ein.
+  - Zertifikate liefen nach 825 Tagen ab, ohne dass etwas sie erneuerte. Jetzt erneuert der Start sie
+    rechtzeitig; die Zertifizierungsstelle gilt 10 Jahre.
 - **Tests:** Die Browser-Tests rechnen jetzt in deutscher Zeit. Nach 22 Uhr UTC lagen Termine
   „heute“ vorher auf dem falschen Tag.
 - **Rechnungen:** Ein frei gewähltes Rechnungsdatum darf weder in der Zukunft noch vor der letzten

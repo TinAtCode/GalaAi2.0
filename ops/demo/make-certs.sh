@@ -5,11 +5,18 @@
 # Die Zertifizierungsstelle bleibt beim erneuten Aufruf erhalten – ein einmal
 # auf dem Handy installiertes Stammzertifikat gilt weiter. CA_NAME: Name der
 # Zertifizierungsstelle (Standard „GartenAI Demo CA“).
+# Die Zertifizierungsstelle gilt 10 Jahre; läuft sie in weniger als 800 Tagen ab
+# (ältere Installationen: 825 Tage), wird sie beim nächsten Server-Zertifikat
+# erneuert – das Stammzertifikat muss dann auf den Handys neu installiert werden.
 set -eu
 cd "${CERT_DIR:-/certs}"
 command -v openssl >/dev/null 2>&1 || apk add --no-cache openssl >/dev/null
+if [ -f ca.crt ] && ! openssl x509 -checkend $((800 * 86400)) -noout -in ca.crt >/dev/null 2>&1; then
+  echo "NEUE Zertifizierungsstelle (die alte läuft bald ab): Stammzertifikat auf den Handys neu installieren."
+  rm -f ca.key ca.crt ca.srl
+fi
 if [ ! -f ca.key ]; then
-  openssl req -x509 -newkey rsa:2048 -nodes -days 825 -keyout ca.key -out ca.crt \
+  openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -keyout ca.key -out ca.crt \
     -subj "/CN=${CA_NAME:-GartenAI Demo CA}" -addext "basicConstraints=critical,CA:TRUE" \
     -addext "keyUsage=critical,keyCertSign,cRLSign" 2>/dev/null
 fi

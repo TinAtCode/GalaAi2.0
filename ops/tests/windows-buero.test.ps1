@@ -91,10 +91,38 @@ try {
   Check ([bool]($calls | Where-Object { (Line $_) -like 'compose * --profile demo up -d --build' })) 'Demo-Profil beim Start'
   Check ($second.Text -match 'Demo-Zug') 'Demo-Zugänge angezeigt'
 
+  # --- Zertifikat kurz vor Ablauf: start.cmd erneuert es und startet HTTPS neu
+  (Get-Item "$root\ops\buero\certs\server.crt").LastWriteTime = (Get-Date).AddDays(-800)
+  $renew = Run-Cmd 'start.cmd'
+  $calls = Calls
+  Check ($renew.Code -eq 0 -and @($calls | Where-Object { $_.args -contains '/demo/make-certs.sh' }).Count -eq 2) 'altes Zertifikat wird beim Start erneuert'
+  Check ([bool]($calls | Where-Object { (Line $_) -like 'compose * restart https' })) 'HTTPS danach neu gestartet'
+  Check ((Get-Item "$root\ops\buero\certs\server.crt").LastWriteTime -gt (Get-Date).AddDays(-1)) 'neues Zertifikat liegt im Ordner'
+
   # --- Sofort-Sicherung
   $backup = Run-Cmd 'backup-now.cmd'
   $dirs = @(Get-ChildItem "$root\backups\buero" -Directory | Sort-Object Name)
   Check ($backup.Code -eq 0 -and $dirs.Count -eq 1 -and (Test-Path "$($dirs[0].FullName)\SHA256SUMS")) 'backup-now.cmd legt eine Sicherung an'
+
+  # --- Prüfen: status.cmd meldet alles in Ordnung, Support-Paket ohne Geheimnisse
+  $status = Run-Cmd 'status.cmd' '-Support'
+  Check ($status.Code -eq 0 -and $status.Text -match 'Alles in Ordnung') 'status.cmd: alles in Ordnung'
+  Check ($status.Text -match 'Prüfsummen stimmen') 'status.cmd prüft die letzte Sicherung'
+  $zips = @(Get-ChildItem "$root\backups" -Filter 'support-*.zip')
+  Check ($zips.Count -eq 1) 'Support-Paket angelegt'
+  if ($zips) {
+    Expand-Archive $zips[0].FullName (Join-Path $temp 'support') -Force
+    $content = (Get-ChildItem (Join-Path $temp 'support') -Recurse -File | ForEach-Object { Get-Content $_.FullName -Raw }) -join "`n"
+    Check ($content -match 'JWT_SECRET gesetzt' -and $content -notmatch [regex]::Escape($settings['JWT_SECRET'])) 'Support-Paket ohne Geheimnisse'
+    Remove-Item $zips[0].FullName
+  }
+  # beschädigte Sicherung: status.cmd meldet ein Problem (Exit 1)
+  $dump = Join-Path $dirs[0].FullName 'gartenai.dump'
+  $original = Get-Content $dump -Raw
+  Add-Content $dump 'kaputt'
+  $broken = Run-Cmd 'status.cmd'
+  Check ($broken.Code -eq 1 -and $broken.Text -match 'beschädigt') 'status.cmd erkennt eine beschädigte Sicherung'
+  Set-Content $dump $original -NoNewline
 
   # --- Zurückspielen mit Pfad voller Sonderzeichen, in der richtigen Reihenfolge
   $before = (Calls).Count
