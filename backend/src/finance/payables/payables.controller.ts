@@ -72,7 +72,7 @@ export class PayablesController {
 
   @Delete(':id')
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.payables.remove(user.companyId, id);
+    return this.payables.remove(user.companyId, user.userId, id);
   }
 
   // Lieferscheine zur Rechnung: zugeordnete und Vorschläge
