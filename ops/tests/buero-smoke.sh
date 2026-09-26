@@ -122,7 +122,7 @@ tar xzOf "$bundle" | grep -q 'JWT_SECRET gesetzt' || fail "Support-Paket ohne Ei
 rm -f "$bundle"
 # beschädigte (jüngste) Sicherung wird erkannt; die echten gehören root, daher
 # eine eigene, absichtlich falsche Sicherung daneben
-fake=backups/buero/29991231-235959
+fake=backups/buero/20991231-235959
 mkdir -p "$fake"
 echo inhalt >"$fake/gartenai.dump"
 echo "0000000000000000000000000000000000000000000000000000000000000000  ./gartenai.dump" >"$fake/SHA256SUMS"
