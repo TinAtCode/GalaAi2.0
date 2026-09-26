@@ -33,7 +33,7 @@ function Run-Cmd($name, [string]$extra = '', [int]$timeout = 240) {
     Write-Host (Get-Content $out -Raw)
     throw "$name $extra hängt (wartet auf eine Eingabe oder einen Dialog?)"
   }
-  $text = "$(Get-Content $out -Raw)$(Get-Content $err -Raw)"
+  $text = "$(Get-Content $out -Raw -Encoding UTF8)$(Get-Content $err -Raw -Encoding UTF8)"
   Write-Host "--- $name $extra (Exit $($p.ExitCode))"
   Write-Host $text
   [pscustomobject]@{ Code = $p.ExitCode; Text = $text }

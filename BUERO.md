@@ -32,8 +32,9 @@ Zum ausführlichen Durchtesten gibt es eine Checkliste: `BUERO-TEST.md`.
 1. Das Skript legt `.env.buero` mit den Geheimnissen dieser Installation an: Datenbank-Passwort,
    Schlüssel und Einrichtungscode.
    **Diese Datei gut aufbewahren**, zusammen mit den Sicherungen.
-2. Es erzeugt eine eigene Zertifizierungsstelle für HTTPS. Unter Windows fragt das System einmal, ob
-   es ihr vertrauen soll: mit Ja bestätigen.
+2. Es erzeugt eine eigene Zertifizierungsstelle für HTTPS und trägt sie in Windows ein. Als
+   Administrator gestartet geschieht das ohne Rückfrage für den ganzen Rechner, sonst fragt Windows
+   einmal, ob es ihr vertrauen soll: mit Ja bestätigen.
 3. Es zeigt die Adressen und den **Einrichtungscode** an.
 4. Im Browser öffnet sich GartenAI mit der **Ersteinrichtung**: Einrichtungscode, Firma, Name, E-Mail
    und Passwort eingeben. Danach ist man als Chef angemeldet. Ohne den Code kann niemand im Netz die
