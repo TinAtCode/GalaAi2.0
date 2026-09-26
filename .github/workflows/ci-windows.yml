@@ -1,0 +1,35 @@
+name: CI - Windows (Büro)
+
+# Die Windows-Skripte von GartenAI im Büro (ops\buero\*.cmd, *.ps1) auf echtem
+# Windows mit Windows PowerShell 5.1: Doppelklick-Start über cmd.exe in einem
+# Ordner mit Umlauten und Leerzeichen, Zertifikate, Windows-Zertifikatsspeicher,
+# Firewall, Sicherung, Zurückspielen, Update. Docker ist eine Attrappe (Windows-
+# Runner haben keine Linux-Container); den echten Stack prüft ci-docker.yml.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      # mit den Git-Voreinstellungen von Windows (core.autocrlf) auschecken – wie
+      # bei git clone auf dem Büro-Rechner
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Zeilenenden nach git clone unter Windows
+        shell: bash
+        run: |
+          git config --get core.autocrlf || true
+          if grep -l $'\r' ops/demo/make-certs.sh ops/buero/*.sh; then
+            echo "✗ Shell-Skripte mit CRLF ausgecheckt – sh in den Containern bricht damit ab" >&2
+            exit 1
+          fi
+      - name: Windows-Skripte Büro
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File ops\tests\windows-buero.test.ps1
