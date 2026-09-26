@@ -303,6 +303,12 @@ ${debits
     expect(paid).toMatchObject({ status: 'paid', paidAt: today, paidAmount: '824.5' });
     const tx = await prisma.bankTransaction.findUniqueOrThrow({ where: { id: paid.bankTransactionId! } });
     expect(tx.categoryId).toBe(material.id);
+    // automatisch verbucht: im Protokoll ohne Nutzer, als System
+    const auto = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'payable_pay', entityId: bill.body.id },
+    });
+    expect(auto).toMatchObject({ userId: null, source: 'system' });
+    expect(auto.newData).toMatchObject({ paidAmount: '824.50', bankTransactionId: tx.id });
   });
 
   it('nur Betrag und Name: Vorschlag, Verbuchen von Hand; Konflikte', async () => {
@@ -513,6 +519,31 @@ ${debits
       .expect(201);
     await api().delete(`/finance/payables/${created.body.id}`).set(auth).expect(409);
     await api().post(`/finance/payables/${created.body.id}/reopen`).set(auth).expect(201);
+    await api()
+      .patch(`/finance/payables/${created.body.id}`)
+      .set(auth)
+      .send({ notes: 'Skonto nachfragen' })
+      .expect(200);
+    await api().post(`/finance/payables/${created.body.id}/cancel`).set(auth).expect(201);
+    await api().post(`/finance/payables/${created.body.id}/reopen`).set(auth).expect(201);
+
+    // jeder Schritt steht im Protokoll, mit Nutzer
+    const steps = await prisma.auditLog.findMany({
+      where: { entity: 'IncomingInvoice', entityId: created.body.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(steps.map((a) => a.action)).toEqual([
+      'payable_create',
+      'payable_pay',
+      'payable_reopen',
+      'payable_update',
+      'payable_cancel',
+      'payable_reopen',
+    ]);
+    expect(steps.every((a) => a.userId === company.userId)).toBe(true);
+    expect(steps[1].newData).toMatchObject({ paidAt: today, bankTransactionId: null });
+    expect(steps[2].oldData).toMatchObject({ status: 'paid', paidAt: today });
+    expect(steps[3]).toMatchObject({ oldData: { notes: null }, newData: { notes: 'Skonto nachfragen' } });
 
     // Löschen (Fehlerfassung): Rechnung und Beleg weg, im Protokoll festgehalten
     await api().delete(`/finance/payables/${created.body.id}`).set(auth).expect(200);

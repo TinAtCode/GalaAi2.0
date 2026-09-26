@@ -111,8 +111,10 @@ Tests: `invoices.int-spec.ts`, `quote-numbers-vat.int-spec.ts`, `vat-treatment.i
    - Nur eine **offene** Eingangsrechnung lässt sich löschen, gedacht für Fehlerfassungen und Doppel.
      Das Löschen wird mit Lieferant, Nummer, Datum, Betrag und Dateiname protokolliert
      (`payable_delete`).
-   - Eine bezahlte oder stornierte Rechnung kann erst nach „Wieder öffnen“ gelöscht werden; das
-     Wiederöffnen wird nicht protokolliert. Die Regel dazu gehört in die Arbeitsanweisung (Abschnitt 5).
+   - Eine bezahlte oder stornierte Rechnung kann erst nach „Wieder öffnen“ gelöscht werden. Jeder
+     Schritt steht im Protokoll: Erfassen, Ändern (alter und neuer Wert), Bezahlen (von Hand oder
+     automatisch über den Kontoauszug, dann als „System“), Wiederöffnen, Stornieren und Löschen
+     (`payable_*`). Die Regel zum Löschen gehört in die Arbeitsanweisung (Abschnitt 5).
 
 ### 2.4 Kontoauszüge
 
@@ -233,10 +235,8 @@ Tests: `invoices.int-spec.ts`, `quote-numbers-vat.int-spec.ts`, `vat-treatment.i
 2. **Protokoll auf Datenbankebene.** Das Protokoll ist gegen Änderungen durch die Anwendung
    geschützt, aber nicht gegen einen Datenbank-Administrator (kein Trigger, keine Hash-Kette).
    Erreichbar ist die Datenbank nur über den Server bzw. den Einzelplatz-Rechner.
-3. **Eingangsrechnungen:**
-   - Erfassen, Ändern, Bezahlen, Wiederöffnen und Stornieren werden nicht protokolliert; nur das
-     Löschen wird protokolliert.
-   - Offene Eingangsrechnungen dürfen gelöscht werden (siehe 2.3).
+3. **Eingangsrechnungen:** Offene Eingangsrechnungen dürfen gelöscht werden (siehe 2.3). Jeder
+   Schritt einschließlich des Löschens steht im Protokoll.
 4. **Jahresarchiv über 10 Jahre:** noch nicht automatisiert (Abschnitt 4).
 5. **Kassenbuch** und **Lohnabrechnung** sind nicht Teil von gAla.
 

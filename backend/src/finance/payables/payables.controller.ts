@@ -67,7 +67,7 @@ export class PayablesController {
 
   @Patch(':id')
   update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpsertPayableDto) {
-    return this.payables.update(user.companyId, id, dto);
+    return this.payables.update(user.companyId, user.userId, id, dto);
   }
 
   @Delete(':id')
@@ -92,17 +92,17 @@ export class PayablesController {
 
   @Post(':id/pay')
   pay(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: PayPayableDto) {
-    return this.payables.pay(user.companyId, id, dto);
+    return this.payables.pay(user.companyId, user.userId, id, dto);
   }
 
   @Post(':id/reopen')
   reopen(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.payables.reopen(user.companyId, id);
+    return this.payables.reopen(user.companyId, user.userId, id);
   }
 
   @Post(':id/cancel')
   cancel(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.payables.cancel(user.companyId, id);
+    return this.payables.cancel(user.companyId, user.userId, id);
   }
 
   @Get(':id/file')

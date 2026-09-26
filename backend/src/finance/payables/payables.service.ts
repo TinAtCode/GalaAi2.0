@@ -55,6 +55,16 @@ const EMPTY_CANDIDATES: TextSuggestion['candidates'] = {
 
 // Eingangsrechnungen: erfassen (E-Rechnung, Text einer PDF/eines Fotos oder
 // von Hand), mit Abbuchungen abgleichen, als bezahlt verbuchen
+// Werte fürs Protokoll: Beträge als Text, Tage als JJJJ-MM-TT
+function auditValue(value: unknown): Prisma.InputJsonValue | null {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Prisma.Decimal) return value.toFixed(2);
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return value as Prisma.InputJsonValue;
+}
+
+const AUDIT_FIELDS = ['supplierName', 'invoiceNumber', 'invoiceDate', 'amount'] as const;
+
 @Injectable()
 export class PayablesService {
   private readonly logger = new Logger(PayablesService.name);
@@ -393,6 +403,18 @@ export class PayablesService {
         },
         include: this.include,
       });
+      await writeAudit(this.prisma, {
+        companyId,
+        userId,
+        action: 'payable_create',
+        entity: 'IncomingInvoice',
+        entityId: created.id,
+        newData: {
+          ...Object.fromEntries(AUDIT_FIELDS.map((key) => [key, auditValue(created[key])])),
+          source: created.source,
+          documentId: created.documentId,
+        },
+      });
       // gleich mit dem Kontoauszug abgleichen (Rechnung kam nach der Zahlung);
       // ein Fehler dabei macht das Erfassen nicht rückgängig
       await this.autoMatchSafely(companyId);
@@ -411,7 +433,7 @@ export class PayablesService {
     return row;
   }
 
-  async update(companyId: string, id: string, dto: UpsertPayableDto) {
+  async update(companyId: string, userId: string, id: string, dto: UpsertPayableDto) {
     const current = await this.findRow(companyId, id);
     await this.check(companyId, dto);
     if (dto.supplierName !== undefined || dto.invoiceNumber !== undefined) {
@@ -434,9 +456,29 @@ export class PayablesService {
         ? { supplierId: await this.resolveSupplier(companyId, dto.supplierName!) }
         : {};
     // Beleg und Herkunft bleiben wie beim Erfassen (data() übernimmt sie nicht)
-    await this.prisma.incomingInvoice.updateMany({
-      where: { id, companyId },
-      data: { ...this.data(dto), ...supplier },
+    const patch: Record<string, unknown> = { ...this.data(dto), ...supplier };
+    const oldData: Record<string, Prisma.InputJsonValue | null> = {};
+    const newData: Record<string, Prisma.InputJsonValue | null> = {};
+    for (const [key, value] of Object.entries(patch)) {
+      const before = auditValue(current[key as keyof typeof current]);
+      const after = auditValue(value);
+      if (JSON.stringify(before) !== JSON.stringify(after)) {
+        oldData[key] = before;
+        newData[key] = after;
+      }
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.incomingInvoice.updateMany({ where: { id, companyId }, data: patch });
+      if (Object.keys(newData).length)
+        await writeAudit(tx, {
+          companyId,
+          userId,
+          action: 'payable_update',
+          entity: 'IncomingInvoice',
+          entityId: id,
+          oldData,
+          newData,
+        });
     });
     return this.view(await this.findRow(companyId, id));
   }
@@ -721,7 +763,7 @@ export class PayablesService {
     let paid = 0;
     for (const m of matches) {
       try {
-        await this.pay(companyId, m.payableId, { bankTransactionId: m.debit.id });
+        await this.pay(companyId, null, m.payableId, { bankTransactionId: m.debit.id });
         paid++;
       } catch (error) {
         // inzwischen von Hand verbucht oder Abbuchung anders zugeordnet
@@ -745,7 +787,8 @@ export class PayablesService {
     }
   }
 
-  async pay(companyId: string, id: string, dto: PayPayableDto) {
+  // userId null: automatisch beim Abgleich mit dem Kontoauszug
+  async pay(companyId: string, userId: string | null, id: string, dto: PayPayableDto) {
     const row = await this.findRow(companyId, id);
     if (row.status !== 'open') throw new ConflictException('Diese Rechnung ist nicht mehr offen.');
     let paidAt: string;
@@ -781,6 +824,15 @@ export class PayablesService {
           },
         });
         if (count === 0) throw new ConflictException('Diese Rechnung ist nicht mehr offen.');
+        await writeAudit(tx, {
+          companyId,
+          userId,
+          action: 'payable_pay',
+          entity: 'IncomingInvoice',
+          entityId: id,
+          newData: { paidAt, paidAmount, bankTransactionId: dto.bankTransactionId ?? null },
+          source: userId ? 'manual' : 'system',
+        });
         // Kategorie der Rechnung an die Abbuchung, wenn sie noch keine hat
         if (categoryForTransaction) {
           await tx.bankTransaction.updateMany({
@@ -796,8 +848,21 @@ export class PayablesService {
   }
 
   // wieder offen (falsch zugeordnet) bzw. storniert/ohne Zahlung erledigt
-  async reopen(companyId: string, id: string) {
+  async reopen(companyId: string, userId: string, id: string) {
     const row = await this.findRow(companyId, id);
+    await writeAudit(this.prisma, {
+      companyId,
+      userId,
+      action: 'payable_reopen',
+      entity: 'IncomingInvoice',
+      entityId: id,
+      oldData: {
+        status: row.status,
+        paidAt: auditValue(row.paidAt),
+        paidAmount: auditValue(row.paidAmount),
+        bankTransactionId: row.bankTransactionId,
+      },
+    });
     await this.prisma.incomingInvoice.updateMany({
       where: { id, companyId },
       data: {
@@ -814,9 +879,17 @@ export class PayablesService {
     return this.view(await this.findRow(companyId, id));
   }
 
-  async cancel(companyId: string, id: string) {
+  async cancel(companyId: string, userId: string, id: string) {
     const row = await this.findRow(companyId, id);
     if (row.status === 'paid') throw new ConflictException('Bezahlte Rechnungen zuerst wieder öffnen.');
+    await writeAudit(this.prisma, {
+      companyId,
+      userId,
+      action: 'payable_cancel',
+      entity: 'IncomingInvoice',
+      entityId: id,
+      oldData: { status: row.status },
+    });
     // stornierte Rechnung rechnet keine Lieferscheine mehr ab – frei für die Ersatzrechnung
     await this.prisma.$transaction([
       this.prisma.incomingInvoice.updateMany({ where: { id, companyId }, data: { status: 'cancelled' } }),

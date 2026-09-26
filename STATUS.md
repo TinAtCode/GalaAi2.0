@@ -842,6 +842,10 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   Anzeige, Download und E-Mail-Versand nutzen genau diese Dateien; die Prüfsumme wird bei jedem Abruf
   kontrolliert. Archiviert wird, sobald die E-Rechnung vollständig ist; ältere Rechnungen beim ersten
   Abruf. `GET /invoices/:id/files` listet die Dateien mit Prüfsumme.
+- **Nachtrag – Protokoll für Eingangsrechnungen:** Erfassen, Ändern (alter/neuer Wert), Bezahlen,
+  Wiederöffnen, Stornieren und Löschen stehen im Protokoll (`payable_*`). Automatisch über den
+  Kontoauszug verbuchte Zahlungen erscheinen ohne Nutzer als „System“. Die Protokollansicht hat dafür
+  Beschriftungen und den Filter „Eingangsrechnungen“ (auch für Anonymisieren).
 
 ---
 
