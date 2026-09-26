@@ -1,5 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { InvoiceFileKind, Prisma } from '@prisma/client';
+import { createHash } from 'crypto';
+import { FILE_STORAGE, FileStorage } from '../documents/storage/file-storage.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { invoiceClaims } from './claims';
 import { MailService } from '../mail/mail.service';
@@ -37,9 +46,12 @@ export function totals(lines: LineInput[], vatRate: Prisma.Decimal) {
 
 @Injectable()
 export class InvoicesService {
+  private readonly logger = new Logger(InvoicesService.name);
+
   constructor(
     private prisma: PrismaService,
     private mail: MailService,
+    @Inject(FILE_STORAGE) private storage: FileStorage,
   ) {}
 
   // Mit offener Forderung je Rechnung (Rechnungsbetrag, Mahnkosten, Zinsen)
@@ -241,7 +253,7 @@ export class InvoicesService {
   // laufen in einer Transaktion – scheitert etwas, bleibt keine Lücke.
   async issue(companyId: string, userId: string, id: string, dto: IssueInvoiceDto) {
     const draft = await this.findOne(companyId, id);
-    return this.prisma.$transaction(async (tx) => {
+    const issued = await this.prisma.$transaction(async (tx) => {
       await lockFor(tx, 'invoice-order', invoiceSource(draft));
       const { seller, buyer, timeZone } = await this.sellerAndBuyer(tx, companyId, draft.projectId);
       const issueDate = dto.issueDate ? new Date(dto.issueDate) : new Date();
@@ -295,13 +307,18 @@ export class InvoicesService {
         include: { lineItems: { orderBy: { position: 'asc' } } },
       });
     });
+    await this.archiveQuietly(companyId, issued.id);
+    return issued;
   }
 
   // Storno: eine ausgestellte Rechnung wird nie geändert, sondern durch eine
   // Stornorechnung mit negativen Beträgen und eigener Nummer aufgehoben.
   async cancel(companyId: string, userId: string, id: string, reason: string) {
     const original = await this.findOne(companyId, id);
-    return this.prisma.$transaction(async (tx) => {
+    // Das Original bleibt so archiviert, wie es ausgestellt wurde (ältere
+    // Rechnungen ohne Archiv werden vor dem Storno noch festgehalten)
+    await this.archiveQuietly(companyId, id);
+    const cancellation = await this.prisma.$transaction(async (tx) => {
       await lockFor(tx, 'invoice-order', invoiceSource(original));
       // wie beim Buchen einer Zahlung: keine Zahlung während des Stornos
       await lockFor(tx, 'invoice-payment', id);
@@ -376,12 +393,14 @@ export class InvoicesService {
         include: { lineItems: { orderBy: { position: 'asc' } } },
       });
     });
+    await this.archiveQuietly(companyId, cancellation.id);
+    return cancellation;
   }
 
   // PDF der Rechnung. Ausgestellte Rechnungen nutzen die festgeschriebenen
   // Angaben (Snapshot), Entwürfe die aktuellen und tragen einen deutlichen
   // Entwurfs-Hinweis.
-  async renderPdf(companyId: string, id: string) {
+  async renderPdf(companyId: string, id: string, asIssued = false) {
     const invoice = await this.findOne(companyId, id);
     const company = await this.prisma.company.findUniqueOrThrow({ where: { id: companyId } });
     const project = await this.prisma.project.findUniqueOrThrow({
@@ -420,7 +439,7 @@ export class InvoicesService {
       });
       notes.push(`Diese Stornorechnung hebt die Rechnung ${original.number} vollständig auf.`);
     }
-    if (invoice.status === 'cancelled') notes.push('Diese Rechnung wurde storniert.');
+    if (invoice.status === 'cancelled' && !asIssued) notes.push('Diese Rechnung wurde storniert.');
     const vatNote = VAT_TREATMENT_NOTES[invoice.vatTreatment];
     if (vatNote) notes.unshift(vatNote);
 
@@ -453,6 +472,108 @@ export class InvoicesService {
       eInvoiceXml,
     });
     return { buffer, fileName: `${invoice.number ?? 'Rechnung-Entwurf'}.pdf` };
+  }
+
+  // ── Archiv (GoBD) ──
+  // PDF und E-Rechnung einer ausgestellten Rechnung werden einmal erzeugt,
+  // mit Prüfsumme abgelegt und danach unverändert ausgeliefert und versendet.
+  // So bleibt die Rechnung auch nach Programm-Updates (Layout) oder geänderten
+  // Stammdaten genau so, wie sie ausgestellt wurde. Archiviert wird erst, wenn
+  // die E-Rechnung vollständig ist (sonst fehlte sie im PDF für immer, z.B.
+  // wenn die IBAN noch fehlt); bis dahin wird bei jedem Abruf neu erzeugt.
+  // Rechnungen aus der Zeit vor dem Archiv werden beim ersten Abruf archiviert.
+  private async archive(companyId: string, id: string) {
+    const existing = await this.prisma.invoiceFile.findMany({ where: { companyId, invoiceId: id } });
+    if (existing.length) return existing;
+    let xml: { fileName: string; buffer: Buffer };
+    try {
+      xml = await this.renderXRechnung(companyId, id);
+    } catch (err) {
+      if (err instanceof BadRequestException) return [];
+      throw err;
+    }
+    const files: { kind: InvoiceFileKind; fileName: string; buffer: Buffer }[] = [
+      { kind: 'xml', ...xml },
+      { kind: 'pdf', ...(await this.renderPdf(companyId, id, true)) },
+    ];
+    const stored: string[] = [];
+    try {
+      for (const file of files)
+        stored.push((await this.storage.save(companyId, file.fileName, file.buffer)).storagePath);
+      await this.prisma.invoiceFile.createMany({
+        data: files.map((file, i) => ({
+          companyId,
+          invoiceId: id,
+          kind: file.kind,
+          fileName: file.fileName,
+          storagePath: stored[i],
+          sha256: createHash('sha256').update(file.buffer).digest('hex'),
+          size: file.buffer.length,
+        })),
+      });
+    } catch (err) {
+      // gleichzeitig schon archiviert oder Speicherfehler: eigene Kopien entfernen
+      for (const path of stored) await this.storage.remove(companyId, path).catch(() => undefined);
+      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err;
+    }
+    return this.prisma.invoiceFile.findMany({ where: { companyId, invoiceId: id } });
+  }
+
+  // Beim Ausstellen und Stornieren: ein Fehler im Archiv (z.B. Speicher kurz
+  // nicht erreichbar) darf den Vorgang nicht scheitern lassen – der nächste
+  // Abruf archiviert dann
+  private async archiveQuietly(companyId: string, id: string) {
+    try {
+      await this.archive(companyId, id);
+    } catch (error) {
+      this.logger.error({ msg: 'Rechnung nicht archiviert', invoiceId: id, error: String(error) });
+    }
+  }
+
+  private async archivedFile(companyId: string, id: string, kind: InvoiceFileKind) {
+    const file = (await this.archive(companyId, id)).find((f) => f.kind === kind);
+    if (!file) return null;
+    const buffer = await this.storage.read(companyId, file.storagePath);
+    if (createHash('sha256').update(buffer).digest('hex') !== file.sha256) {
+      this.logger.error({ msg: 'Archivierte Rechnung weicht von der Prüfsumme ab', invoiceId: id, kind });
+      throw new InternalServerErrorException(
+        'Die archivierte Rechnungsdatei ist beschädigt. Bitte aus der Sicherung wiederherstellen.',
+      );
+    }
+    return { buffer, fileName: file.fileName, sha256: file.sha256 };
+  }
+
+  // PDF zum Anzeigen und Versenden: Entwürfe frisch, ausgestellte aus dem Archiv
+  async pdf(companyId: string, id: string) {
+    const invoice = await this.findOne(companyId, id);
+    if (invoice.status !== 'draft') {
+      const archived = await this.archivedFile(companyId, id, 'pdf');
+      if (archived) return archived;
+    }
+    return this.renderPdf(companyId, id);
+  }
+
+  // E-Rechnung aus dem Archiv; fehlt sie dort, erklärt renderXRechnung warum
+  async xrechnung(companyId: string, id: string) {
+    const invoice = await this.findOne(companyId, id);
+    if (invoice.status !== 'draft') {
+      const archived = await this.archivedFile(companyId, id, 'xml');
+      if (archived) return archived;
+    }
+    return this.renderXRechnung(companyId, id);
+  }
+
+  // Archivierte Dateien mit Prüfsumme (für Prüfung und Nachweis)
+  async files(companyId: string, id: string) {
+    const invoice = await this.findOne(companyId, id);
+    if (invoice.status === 'draft') return [];
+    return (await this.archive(companyId, id)).map(({ kind, fileName, sha256, size, createdAt }) => ({
+      kind,
+      fileName,
+      sha256,
+      size,
+      createdAt,
+    }));
   }
 
   // E-Rechnung (XRechnung 3.0, CII) einer ausgestellten Rechnung. Grundlage
@@ -567,10 +688,11 @@ export class InvoicesService {
     }
     this.mail.assertConfigured();
 
-    const pdf = await this.renderPdf(companyId, id);
+    // versendet wird genau die archivierte Fassung
+    const pdf = await this.pdf(companyId, id);
     const attachments = [{ filename: pdf.fileName, content: pdf.buffer, contentType: 'application/pdf' }];
     if (dto.withXRechnung ?? true) {
-      const xml = await this.renderXRechnung(companyId, id);
+      const xml = await this.xrechnung(companyId, id);
       attachments.push({ filename: xml.fileName, content: xml.buffer, contentType: 'application/xml' });
     }
 

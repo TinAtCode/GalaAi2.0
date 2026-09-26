@@ -837,6 +837,11 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
     Zustand und ohne Protokoll löschen, die Belegdatei auch einzeln über die Dokumente. Jetzt nur
     offene Eingangsrechnungen (Fehlerfassung), mit Protokolleintrag `payable_delete`; die Belegdatei
     einer Eingangsrechnung lässt sich nicht einzeln löschen.
+- **Nachtrag – Rechnungsarchiv (GoBD):** PDF und E-Rechnung einer ausgestellten Rechnung werden
+  einmal erzeugt und mit SHA-256 abgelegt (Tabelle `InvoiceFile`, Trigger gegen Ändern und Löschen).
+  Anzeige, Download und E-Mail-Versand nutzen genau diese Dateien; die Prüfsumme wird bei jedem Abruf
+  kontrolliert. Archiviert wird, sobald die E-Rechnung vollständig ist; ältere Rechnungen beim ersten
+  Abruf. `GET /invoices/:id/files` listet die Dateien mit Prüfsumme.
 
 ---
 

@@ -72,7 +72,16 @@ Tabellen und Felder: `DATENMODELL.md`.
    - E-Rechnung als XRechnung (UBL) bzw. ZUGFeRD (CII im PDF), geprüft mit dem KoSIT-Validator und
      Mustang.
    - Versand per E-Mail (`invoice_send`, mit Empfänger im Protokoll).
-   - Das PDF wird bei jedem Abruf aus den unveränderlichen Daten neu erzeugt (siehe 6., offene Punkte).
+   - **Archiv:** PDF und E-Rechnung werden einmal erzeugt und mit SHA-256-Prüfsumme abgelegt
+     (`InvoiceFile`). Danach werden genau diese Dateien angezeigt, heruntergeladen und per E-Mail
+     versendet, auch nach Programm-Updates oder geänderten Stammdaten.
+     - Ein Datenbank-Trigger verhindert Ändern und Löschen der Archiveinträge.
+     - Beim Abruf wird die Prüfsumme kontrolliert; bei Abweichung gibt es eine Fehlermeldung statt
+       einer veränderten Datei.
+     - `GET /invoices/:id/files` zeigt die archivierten Dateien mit Prüfsumme.
+     - Archiviert wird, sobald die E-Rechnung vollständig ist (z.B. mit IBAN), in der Regel beim
+       Ausstellen. Fehlen dafür Angaben, wird das PDF bis dahin bei jedem Abruf neu erzeugt.
+     - Test: `invoices.int-spec.ts` („Archiv …“).
 6. **Steuerliche Behandlung** je Rechnung: Regelsteuersatz, § 19 UStG (Kleinunternehmer) oder
    § 13b UStG (Steuerschuldnerschaft des Leistungsempfängers), mit dem Pflichthinweis auf dem Beleg.
 
@@ -218,12 +227,9 @@ Tests: `invoices.int-spec.ts`, `quote-numbers-vat.int-spec.ts`, `vat-treatment.i
 
 ## 6. Offene Punkte und Grenzen (für die Abstimmung)
 
-1. **Versandte Rechnung als Datei.**
-   - Das PDF wird bei Bedarf neu erzeugt, und zwar inhaltsgleich, weil die Daten unveränderlich sind.
-     Ändert sich jedoch das Layout durch ein Programm-Update, sieht ein neu erzeugtes PDF anders aus
-     als das versandte.
-   - Übergangslösung: Das Postfach behält die gesendeten Mails **[auszufüllen]**.
-   - Technisch möglich wäre, PDF und XML beim Ausstellen bzw. Versand als Dokument zu speichern.
+1. **Versandte Rechnung als Datei:** umgesetzt (Archiv, siehe 2.1). Offen ist nur ein Fall:
+   Rechnungen, deren E-Rechnung wegen fehlender Angaben nicht erzeugt werden kann, werden erst
+   archiviert, wenn die Angaben ergänzt sind.
 2. **Protokoll auf Datenbankebene.** Das Protokoll ist gegen Änderungen durch die Anwendung
    geschützt, aber nicht gegen einen Datenbank-Administrator (kein Trigger, keine Hash-Kette).
    Erreichbar ist die Datenbank nur über den Server bzw. den Einzelplatz-Rechner.

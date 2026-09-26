@@ -323,4 +323,55 @@ describe('Rechnungen', () => {
     const list = await api().get(`/invoices/by-project/${projectId}`).set(as).expect(200);
     expect(list.body).toEqual([]);
   });
+
+  it('Archiv: ausgestellte Rechnungen werden unverändert als Datei aufbewahrt (GoBD)', async () => {
+    const invoice = await prisma.invoice.findFirstOrThrow({ where: { number: R(1) } });
+    const files = await api().get(`/invoices/${invoice.id}/files`).set(auth).expect(200);
+    expect(files.body.map((f: { kind: string }) => f.kind).sort()).toEqual(['pdf', 'xml']);
+    const sha = (kind: string) => files.body.find((f: { kind: string }) => f.kind === kind).sha256;
+
+    // PDF und E-Rechnung kommen aus dem Archiv: byte-gleich bei jedem Abruf
+    const first = await fetchPdfText(app, `/invoices/${invoice.id}/pdf`, company.token);
+    const again = await fetchPdfText(app, `/invoices/${invoice.id}/pdf`, company.token);
+    expect(first.body.equals(again.body)).toBe(true);
+    expect(createHash('sha256').update(first.body).digest('hex')).toBe(sha('pdf'));
+    const xml = await xrechnung(invoice.id, company.token).expect(200);
+    expect(
+      createHash('sha256')
+        .update(xml.body as string)
+        .digest('hex'),
+    ).toBe(sha('xml'));
+
+    // auch direkt in der Datenbank weder änderbar noch löschbar
+    const row = await prisma.invoiceFile.findFirstOrThrow({ where: { invoiceId: invoice.id, kind: 'pdf' } });
+    await expect(prisma.invoiceFile.update({ where: { id: row.id }, data: { sha256: 'x' } })).rejects.toThrow(
+      /unveränderlich/,
+    );
+    await expect(prisma.invoiceFile.delete({ where: { id: row.id } })).rejects.toThrow(/unveränderlich/);
+
+    // Entwürfe werden nicht archiviert
+    const created = await draft({ kind: 'partial', percent: 5 }).expect(201);
+    expect((await api().get(`/invoices/${created.body.id}/files`).set(auth).expect(200)).body).toEqual([]);
+    await expect(
+      prisma.invoiceFile.create({
+        data: {
+          companyId: company.companyId,
+          invoiceId: created.body.id,
+          kind: 'pdf',
+          fileName: 'x.pdf',
+          storagePath: 'x',
+          sha256: 'x',
+          size: 1,
+        },
+      }),
+    ).rejects.toThrow(/Entwürfe/);
+    await api().delete(`/invoices/${created.body.id}`).set(auth).expect(200);
+
+    // fremde Firma sieht das Archiv nicht
+    const other = await createCompany(app, prisma, 'Fremd Archiv GmbH');
+    await api()
+      .get(`/invoices/${invoice.id}/files`)
+      .set({ Authorization: `Bearer ${other.token}` })
+      .expect(404);
+  });
 });

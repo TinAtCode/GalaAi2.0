@@ -4,7 +4,7 @@
 > Neu erzeugen: `cd backend && npm run docs:api`. Der Unit-Test `api-doc.spec.ts` schlägt fehl, wenn
 > diese Datei nicht zum Code passt.
 
-267 Schnittstellen in 51 Controllern. Im Betrieb liegen sie unter `/api`
+268 Schnittstellen in 51 Controllern. Im Betrieb liegen sie unter `/api`
 (nginx leitet `/api/…` an das Backend weiter), z.B. `GET /api/customers`.
 
 ## So wird der Zugriff geprüft
@@ -471,6 +471,7 @@ Datei: `src/invoices/invoices.controller.ts`
 | GET | `/invoices/by-project/:projectId` | ja | `invoice.create` |  |  |
 | GET | `/invoices/:id/pdf` | ja | `invoice.create` |  |  |
 | GET | `/invoices/:id/xrechnung` | ja | `invoice.create` |  |  |
+| GET | `/invoices/:id/files` | ja | `invoice.create` |  | Archivierte Fassung (PDF, E-Rechnung) mit Prüfsumme, GoBD |
 | GET | `/invoices/:id` | ja | `invoice.create` |  |  |
 | POST | `/invoices/from-order` | ja | `invoice.create` |  |  |
 | DELETE | `/invoices/:id` | ja | `invoice.create` |  |  |
