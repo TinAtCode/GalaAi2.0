@@ -187,7 +187,7 @@ Sicherungen aufbewahren.**
 
 | Prüfung | Umfang (Stand 26.09.2026) |
 |---|---|
-| Backend Unit-Tests | 320 (davon 6 halten `DATENMODELL.md` und `API.md` aktuell) |
+| Backend Unit-Tests | 322 (davon 6 halten `DATENMODELL.md` und `API.md` aktuell) |
 | Backend Integrationstests (echte PostgreSQL, HTTP) | 273 (2 bewusst übersprungen) |
 | Frontend Unit-Tests | 25 |
 | Browser-Tests (Playwright) | 76 (3 übersprungen): Durchstiche Verkauf und Einkauf bei 1280 und 390 px, Rollen, alle Module |
