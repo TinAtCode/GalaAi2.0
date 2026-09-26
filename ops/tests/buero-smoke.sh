@@ -12,8 +12,22 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 [ ! -f .env.buero ] || { echo "✗ .env.buero existiert schon – der Test würde sie löschen." >&2; exit 1; }
 COMPOSE=(docker compose -f docker-compose.buero.yml --env-file .env.buero --profile demo)
+LAST_ERROR=""
 cleanup() {
-  if [ "${1:-0}" != 0 ]; then "${COMPOSE[@]}" logs --no-color --tail=150 || true; fi
+  if [ "${1:-0}" != 0 ]; then
+    # Zustand vor dem Aufräumen festhalten; die Fehlermeldung am Ende wiederholen
+    echo "── Container" >&2
+    "${COMPOSE[@]}" ps -a >&2 || true
+    for svc in https frontend backup postgres backend; do
+      echo "── Logs $svc" >&2
+      "${COMPOSE[@]}" logs --no-color --tail=40 "$svc" >&2 || true
+    done
+    echo "── Erreichbarkeit" >&2
+    for url in https://localhost:8443/ https://127.0.0.1:8443/; do
+      command curl -sk --connect-timeout 5 --max-time 10 -o /dev/null -w "$url → %{http_code}\n" "$url" >&2 || echo "$url → keine Verbindung" >&2
+    done
+    echo "✗ Abbruch (Exit $1): ${LAST_ERROR:-siehe oben}" >&2
+  fi
   "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
   # Sicherungen gehören root (Container) – im Container löschen
   docker run --rm -v "$PWD/backups:/b" alpine:3.20 rm -rf /b/buero >/dev/null 2>&1 || true
@@ -21,6 +35,7 @@ cleanup() {
 }
 trap 'cleanup $?' EXIT
 fail() {
+  LAST_ERROR="$*"
   echo "✗ $*" >&2
   exit 1
 }
