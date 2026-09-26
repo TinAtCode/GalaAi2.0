@@ -823,6 +823,13 @@ und eine Schritt-für-Schritt-Anleitung dafür liegen bei (siehe `TESTANLEITUNG.
   - Die Beispieldaten sind entsprechend sortiert.
   - Neuer E2E-Durchstich Einkauf: Eingangsrechnung am Projekt bis in die Nachkalkulation.
 - **Nachtrag – Rollen im Browser (#48):** E2E-Tests für Mitarbeiter und Buchhaltung. Sie prüfen, was jede Rolle sieht und darf und welche Beträge ausgeblendet sind.
+- **Nachtrag – Datenschutz: Auskunft und Anonymisieren:**
+  - Kunden: Auskunft als JSON-Datei und Anonymisieren auf der Kundenseite (Bereich „Datenschutz“).
+    Nicht bei offenen Rechnungen oder laufendem Pflegevertrag. Ausgestellte Rechnungen bleiben unverändert.
+  - Nutzer/Mitarbeiter: Auskunft und Anonymisieren in den Einstellungen unter „Benutzer“. Die Person
+    kann sich danach nicht mehr anmelden; Zeiten bleiben für die Lohnunterlagen.
+  - Alte Protokolleinträge des Datensatzes werden geschwärzt, die Anonymisierung selbst protokolliert.
+  - Einzelheiten und verbleibende Lücken: `PRUEFUNG.md`, Abschnitt 5.
 
 ---
 

@@ -50,6 +50,7 @@ import { MailModule } from './mail/mail.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { MasterDataImportModule } from './master-data-import/master-data-import.module';
 import { SiteModule } from './site/site.module';
+import { PrivacyModule } from './privacy/privacy.module';
 import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
 
 @Module({
@@ -105,6 +106,7 @@ import { LOGIN_ACCOUNT_THROTTLER } from './auth/login-throttle';
     ContractsModule,
     MasterDataImportModule,
     SiteModule,
+    PrivacyModule,
     UnitsModule,
     UsersModule,
     InvoicesModule,

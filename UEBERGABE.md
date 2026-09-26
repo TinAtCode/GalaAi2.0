@@ -188,9 +188,9 @@ Sicherungen aufbewahren.**
 | Prüfung | Umfang (Stand 26.09.2026) |
 |---|---|
 | Backend Unit-Tests | 322 (davon 6 halten `DATENMODELL.md` und `API.md` aktuell) |
-| Backend Integrationstests (echte PostgreSQL, HTTP) | 273 (2 bewusst übersprungen) |
+| Backend Integrationstests (echte PostgreSQL, HTTP) | 277 (2 bewusst übersprungen) |
 | Frontend Unit-Tests | 25 |
-| Browser-Tests (Playwright) | 76 (3 übersprungen): Durchstiche Verkauf und Einkauf bei 1280 und 390 px, Rollen, alle Module |
+| Browser-Tests (Playwright) | 77 (3 übersprungen): Durchstiche Verkauf und Einkauf bei 1280 und 390 px, Rollen, alle Module |
 | Einzelplatz im Browser | 7 Tests: Ersteinrichtung, Rollen, alle 18 Bereiche, Handy offline |
 
 **CI-Jobs** (`.github/workflows`), alle laufen bei jedem Push und PR:
@@ -259,7 +259,7 @@ Sicherungen aufbewahren.**
 - NestJS 12 ist noch nicht eingebaut (reines ESM, eigener Umbau).
 - Alarmschwellen nach einigen Wochen echtem Betrieb anpassen (`BETRIEB.md`, „Überwachung“).
 
-- Datenschutz: kein Löschen/Anonymisieren von Kunden und Mitarbeitern, keine Auskunft auf Knopfdruck (`PRUEFUNG.md`, Abschnitt 5).
+- Datenschutz: Auskunft und Anonymisieren für Kunden und Nutzer sind da; freie Texte, Sicherungen und Löschfristen bleiben Handarbeit (`PRUEFUNG.md`, Abschnitt 5).
 
 **Bewusst nicht geplant:** automatischer Kontoabruf (EBICS/FinTS), E-Rechnungs-Versand über Peppol.
 **Noch nicht umgesetzt:** DATANORM, Vergleich mit Hero.

@@ -15,6 +15,7 @@ const PUBLIC_USER_FIELDS = {
   createdAt: true,
   roles: { select: { role: { select: { id: true, name: true } } } },
   employee: { select: { id: true } },
+  anonymizedAt: true,
 } satisfies Prisma.UserSelect;
 
 @Injectable()
@@ -27,6 +28,12 @@ export class UsersService {
       select: PUBLIC_USER_FIELDS,
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
+  }
+
+  // Anonymisierte Nutzer (Datenschutz) bleiben gesperrt
+  private assertNotAnonymized(user: { anonymizedAt: Date | null }) {
+    if (user.anonymizedAt)
+      throw new BadRequestException('Der Nutzer ist anonymisiert und kann nicht mehr geändert werden.');
   }
 
   private async findOneOrThrow(companyId: string, id: string) {
@@ -70,6 +77,7 @@ export class UsersService {
 
   async update(companyId: string, actingUserId: string, id: string, dto: UpdateUserDto) {
     const before = await this.findOneOrThrow(companyId, id);
+    this.assertNotAnonymized(before);
     if (dto.active === false && id === actingUserId) {
       throw new BadRequestException('Du kannst dich nicht selbst deaktivieren.');
     }
@@ -102,7 +110,7 @@ export class UsersService {
   // Passwort durch einen Admin neu setzen (z.B. vergessen). Meldet alle
   // Sitzungen des Nutzers ab.
   async resetPassword(companyId: string, actingUserId: string, id: string, password: string) {
-    await this.findOneOrThrow(companyId, id);
+    this.assertNotAnonymized(await this.findOneOrThrow(companyId, id));
     const passwordHash = await hashPassword(password);
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id }, data: { passwordHash, tokenVersion: { increment: 1 } } });
