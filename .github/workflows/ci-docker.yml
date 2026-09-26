@@ -79,6 +79,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends podman
           sudo systemctl stop docker.socket docker.service
+          # Docker hinterlässt seine Firewall-Regeln (FORWARD-Policy DROP): sie
+          # blockieren Podmans Portweiterleitung – die Verbindung zu :8443 kommt
+          # zustande, aber keine Daten. Auf einem Rechner ohne Docker gibt es das nicht.
+          sudo iptables -P FORWARD ACCEPT
+          sudo iptables -F DOCKER-USER 2>/dev/null || true
+          sudo iptables -F FORWARD
           sudo systemctl start podman.socket
           # Socket-Ordner gehört root: für den CI-Nutzer öffnen (nur auf dem Runner)
           sudo chmod 711 /run/podman
