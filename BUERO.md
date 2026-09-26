@@ -163,6 +163,30 @@ Microsoft schickt keine Angabe, ob die E-Mail bestätigt ist. Dafür zusätzlich
 setzen. Das geht nur mit der eigenen Tenant-ID in `OIDC_ISSUER`, nie mit `common` oder
 `organizations`, denn dort könnte jeder beliebige E-Mail-Adressen eintragen.
 
+## Später auf einen Server umziehen
+
+Alles, was im Büro entsteht, lässt sich 1:1 auf einen Server mitnehmen: Kunden, Projekte, Angebote,
+Rechnungen, Zeiten, Zugänge und Rollen, Dokumente und Fotos. Die Sicherungen des Büro-Rechners haben
+dasselbe Format wie die des Servers (`BETRIEB.md`).
+
+1. **Im Büro sichern:** `ops/buero/backup-now.sh` (Windows: `backup-now.cmd`). Der neueste Ordner in
+   `backups/buero` ist der Stand für den Umzug.
+2. **Server einrichten** nach `BETRIEB.md`. In `.env.production` den Wert **`SECRET_KEY` aus
+   `.env.buero` übernehmen**. Damit bleiben die gespeicherten KI-Schlüssel lesbar, und die Handys
+   behalten die Push-Nachrichten. Datenbank-Passwort und `JWT_SECRET` sind auf dem Server neu.
+3. **Sicherung auf den Server kopieren**, z.B. `scp -r backups/buero/<Stand> server:gartenai/backups/`,
+   und dort `ops/restore.sh backups/<Stand>` ausführen. Die Prüfsummen werden kontrolliert, dann
+   werden Datenbank und Dokumente ersetzt. Eine neuere Version passt die Datenbank beim Start an.
+4. **Anmelden** mit denselben Zugängen. Die Handys öffnen die neue Adresse. Hat der Server ein echtes
+   Zertifikat, entfällt das Stammzertifikat.
+5. **Büro-Rechner beenden** (`stop.sh` bzw. `stop.cmd`), damit nicht an zwei Stellen weitergearbeitet
+   wird. Die Sicherungen dort aufheben.
+
+Optional können die Dokumente danach auf dem Server in einen Objektspeicher umziehen (`BETRIEB.md`,
+„Dokumente im Objektspeicher“). Die CI spielt diesen Umzug bei jedem Push durch: Sicherung vom
+Büro-Rechner in den Server-Stack. Danach sind Anmeldung, Kunden, Dokumente (Byte für Byte), Push- und
+KI-Schlüssel da.
+
 ## Update
 
 `ops/buero/update.sh` sichert zuerst, holt dann die neue Version (bei `git clone`) und baut neu. Die

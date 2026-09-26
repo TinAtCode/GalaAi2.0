@@ -7,14 +7,22 @@
 # das Update. Ist Playwright installiert (frontend/node_modules), läuft die
 # Checkliste BUERO-TEST.md im Browser mit (frontend/tests/buero): Einrichtung,
 # Zugänge je Rolle, alle Bereiche, Handy mit installierbarer App ohne Netz.
+# Zum Schluss der Umzug auf einen Server: die letzte Sicherung des Büro-Rechners
+# mit ops/restore.sh in docker-compose.prod.yml einspielen, mit dem SECRET_KEY
+# aus .env.buero – danach ist alles da, auch Dokumente und verschlüsselte Schlüssel.
 # Aufruf im Projektordner: bash ops/tests/buero-smoke.sh  (räumt am Ende auf)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 [ ! -f .env.buero ] || { echo "✗ .env.buero existiert schon – der Test würde sie löschen." >&2; exit 1; }
 COMPOSE=(docker compose -f docker-compose.buero.yml --env-file .env.buero --profile demo)
+SERVER=(docker compose -p gartenai-umzug-test -f docker-compose.prod.yml)
+# fürs Aufräumen reichen Platzhalter (die Datei verlangt die Variablen)
+SERVER_CLEAN=(env POSTGRES_PASSWORD=x JWT_SECRET=x "${SERVER[@]}")
 cleanup() {
   if [ "${1:-0}" != 0 ]; then "${COMPOSE[@]}" logs --no-color --tail=150 || true; fi
   "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+  if [ "${1:-0}" != 0 ]; then "${SERVER_CLEAN[@]}" logs --no-color --tail=100 2>/dev/null || true; fi
+  "${SERVER_CLEAN[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
   # Sicherungen gehören root (Container) – im Container löschen
   docker run --rm -v "$PWD/backups:/b" alpine:3.20 rm -rf /b/buero >/dev/null 2>&1 || true
   rm -rf ops/buero/certs .env.buero
@@ -148,4 +156,51 @@ if command -v pwsh >/dev/null 2>&1; then
   if grep -q 'Windows' <<<"$names"; then fail "restore.ps1 hat nichts ersetzt"; fi
   echo "✓ Zurückspielen mit restore.ps1"
 fi
+# Verschlüsselt gespeicherte Schlüssel (SECRET_KEY aus .env.buero): KI-Anbieter
+# mit API-Schlüssel und Push-Schlüssel – bis 09/2026 lehnte das Backend die
+# 48 Zeichen aus start.sh als SECRET_KEY ab
+AUTH="Authorization: Bearer $TOKEN"
+status=$(curl -sS --cacert "$CA" -o /dev/null -w '%{http_code}' -X POST "$BASE/ai/providers" -H "$AUTH" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"KI im Büro","kind":"openai_compatible","baseUrl":"http://host.docker.internal:11434/v1","model":"llama3","apiKey":"sk-buero-123"}')
+[ "$status" = 201 ] || fail "KI-Anbieter mit API-Schlüssel speichern: HTTP $status"
+PUSH_KEY=$(curl -fsS --cacert "$CA" -H "$AUTH" "$BASE/push/public-key" | json 'v.publicKey') || fail "Push-Schlüssel"
+DOC=$(curl -fsS --cacert "$CA" -X POST "$BASE/documents/upload?documentType=delivery_note" -H "$AUTH" \
+  -F "file=@ops/fixtures/smoke-scan.png;type=image/png" | json 'v.id')
+echo "✓ verschlüsselte Schlüssel (KI-Anbieter, Push) und Dokument im Büro"
+
+# Umzug auf einen Server: Sicherung vom Büro-Rechner in den Server-Stack
+sleep 1 # neue Sicherung bekommt einen neuen Zeitstempel
+ops/buero/backup-now.sh
+MOVE=$(find backups/buero -mindepth 1 -maxdepth 1 -type d -name '20*' ! -name '*.tmp' | sort | tail -n 1)
+SERVER_BASE=http://localhost:8096/api
+(
+  # Server mit eigenen Passwörtern, nur SECRET_KEY kommt vom Büro-Rechner mit
+  POSTGRES_PASSWORD="server$(date +%s)"
+  SECRET_KEY=$(sed -n 's/^SECRET_KEY=//p' .env.buero)
+  export POSTGRES_PASSWORD SECRET_KEY JWT_SECRET="umzug-test-jwt-secret-0123456789abcdef"
+  export APP_PORT=8096 COOKIE_SECURE=0 COMPOSE_PROJECT_NAME=gartenai-umzug-test
+  "${SERVER[@]}" up -d --build >/dev/null
+  for _ in $(seq 1 90); do curl -fsS -o /dev/null "$SERVER_BASE/health" 2>/dev/null && break; sleep 2; done
+  ENV_FILE=/dev/null COMPOSE_FILE=docker-compose.prod.yml ops/restore.sh "$MOVE" --yes
+)
+for _ in $(seq 1 90); do curl -fsS -o /dev/null "$SERVER_BASE/health" 2>/dev/null && break; sleep 2; done
+SERVER_TOKEN=$(curl -fsS -X POST "$SERVER_BASE/auth/login" -H 'Content-Type: application/json' \
+  -d '{"email":"clara@gruen-stein.de","password":"ein-langes-passwort"}' | json 'v.accessToken') ||
+  fail "Umzug: Anmeldung auf dem Server"
+SAUTH="Authorization: Bearer $SERVER_TOKEN"
+grep -q 'Familie Sicher' <<<"$(curl -fsS -H "$SAUTH" "$SERVER_BASE/customers" | json 'JSON.stringify(v.items ?? v)')" ||
+  fail "Umzug: Kunden fehlen"
+cmp -s <(curl -fsS -H "$SAUTH" "$SERVER_BASE/documents/$DOC/download") ops/fixtures/smoke-scan.png ||
+  fail "Umzug: Dokument fehlt oder ist verändert"
+[ "$(curl -fsS -H "$SAUTH" "$SERVER_BASE/push/public-key" | json 'v.publicKey')" = "$PUSH_KEY" ] ||
+  fail "Umzug: Push-Schlüssel nicht lesbar (SECRET_KEY nicht übernommen?)"
+[ "$(curl -fsS -H "$SAUTH" "$SERVER_BASE/ai/providers" | json 'v.find(p=>p.name==="KI im Büro")?.hasApiKey')" = true ] ||
+  fail "Umzug: KI-Anbieter fehlt"
+if [ -x frontend/node_modules/.bin/playwright ]; then
+  curl -fsS -o /dev/null -X POST "$SERVER_BASE/auth/login" -H 'Content-Type: application/json' \
+    -d '{"email":"mitarbeiter@gruen-stein.de","password":"startpasswort-123"}' || fail "Umzug: Zugang Mitarbeiter"
+fi
+echo "✓ Umzug auf den Server: Anmeldung, Kunden, Dokument, Push- und KI-Schlüssel"
+
 echo "Rauchtest Büro bestanden."
